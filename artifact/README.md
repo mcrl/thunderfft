@@ -14,10 +14,10 @@ and Table 1 is a literature survey, so neither has a GPU evaluation task.
 | --- | ---: | --- | --- |
 | [figure2](figure2/README.md) | 9 | A100 FFT kernel time plot | Derive from Table 3; no duplicate measurement |
 | [figure3](figure3/README.md) | 10 | End-to-end FFT normalized performance | `sample/bench/`; communication-only and baseline work pending |
-| [figure4](figure4/README.md) | 10 | A100 1D convolution plot | Existing 1D driver; correctness and comparable semantics pending |
+| [figure4](figure4/README.md) | 10 | A100 1D convolution plot | Native correctness gate available; paper workload and comparable semantics pending |
 | [figure5](figure5/README.md) | 10 | H100 2D convolution plot | `sample/conv2d/`; full benchmark pending |
 | [table2](table2/README.md) | 3 | A100 performance model and measured reference | Model plus measured cuFFTDx rows |
-| [table3](table3/README.md) | 8 | FFT kernel latency matrix | ThunderFFT helpers exist; cuFFTDx sweep pending |
+| [table3](table3/README.md) | 8 | FFT kernel latency matrix | ThunderFFT A100/H100 checks measured; B200 and cuFFTDx sweep pending |
 | [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | MMA microbenchmark pending |
 | [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Dedicated source exists; FP32 path is cuFFT |
 | [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | External baseline integration pending |

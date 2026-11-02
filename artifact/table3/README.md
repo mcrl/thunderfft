@@ -2,7 +2,7 @@
 
 Owner: unassigned
 
-Status: pending
+Status: ThunderFFT measured on A100 and H100; B200 measurement and cuFFTDx sweep pending
 
 Paper p. 8, Section 6.2: single A100 PCIe 80GB, H100 PCIe, and B200; FFT
 sizes 64/128/256/512/1024/2048/4096; batch 65,536. Measure register-input and
@@ -14,29 +14,158 @@ placements, and sizes. The paper selects the best cuFFTDx launch parameters
 after an exhaustive sweep. [Figure 2](../figure2/README.md) consumes this data's
 A100/register subset.
 
-## Starting points and work to assign
+## Available ThunderFFT measurement
 
-- Reuse `sample/bench/main.cu` and
-  `sample/bench/baseline/thunderfft_bench.h`. Existing ThunderFFT helpers expose
-  register/shared paths, but the sample activates only N=128 and does not
-  implement the cuFFTDx sweep or this matrix's raw CSV contract.
-- Implement the cuFFTDx device-level paths, enumerated legal launch-parameter
-  sweep, common timing driver, CSV exporter, table generator, and `run.sh`.
-  Retain every candidate and the winner-selection rule rather than only minima.
-- Confirm cuFFTDx/MathDx version, exact swept parameter ranges, FFT direction,
-  input distribution/seed, repetition strategy and normalization, timer,
-  warmups/repetitions, and reported statistic. The draft leaves these incomplete.
-- Validate outputs for every reported implementation/configuration using identical
-  input data and the agreed reference/tolerances before timing. Repeated FFTs
-  used to amortize global access must not silently overflow or change the timing
-  workload; document the method and correctness check separately.
-- Match timing boundaries and layouts; distinguish register-resident and
-  shared-input paths. Record GPU/software metadata for each independently run
-  GPU; do not label one GPU's measurements as a three-GPU reproduction.
+The shared source [`sample/bench/paper_fft.cu`](../../sample/bench/paper_fft.cu)
+builds as `thff_paper_fft`. It selects all seven sizes, FP16 or TF32, and register
+or shared input: **28 ThunderFFT configurations per GPU**. It uses the existing
+benchmark kernels in `sample/bench/baseline/thunderfft_bench.h`. This driver
+does not implement the cuFFTDx parameter sweep, matched speedups or complete
+Table 3 reproduction. The unified `run.sh table3` adapter remains pending.
+
+Build from the repository root, choosing the compiler and architecture for the
+target GPU. The paper uses CUDA 12.9 / SM80 for A100 and CUDA 13.0 / SM90 or
+SM100 for H100 or B200. A minimal A100 build is:
+
+```sh
+cmake -S . -B build -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.9/bin/nvcc \
+  -DTHUNDERFFT_ARCHS=80
+cmake --build build --target thff_paper_fft -j2
+```
+
+The target compiles with `-O3 --use_fast_math -lineinfo`. Preserve those flags
+and architecture settings in a before/after comparison. GPU commands below
+are intended for the designated evaluation GPU; local CPU compilation alone
+does not establish a measured result.
+
+The CLI is:
+
+```text
+thff_paper_fft N fp16|tf32 register|shared [R=1000] [trials=3] [batch=65536]
+```
+
+For example, retain a separate raw CSV and metadata log for each configuration:
+
+```sh
+mkdir -p result/table3/manual-a100/raw
+build/sample/bench/thff_paper_fft 4096 fp16 register 1000 3 65536 \
+  > result/table3/manual-a100/raw/n4096-fp16-register.csv \
+  2> result/table3/manual-a100/raw/n4096-fp16-register.log
+python3 artifact/table3/compare_paper.py \
+  'result/table3/manual-a100/raw/*.csv' --gpu A100 \
+  --output result/table3/manual-a100/compared.csv
+```
+
+Repeat the executable call for N=64/128/256/512/1024/2048/4096, both precisions
+and both placements. Use distinct result directories and `--gpu H100` or
+`--gpu B200` for those GPUs. Do not mix GPU outputs in one comparison. The
+comparison script requires batch 65536 and reports median/minimum/maximum
+compute latency, signed deviation from the paper, and the separate e2e latency.
+Its default 10% tolerance is a descriptive, adjustable comparison threshold;
+the paper does not define a reproduction tolerance. All three GPUs require
+their own measurements.
+
+`paper-table3-xfft-targets.csv` transcribes the paper's 84 ThunderFFT timing
+targets; `paper-table3-all-targets.csv` also includes its 84 cuFFTDx targets.
+These are reference targets, not measurements produced by this repository run.
+
+## Measured check: 2026-11-02
+
+Vast.ai single-GPU rentals measured all 28 ThunderFFT forward configurations
+per available GPU. Each configuration used batch 65536, R=1000 and two timing
+trials per version, with the same harness and flags for the corrected library
+and parent `2f0810c7d4adb2663702b0774baf832900665d4b`.
+
+| GPU | Toolkit / architecture | Current latency versus paper | Current versus parent latency |
+| --- | --- | --- | --- |
+| A100 PCIe 80GB | CUDA 12.9 / SM80 | -2.78% to +6.61% | -0.61% to +0.19%; geometric mean -0.063% |
+| H100 PCIe 80GB | CUDA 13.0 / SM90 | +4.38% to +15.98% | -0.49% to +0.51%; geometric mean +0.041% |
+| B200 | CUDA 13.0 / native SM100 binaries built | Unmeasured: no rentable single-GPU offer | Unmeasured |
+
+Positive percentages mean longer latency. The A100 values are close to the
+paper; the H100 run remains slower, so full paper performance reproduction is
+not established. With the descriptive 10% threshold, A100 has 28/28 and H100
+20/28 configurations within range. That threshold is not specified by the
+paper. The small before/after differences with two trials do not demonstrate
+an optimization or a regression. Forward FFT bodies were retained while
+inverse and API correctness were repaired.
+
+Before timing, each GPU passed the 500-case FFT correctness matrix, 88 cases
+under each of Compute Sanitizer memcheck, synccheck and racecheck, and eight
+small convolution checks. The full FFT matrix's maximum relative L2 errors
+were FP16 `0.0006623171` on both GPUs, TF32 `0.0026404948` on A100 and
+`0.0026454357` on H100, against a `0.005` gate. These are bounded-input results.
+
+Raw data and billing evidence are local generated outputs under
+`result/implementation-completion-20261102/performance/measurement/gpu-run1/`
+(A100) and `gpu-run2/` (H100). The same performance directory contains
+`a100-paper-comparison.csv`, `h100-paper-comparison.csv` and before/after
+summaries. The frozen source archive SHA256 is
+`07d99326607c586edd5bf448f86bd40a95f27b4c23d47dc12d1d3c6b442aac49`.
+Both instances were destroyed after measurement. The H100 active measurement
+clocks and the paper's clock settings were not recorded together, so the
+remaining H100 gap cannot be attributed to a clock difference from this run.
+The cuFFTDx exhaustive sweep and full convolution comparison remain separate
+artifact tasks.
+
+## Timing and correctness definitions
+
+The driver reports CUDA-event times in microseconds. For `R=1000`, it records
+one R-repeat and one 2R-repeat kernel and computes
+`compute_us = (t_2R_us - t_R_us) / R`. Input/output global memory traffic occurs
+once per kernel; the FFT repeats in registers or with shared-memory loads and
+stores according to the selected placement. The difference removes most fixed
+load/store and launch cost.
+
+Before timing, the driver runs three extra R-repeat warmup kernels. Each trial
+then warms the R and 2R kernels once before recording their individual times.
+Those warmups are outside reported intervals. The CSV retains both raw times;
+nonpositive or nonfinite differential times fail the run.
+
+Timed input follows the existing sample's real sinusoid
+`sin(2*pi*(i % N)/N)/sqrt(N)`, with zero imaginary part. Input and output global
+buffers are separate, so each kernel launch starts from the same input. Repeated
+FFTs inside a timing kernel can grow to nonfinite values; their final values
+are not used for correctness validation.
+
+Accuracy is checked separately on a deterministic complex LCG input, batch 64,
+rounded to the selected storage precision. A single forward FFT is compared
+against cuFFT FP64 applied to that exact rounded input. Nonfinite outputs or
+relative L2 error above `5e-3` fail before performance timing. This is a limited
+measurement gate; the broader correctness suite covers additional inputs,
+directions and batch boundaries.
+
+`e2e_out_of_place_us` measures a separate single-FFT kernel, with one warmup and
+ten timed launches. It includes global input/output movement and must be kept
+separate from Table 3's differential compute latency. The metadata log records
+GPU name, compute capability, driver/runtime/compiled CUDA and cuFFT versions,
+and the extra warmup count. Also retain exact build flags, Git revision, dirty
+state, GPU clocks/power settings and raw commands in the run manifest.
+
+Raw CSV columns are:
+
+```text
+N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_out_of_place_us,single_fft_relL2,shared_bytes
+```
+
+## Remaining work to assign
+
+- Implement cuFFTDx device-level register/shared paths and an exhaustive legal
+  launch-parameter sweep. Retain every candidate and the winner-selection rule.
+- Confirm the paper's cuFFTDx/MathDX version, swept parameter ranges, direction,
+  timing statistic and other missing experimental settings. R=1000 comes from
+  the existing repository helper; the PDF does not explicitly specify it or the
+  three added warmups.
+- Validate each implementation using matched input, reference and tolerances
+  before reporting timings or speedups. Preserve separate correctness input and
+  performance input; never validate the overflowed repeated-loop output.
+- Finish the unified adapter, canonical CSV conversion and table generator.
+  Record GPU/software metadata for every independently measured GPU.
 
 ## Results and completion
 
-Write `data.csv` and `table.csv` under `THUNDERFFT_RESULT_DIR`. Proposed raw
+The completed unified adapter must write `data.csv` and `table.csv` under
+`THUNDERFFT_RESULT_DIR`. Proposed canonical raw
 columns: `gpu,N,batch,placement,library,precision,configuration,repeat,time_us,rel_l2,passed,selected`.
 Keep all tuning candidates, raw timings, validation reports, and derived
 speedups/geometric means. Completion requires the complete confirmed matrix
