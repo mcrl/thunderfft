@@ -2,6 +2,10 @@
 
 CUDA FFT kernels and convolution experiments using NVIDIA Tensor Cores.
 
+This is the `artifact` branch, which includes paper reproduction scripts,
+precision/range experiments and historical local CSV outputs. The `main` branch
+contains the library and sample programs without the `artifact/` directory.
+
 ## Repository layout
 
 - `include/thunderfft/`: header-only library; include `<thunderfft/thunderfft.cuh>`.
