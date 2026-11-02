@@ -1,166 +1,194 @@
 #include <cuda_runtime.h>
 #include <cufft.h>
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <iostream>
-#include <iomanip>
+
 #include <algorithm>
+#include <charconv>
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
-#include <thunderfft/thunderfft.cuh>  // ThunderFFT<T,N>, ThunderFFTInitialize/Finalize
-#include "../utils.h"
+#include <thunderfft/thunderfft.cuh>
 
-// ------------------------------
-// Test input (bin-aligned tones)
-// ------------------------------
-static void make_test_input(float2* h, unsigned N, unsigned batch) {
-    const float two_pi = 2.0f * float(M_PI);
-    for (unsigned b = 0; b < batch; ++b) {
-        const float f0  = float(1 + b);
-        const float amp = 0.5f + 0.1f * float(b);
-        for (unsigned i = 0; i < N; ++i) {
-            const float t  = float(i) / float(N);
-            const float re = amp * std::cos(two_pi * f0 * t)
-                           + 0.1f * std::cos(two_pi * 7.0f * t);
-            const float im = amp * std::sin(two_pi * f0 * t)
-                           + 0.1f * std::sin(two_pi * 7.0f * t);
-            h[b * N + i] = make_float2(re, im);
+namespace {
+
+constexpr int kN = 64;
+constexpr int kBatchPerBlock = 16;
+// A regression threshold for this deterministic float forward example, not an
+// accuracy guarantee for every input, FFT size, direction, or data type.
+constexpr double kTolerance = 5e-3;
+
+void check_cuda(cudaError_t status, const char* operation) {
+    if (status != cudaSuccess) {
+        throw std::runtime_error(std::string(operation) + ": " +
+                                 cudaGetErrorString(status));
+    }
+}
+
+void check_cufft(cufftResult status, const char* operation) {
+    if (status != CUFFT_SUCCESS) {
+        throw std::runtime_error(std::string(operation) + ": cuFFT status " +
+                                 std::to_string(static_cast<int>(status)));
+    }
+}
+
+void usage(std::ostream& out, const char* executable) {
+    out << "Usage: " << executable << " [batch] [device]\n"
+        << "  batch   Positive multiple of 16 (default: 16).\n"
+        << "  device  Nonnegative CUDA device ordinal (default: 0).\n"
+        << "Checks an unscaled, out-of-place, complex float forward FFT "
+           "(N=64) against cuFFT.\n"
+        << "PASS requires finite outputs and relative L2/Linf <= 5e-3 "
+           "for this example input.\n";
+}
+
+int parse_nonnegative(const char* text, const char* name) {
+    int value = 0;
+    const char* end = text + std::strlen(text);
+    const auto parsed = std::from_chars(text, end, value);
+    if (parsed.ec != std::errc{} || parsed.ptr != end || value < 0) {
+        throw std::invalid_argument(std::string(name) +
+                                    " must be a nonnegative integer in int range");
+    }
+    return value;
+}
+
+// Bounded, bin-aligned complex tones; repeating the pattern keeps larger batches
+// deterministic without growing the amplitude or frequency with the batch size.
+void make_input(std::vector<float2>& input, int batch) {
+    constexpr double two_pi = 6.28318530717958647692;
+    for (int b = 0; b < batch; ++b) {
+        const double frequency = 1 + b % 13;
+        const double amplitude = 0.5 + 0.1 * (b % 8);
+        for (int i = 0; i < kN; ++i) {
+            const double phase = two_pi * i / kN;
+            input[static_cast<size_t>(b) * kN + i] = make_float2(
+                static_cast<float>(amplitude * std::cos(frequency * phase) +
+                                   0.1 * std::cos(7.0 * phase)),
+                static_cast<float>(amplitude * std::sin(frequency * phase) +
+                                   0.1 * std::sin(7.0 * phase)));
         }
     }
 }
 
-// ------------------------------
-// Simple checksum (optional)
-// ------------------------------
-static double checksum(const float2* v, unsigned N, unsigned batch) {
-    long double acc = 0.0L;
-    const size_t total = size_t(N) * batch;
-    for (size_t i = 0; i < total; ++i) {
-        acc += (long double)v[i].x * 1.0001L
-             + (long double)v[i].y * 0.9997L;
+struct Resources {
+    float2* input = nullptr;
+    float2* output = nullptr;
+    float2* reference = nullptr;
+    cufftHandle plan = 0;
+    bool twiddles_started = false;
+
+    // This also runs when an allocation, CUDA operation, or comparison throws.
+    ~Resources() {
+        if (plan) cufftDestroy(plan);
+        if (twiddles_started) thunderfft::ThunderFFTFinalize<float>();
+        if (reference) cudaFree(reference);
+        if (output) cudaFree(output);
+        if (input) cudaFree(input);
     }
-    return (double)acc;
+};
+
+bool run(int batch, int device) {
+    check_cuda(cudaSetDevice(device), "cudaSetDevice");
+    const size_t count = static_cast<size_t>(kN) * batch;
+    const size_t bytes = count * sizeof(float2);
+    std::vector<float2> input(count), output(count), reference(count);
+    make_input(input, batch);
+
+    Resources resources;
+    check_cuda(cudaMalloc(&resources.input, bytes), "cudaMalloc(input)");
+    check_cuda(cudaMalloc(&resources.output, bytes), "cudaMalloc(output)");
+    check_cuda(cudaMalloc(&resources.reference, bytes), "cudaMalloc(reference)");
+    check_cuda(cudaMemcpy(resources.input, input.data(), bytes,
+                          cudaMemcpyHostToDevice), "cudaMemcpy(input)");
+
+    resources.twiddles_started = true;
+    thunderfft::ThunderFFTInitialize<float>(kN);
+    check_cuda(cudaGetLastError(), "ThunderFFTInitialize");
+    check_cuda(cudaDeviceSynchronize(), "ThunderFFTInitialize synchronization");
+
+    // Each signal is contiguous: input[b * kN + i]. Input and output are distinct.
+    thunderfft::ThunderFFT_global<float, kN, true>(
+        resources.input, resources.output, batch, /*stream=*/0);
+    check_cuda(cudaGetLastError(), "ThunderFFT launch");
+    // The current launch wrapper discards its synchronization status, so check
+    // explicitly before accepting or copying its result.
+    check_cuda(cudaDeviceSynchronize(), "ThunderFFT synchronization");
+
+    check_cufft(cufftPlan1d(&resources.plan, kN, CUFFT_C2C, batch), "cufftPlan1d");
+    check_cufft(cufftExecC2C(resources.plan,
+                           reinterpret_cast<cufftComplex*>(resources.input),
+                           reinterpret_cast<cufftComplex*>(resources.reference),
+                           CUFFT_FORWARD), "cufftExecC2C");
+    check_cuda(cudaGetLastError(), "cuFFT launch");
+    check_cuda(cudaDeviceSynchronize(), "cuFFT synchronization");
+    check_cuda(cudaMemcpy(output.data(), resources.output, bytes,
+                          cudaMemcpyDeviceToHost), "cudaMemcpy(output)");
+    check_cuda(cudaMemcpy(reference.data(), resources.reference, bytes,
+                          cudaMemcpyDeviceToHost), "cudaMemcpy(reference)");
+
+    double squared_error = 0.0, squared_reference = 0.0;
+    double max_error = 0.0, max_reference = 0.0;
+    for (size_t i = 0; i < count; ++i) {
+        const float2 a = output[i], b = reference[i];
+        if (!std::isfinite(a.x) || !std::isfinite(a.y) ||
+            !std::isfinite(b.x) || !std::isfinite(b.y)) {
+            throw std::runtime_error("nonfinite output at complex element " +
+                                     std::to_string(i));
+        }
+        const double error = std::hypot(static_cast<double>(a.x) - b.x,
+                                        static_cast<double>(a.y) - b.y);
+        const double magnitude = std::hypot(static_cast<double>(b.x),
+                                            static_cast<double>(b.y));
+        squared_error += error * error;
+        squared_reference += magnitude * magnitude;
+        max_error = std::max(max_error, error);
+        max_reference = std::max(max_reference, magnitude);
+    }
+    const double l2 = squared_reference > 0.0
+        ? std::sqrt(squared_error / squared_reference) : std::sqrt(squared_error);
+    const double linf = max_reference > 0.0 ? max_error / max_reference : max_error;
+    const bool passed = std::isfinite(l2) && std::isfinite(linf) &&
+                        l2 <= kTolerance && linf <= kTolerance;
+    std::cout << "ThunderFFT vs cuFFT: float2, N=" << kN
+              << ", forward (unscaled), batch=" << batch
+              << ", device=" << device << '\n'
+              << std::scientific << std::setprecision(6)
+              << "Relative L2:   " << l2 << '\n'
+              << "Relative Linf: " << linf << '\n'
+              << "Tolerance:     " << kTolerance << " (this example input)\n"
+              << (passed ? "PASS" : "FAIL") << '\n';
+    return passed;
 }
 
-// ------------------------------
-// Error metrics vs reference
-// ------------------------------
-static double l2_rel(const float2* a, const float2* b, size_t n) {
-    long double num = 0.0L, den = 0.0L;
-    for (size_t i = 0; i < n; ++i) {
-        const long double dx = (long double)a[i].x - (long double)b[i].x;
-        const long double dy = (long double)a[i].y - (long double)b[i].y;
-        num += dx*dx + dy*dy;
-        den += (long double)b[i].x*(long double)b[i].x
-             + (long double)b[i].y*(long double)b[i].y;
+} // namespace
+
+int main(int argc, char** argv) {
+    if (argc == 2 && (std::strcmp(argv[1], "--help") == 0 ||
+                      std::strcmp(argv[1], "-h") == 0)) {
+        usage(std::cout, argv[0]);
+        return EXIT_SUCCESS;
     }
-    return den > 0 ? (double)std::sqrt((double)(num/den)) : (double)std::sqrt((double)num);
-}
-
-static double linf_rel(const float2* a, const float2* b, size_t n) {
-    long double max_diff = 0.0L, max_ref = 0.0L;
-    for (size_t i = 0; i < n; ++i) {
-        const long double dx = (long double)a[i].x - (long double)b[i].x;
-        const long double dy = (long double)a[i].y - (long double)b[i].y;
-        const long double diff = std::hypot(dx, dy);
-        const long double refm = std::hypot((long double)b[i].x, (long double)b[i].y);
-        if (diff > max_diff) max_diff = diff;
-        if (refm > max_ref)  max_ref  = refm;
-    }
-    return max_ref > 0 ? (double)(max_diff / max_ref) : (double)max_diff;
-}
-
-int main(int /*argc*/, char** /*argv*/) {
-    // Compile-time N for ThunderFFT template
-    constexpr unsigned N = 64;
-
-    unsigned batch = 65536;
-    int device     = 0;
-
-    CHECK_CUDA(cudaSetDevice(device));
-    std::cout << "ThunderFFT vs cuFFT\n"
-              << "  Type   : float/float2\n"
-              << "  N      : " << N << " (compile-time)\n"
-              << "  batch  : " << batch << "\n"
-              << "  device : " << device << "\n";
-
-    const size_t count = size_t(N) * batch;
-    const size_t bytes = sizeof(float2) * count;
-
-    // Host buffers
-    float2* h_in  = static_cast<float2*>(std::malloc(bytes));
-    float2* h_out = static_cast<float2*>(std::malloc(bytes)); // ThunderFFT
-    float2* h_ref = static_cast<float2*>(std::malloc(bytes)); // cuFFT
-    if (!h_in || !h_out || !h_ref) {
-        std::fprintf(stderr, "Host allocation failed (%zu bytes)\n", bytes);
+    try {
+        if (argc > 3) throw std::invalid_argument("too many arguments");
+        const int batch = argc > 1 ? parse_nonnegative(argv[1], "batch") : 16;
+        const int device = argc > 2 ? parse_nonnegative(argv[2], "device") : 0;
+        if (batch <= 0 || batch % kBatchPerBlock != 0) {
+            throw std::invalid_argument("batch must be a positive multiple of 16; "
+                                        "partial FFT blocks are unsupported");
+        }
+        if (static_cast<size_t>(batch) >
+            std::numeric_limits<size_t>::max() / (kN * sizeof(float2))) {
+            throw std::invalid_argument("batch allocation size overflows size_t");
+        }
+        return run(batch, device) ? EXIT_SUCCESS : EXIT_FAILURE;
+    } catch (const std::exception& error) {
+        std::cerr << "FAIL: " << error.what() << '\n';
         return EXIT_FAILURE;
     }
-    make_test_input(h_in, N, batch);
-
-    // Device buffers
-    float2* d_in  = nullptr;
-    float2* d_out = nullptr; // ThunderFFT output
-    float2* d_ref = nullptr; // cuFFT output
-    CHECK_CUDA(cudaMalloc(&d_in,  bytes));
-    CHECK_CUDA(cudaMalloc(&d_out, bytes));
-    CHECK_CUDA(cudaMalloc(&d_ref, bytes));
-    CHECK_CUDA(cudaMemcpy(d_in, h_in, bytes, cudaMemcpyHostToDevice));
-
-    // ThunderFFT twiddles (optional cache)
-    thunderfft::ThunderFFTInitialize<float>(N);
-
-    // --- ThunderFFT run (warm-up + timed) ---
-    const unsigned int warm_up_runs = 1;
-    const unsigned int runs = 5;
-    const float ms_tf = measure_execution_ms(
-        [&]() { thunderfft::ThunderFFT_global<float, N, true>(d_in, d_out, batch, /*stream=*/0); },
-        warm_up_runs,
-        runs);
-
-    CHECK_CUDA(cudaMemcpy(h_out, d_out, bytes, cudaMemcpyDeviceToHost));
-
-    // --- cuFFT reference (forward, unscaled) ---
-    cufftHandle plan{};
-    CHECK_CUFFT(cufftPlan1d(&plan, int(N), CUFFT_C2C, int(batch)));
-    CHECK_CUFFT(cufftExecC2C(plan,
-                             reinterpret_cast<cufftComplex*>(d_in),
-                             reinterpret_cast<cufftComplex*>(d_ref),
-                             CUFFT_FORWARD));
-    CHECK_CUDA(cudaDeviceSynchronize());
-    CHECK_CUDA(cudaMemcpy(h_ref, d_ref, bytes, cudaMemcpyDeviceToHost));
-
-    // --- Compare ThunderFFT vs cuFFT ---
-    const double err_l2   = l2_rel(h_out, h_ref, count);
-    const double err_linf = linf_rel(h_out, h_ref, count);
-
-    // Print
-    std::cout << std::fixed << std::setprecision(6);
-    std::cout << "ThunderFFT avg time : " << ms_tf << " ms\n";
-    std::cout << "Checksum(ThunderFFT): " << checksum(h_out, N, batch) << "\n";
-    std::cout << "Compare vs cuFFT    : L2_rel=" << std::setprecision(3) << err_l2
-              << "  Linf_rel=" << err_linf << std::setprecision(6) << "\n";
-
-    // Show first few bins for batch 0
-    const unsigned to_print = std::min<unsigned>(8, N);
-    std::cout << "First " << to_print << " bins (batch 0):\n";
-    for (unsigned i = 0; i < to_print; ++i) {
-        const float2 a = h_out[i];
-        const float2 b = h_ref[i];
-        std::cout << "  k=" << std::setw(3) << i
-                  << "  TF=(" << a.x << ", " << a.y << ")"
-                  << "  cuFFT=(" << b.x << ", " << b.y << ")\n";
-    }
-
-    // Cleanup
-    thunderfft::ThunderFFTFinalize<float>();
-    CHECK_CUFFT(cufftDestroy(plan));
-    CHECK_CUDA(cudaFree(d_in));
-    CHECK_CUDA(cudaFree(d_out));
-    CHECK_CUDA(cudaFree(d_ref));
-    std::free(h_in);
-    std::free(h_out);
-    std::free(h_ref);
-
-    std::cout << "Done.\n";
-    return 0;
 }

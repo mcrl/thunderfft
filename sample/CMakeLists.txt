@@ -7,5 +7,5 @@ endif()
 
 add_subdirectory(conv2d)
 add_subdirectory(conv1d)
-# add_subdirectory(fft1d)
+add_subdirectory(fft1d)
 add_subdirectory(bench)
