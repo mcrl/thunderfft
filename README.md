@@ -126,8 +126,13 @@ outputs are maintained on the `artifact` branch:
 
 ```bash
 git switch artifact
+./run.sh --list
+./run.sh --dry-run
 ```
 
-That branch contains instructions under `artifact/figure5/` and `artifact/table5/`.
-Numerical correctness and cross-implementation equivalence of those experiments
-are still being investigated.
+That branch's `artifact/README.md` describes ten assignable evaluation tasks:
+Figure 2–5 and Table 2–7 in the supplied paper. Use `./run.sh` for all smoke
+tasks, or `./run.sh table5` for a selected task. New outputs are isolated under
+`result/<evaluation>/<run_id>/`, with batch summaries under `result/runs/`.
+Unfinished evaluations are recorded as pending rather than passed. Numerical
+correctness and cross-implementation equivalence remain completion requirements.

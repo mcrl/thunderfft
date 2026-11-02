@@ -7,3 +7,4 @@ __pycache__/
 *.py[cod]
 /sample/conv1d/_local_artifacts/
 /sample/conv1d/*.log
+/result/

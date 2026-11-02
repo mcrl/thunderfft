@@ -359,5 +359,6 @@ Paper reproduction instructions and experiment data are maintained separately:
 git switch artifact
 ```
 
-On that branch, see `artifact/figure5/` and `artifact/table5/`. The sample smoke
-check and the timing programs above do not replace those reproduction workflows.
+On that branch, see `artifact/README.md` and use the root `./run.sh --list` to
+find the per-figure/table workflows. The sample smoke check and timing programs
+above do not replace those reproduction workflows.
