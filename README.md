@@ -7,9 +7,6 @@ CUDA FFT kernels and convolution experiments using NVIDIA Tensor Cores.
 - `include/thunderfft/`: header-only library; include `<thunderfft/thunderfft.cuh>`.
 - `sample/`: CMake sample programs and the active FFT benchmark.
 - `bench/`: earlier benchmark sources, currently outside the CMake build.
-- `artifact/figure5/`: 1D convolution benchmark driver and existing local CSV output.
-- `artifact/table5/`: precision/range benchmark, layout sweeps and existing local CSV outputs.
-- `artifact/flashfftconv/`: notes on the external FlashFFTConv dependency.
 
 ## Build
 
@@ -22,7 +19,7 @@ From the repository root:
 
 ```bash
 cmake -S . -B build -DTHUNDERFFT_ARCHS=80
-cmake --build build --target benchmark benchmark_table5_precision thff_conv1d_fullfft4096 -j
+cmake --build build --target benchmark thff_conv1d_fullfft4096 -j
 ```
 
 If `nvcc` is not on `PATH`, pass
@@ -37,15 +34,16 @@ library and development headers are installed.
 
 ## Artifact experiments
 
-See [Figure 5](artifact/figure5/README.md) and [Table 5](artifact/table5/README.md)
-for their commands. Figure 5 additionally needs a Python environment with
-PyTorch and a separately installed FlashFFTConv clone.
+Paper reproduction scripts, the Table 5 benchmark and historical local CSV
+outputs are maintained on the `artifact` branch. Switch branches to use them:
 
-The included CSVs are historical local outputs preserved during repository
-preparation. They have not been revalidated as paper reference results. Numerical
-correctness and cross-implementation equivalence are still being investigated;
-this repository reorganization does not resolve the previously identified
-correctness issues.
+```bash
+git switch artifact
+```
+
+That branch includes the experiment instructions under `artifact/figure5/` and
+`artifact/table5/`. Numerical correctness and cross-implementation equivalence
+are still being investigated.
 
 ## Git history
 
