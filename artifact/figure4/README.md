@@ -21,7 +21,9 @@ The legacy driver defaults to `result/figure4/legacy_timings.csv`, or `$THUNDERF
 
 ## Work to assign
 
-1. Fix and validate the 4096 FFT-convolution path before collecting timing data. The earlier small `K=9` check reported a large relative error; this adapter must not silently disable that check.
+The 4096-point filter-frequency transpose has been corrected. Targeted A100 / CUDA 12.9 real-input checks with seed 42 reduced the `N=4096, K=9, B=D=1` output/`N` circular-convolution relative L2 error from `0.281035` to approximately `0.000964`, with the same FP16 arithmetic and an independent double direct reference. See the [sample validation notes](../../sample/README.md#full-length-1d-diagnostics-thff_conv1d_fullfft4096) for the checked filter lengths and remaining limits. This does not validate the paper workload or make the legacy driver correctness-gated.
+
+1. Add a numerical pass/fail gate and validate the corrected 4096 FFT-convolution path on the paper workload before collecting timing data. The native diagnostic still returns success for a large error; this adapter must not silently disable validation.
 2. Define the paper's operation precisely: linear versus circular convolution, padding/cropping, normalization, input/filter dtype, and filter reversal. The legacy cuDNN path currently performs cross-correlation with left circular padding, and the legacy paths do not compare shared outputs.
 3. Generate identical seeded inputs and filters for every implementation. Require a numerical pass/fail gate with documented tolerances for each dtype before timing each setting. Export actual output tensors or use a common reference so the native executable can participate.
 4. Pin CUDA, PyTorch, cuDNN, and external FlashFFTConv revisions; document installation. FlashFFTConv remains external (`--flash-root /path/to/flashfftconv`). Record setup and hardware in the output metadata.
