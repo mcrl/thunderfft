@@ -69,13 +69,7 @@ template <long long N> int test() {
 }
 
 int main() {
-    // test<64>();
-    test<128>();
-    // test<256>();
-    // test<512>();
-    // test<1024>();
-    // test<2048>();
-    // test<4096>();
+    test<THUNDERFFT_PROFILE_N>();
 
     stat::set_title("FFT benchmark results");
     stat::print_table();

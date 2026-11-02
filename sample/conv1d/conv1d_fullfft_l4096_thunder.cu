@@ -486,6 +486,7 @@ float run_case(int K,
 
     float ms = measure_execution_ms(run_once, unsigned(warmup), unsigned(runs));
 
+    bool validation_passed = true;
     if (validate) {
         std::vector<half> h_out_real(sig_elems);
         CHECK_CUDA(cudaMemcpy(h_out_real.data(), d_out_real, sizeof(half) * sig_elems, cudaMemcpyDeviceToHost));
@@ -540,13 +541,17 @@ float run_case(int K,
         const double l2_scaled = den > 0.0 ? std::sqrt(num_scaled / den) : std::sqrt(num_scaled);
         const double l2_scaled_corr =
             den_corr > 0.0 ? std::sqrt(num_scaled_corr / den_corr) : std::sqrt(num_scaled_corr);
+        constexpr double relative_l2_limit = 5e-3;
+        validation_passed = std::isfinite(l2_scaled) && l2_scaled <= relative_l2_limit;
         std::cout << std::setprecision(6)
                   << "Validation N=" << N << " vs direct circular conv (raw): L2_rel=" << l2_raw
                   << " max_abs=" << max_abs_raw << "\n"
                   << "Validation N=" << N << " vs direct circular conv (raw/N): L2_rel=" << l2_scaled
                   << " max_abs=" << max_abs_scaled << "\n"
                   << "Validation N=" << N << " vs direct circular corr (raw/N): L2_rel=" << l2_scaled_corr
-                  << " max_abs=" << max_abs_scaled_corr << "\n";
+                  << " max_abs=" << max_abs_scaled_corr << "\n"
+                  << "Circular convolution validation: " << (validation_passed ? "PASS" : "FAIL")
+                  << " (raw/N relative L2 limit=" << relative_l2_limit << ")\n";
     }
 
     thunderfft::ThunderFFTFinalize<half>();
@@ -561,7 +566,7 @@ float run_case(int K,
         CHECK_CUDA(cudaFree(d_h_time_half));
     }
 
-    return ms;
+    return validation_passed ? ms : -1.0f;
 }
 
 }  // namespace
@@ -597,6 +602,13 @@ int main(int argc, char** argv) {
     }
     if (K < 1 || K > N) {
         std::cerr << "K must be in [1, " << N << "]\n";
+        return EXIT_FAILURE;
+    }
+    if (argc > 12 || device < 0 || B <= 0 || D <= 0 || warmup < 0 || runs <= 0 ||
+        (include_filter_fft != 0 && include_filter_fft != 1) ||
+        (validate != 0 && validate != 1) || real_input != 1 || real_filter != 1) {
+        std::cerr << "Require a valid device, positive B/D/runs, nonnegative warmup, "
+                     "boolean flags, and real_input=real_filter=1.\n";
         return EXIT_FAILURE;
     }
 

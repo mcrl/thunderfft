@@ -130,7 +130,8 @@ constexpr int pad_h(int N) {
     // }
     if(N == 512) return N/8;
     if(N == 2048) return N/8 + N/64;
-    if(N == 4096) return N/16+16;
+    // FP16's skewed 64x64 transpose reaches complex index 4374.
+    if(N == 4096) return N/16+32;
     return N / 16;
 }
 

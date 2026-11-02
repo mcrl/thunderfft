@@ -3,6 +3,9 @@
 #include <cmath>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
+#include <map>
+#include <mutex>
+#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
@@ -23,15 +26,14 @@ constexpr int UNIT_W_SIZE    = UNIT_ENTRIES * WARP_SIZE * 2;
 template <typename T>
 struct TwiddleCache {
   using TwiddleT = std::conditional_t<std::is_same_v<T, float>, float2, half2>;
-  static TwiddleT* dW;
-  static int       N_cached;
+  struct Entry {
+    TwiddleT* dW = nullptr;
+    int N_cached = 0;
+    bool unit_initialized = false;
+  };
+  inline static std::map<int, Entry> devices;
+  inline static std::mutex mutex;
 };
-
-template <typename T>
-typename TwiddleCache<T>::TwiddleT* TwiddleCache<T>::dW = nullptr;
-
-template <typename T>
-int TwiddleCache<T>::N_cached = 0;
 
 // ============================================================
 // Device-side symbols
@@ -48,6 +50,22 @@ __device__ __constant__ int           d_twiddle_N_h = 0;
 // N-independent unit twiddle (lane-dependent!) - keep as is
 __device__ half2  d_unit_twiddle_half2[UNIT_W_SIZE];
 __device__ float2 d_unit_twiddle_float2[UNIT_W_SIZE];
+
+template <typename T>
+inline void set_twiddle_symbols(typename TwiddleCache<T>::TwiddleT* pointer,
+                               int N) {
+  if constexpr (std::is_same_v<T, float>) {
+    tf_check_cuda(cudaMemcpyToSymbol(d_twiddle_f, &pointer, sizeof(pointer)),
+                  "MemcpyToSymbol(d_twiddle_f)");
+    tf_check_cuda(cudaMemcpyToSymbol(d_twiddle_N_f, &N, sizeof(N)),
+                  "MemcpyToSymbol(d_twiddle_N_f)");
+  } else {
+    tf_check_cuda(cudaMemcpyToSymbol(d_twiddle_h, &pointer, sizeof(pointer)),
+                  "MemcpyToSymbol(d_twiddle_h)");
+    tf_check_cuda(cudaMemcpyToSymbol(d_twiddle_N_h, &N, sizeof(N)),
+                  "MemcpyToSymbol(d_twiddle_N_h)");
+  }
+}
 
 } // namespace detail
 
@@ -263,10 +281,19 @@ inline void ThunderFFTInitialize(int N) {
   static_assert(std::is_same_v<T, float> || std::is_same_v<T, half>,
                 "ThunderFFTInitialize<T>: supported T are float and half only");
 
-  // ---------- unit twiddle (once, lane-aware) ----------
+  if (N != 64 && N != 128 && N != 256 && N != 512 &&
+      N != 1024 && N != 2048 && N != 4096) {
+    throw std::invalid_argument("ThunderFFTInitialize<T>: unsupported FFT size");
+  }
+
+  std::lock_guard<std::mutex> lock(TwiddleCache<T>::mutex);
+  int device = 0;
+  tf_check_cuda(cudaGetDevice(&device), "cudaGetDevice (initialize)");
+  auto& cache = TwiddleCache<T>::devices[device];
+
+  // Unit twiddles live in device symbols, so initialize them on each device.
   if constexpr (std::is_same_v<T, half>) {
-    static bool unit_inited_half = false;
-    if (!unit_inited_half) {
+    if (!cache.unit_initialized) {
       std::vector<half2> h_unit;
       build_unit_twiddle_host(h_unit);
 
@@ -276,38 +303,27 @@ inline void ThunderFFTInitialize(int N) {
           sizeof(half2) * UNIT_W_SIZE),
           "MemcpyToSymbol(d_unit_twiddle_half2)");
 
-      unit_inited_half = true;
+      cache.unit_initialized = true;
     }
-  } else {
-    // (left as-is, commented out in your original code)
   }
 
-  // ---------- N-dependent twiddle ----------
-  if (TwiddleCache<T>::dW && TwiddleCache<T>::N_cached == N) return;
+  if (cache.dW && cache.N_cached == N) return;
 
-  if (TwiddleCache<T>::dW) {
-    cudaFree(TwiddleCache<T>::dW);
-    TwiddleCache<T>::dW = nullptr;
-    TwiddleCache<T>::N_cached = 0;
+  // The caller must complete kernels using this device's cache before replacing it.
+  if (cache.dW) {
+    cache.N_cached = 0;
+    detail::set_twiddle_symbols<T>(nullptr, 0);
+    tf_check_cuda(cudaFree(cache.dW), "cudaFree cached twiddle (initialize)");
+    cache.dW = nullptr;
   }
 
   if constexpr (std::is_same_v<T, float>) {
-    TwiddleCache<float>::dW = preprocess_W_float(N);
-    TwiddleCache<float>::N_cached = N;
-
-    cudaMemcpyToSymbol(detail::d_twiddle_f,
-                       &TwiddleCache<float>::dW,
-                       sizeof(float2*));
-    cudaMemcpyToSymbol(detail::d_twiddle_N_f, &N, sizeof(int));
+    cache.dW = preprocess_W_float(N);
   } else {
-    TwiddleCache<half>::dW = preprocess_W_half(N);
-    TwiddleCache<half>::N_cached = N;
-
-    cudaMemcpyToSymbol(detail::d_twiddle_h,
-                       &TwiddleCache<half>::dW,
-                       sizeof(half2*));
-    cudaMemcpyToSymbol(detail::d_twiddle_N_h, &N, sizeof(int));
+    cache.dW = preprocess_W_half(N);
   }
+  detail::set_twiddle_symbols<T>(cache.dW, N);
+  cache.N_cached = N;
 }
 
 // ============================================================
@@ -341,10 +357,23 @@ ThunderFFT_get_unit_twiddle_float2() {
 
 template <typename T>
 inline void ThunderFFTFinalize() {
-  if (TwiddleCache<T>::dW) {
-    cudaFree(TwiddleCache<T>::dW);
-    TwiddleCache<T>::dW = nullptr;
-    TwiddleCache<T>::N_cached = 0;
+  static_assert(std::is_same_v<T, float> || std::is_same_v<T, half>,
+                "ThunderFFTFinalize<T>: supported T are float and half only");
+
+  std::lock_guard<std::mutex> lock(TwiddleCache<T>::mutex);
+  int device = 0;
+  tf_check_cuda(cudaGetDevice(&device), "cudaGetDevice (finalize)");
+  const auto found = TwiddleCache<T>::devices.find(device);
+  if (found != TwiddleCache<T>::devices.end()) {
+    found->second.N_cached = 0;
+  }
+  detail::set_twiddle_symbols<T>(nullptr, 0);
+
+  if (found != TwiddleCache<T>::devices.end()) {
+    if (found->second.dW) {
+      tf_check_cuda(cudaFree(found->second.dW), "cudaFree cached twiddle (finalize)");
+    }
+    TwiddleCache<T>::devices.erase(found);
   }
 }
 

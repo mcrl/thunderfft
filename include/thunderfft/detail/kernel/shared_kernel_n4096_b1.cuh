@@ -122,59 +122,16 @@ __device__ __forceinline__ void
 ThunderFFT_kernel_reg<float, 4096, 1, false>(vec2_t<float>* __restrict__ reg,
                                              vec2_t<float>* W_precompute,
                                              void* workspace) {
-    int laneid = threadIdx.x & 31;
-    int warpid = threadIdx.y;
-    if (warpid >= 4) {
-        return;
-    }
-
-    vec2_t<float>* smem = reinterpret_cast<vec2_t<float>*>(workspace);
+    // The unnormalized inverse is conj(FFT(conj(x))), with the forward layout.
     constexpr int ept = 32;
-
-    thunderfft::unit::fft_kernel_r64_b16<false>((float*)reg);
-
     #pragma unroll
-    for (int i = 0; i < ept / 2; ++i) {
-        int col = i + (laneid & 3) * 16;
-        int row0 = warpid * 16 + (laneid >> 2);
-        int row1 = row0 + 8;
-        smem[detail::smem_index_4096(row0, col)] = reg[i];
-        smem[detail::smem_index_4096(row1, col)] = reg[i + ept / 2];
+    for (int i = 0; i < ept; ++i) {
+        reg[i].y = -reg[i].y;
     }
-
-    __syncthreads();
-
+    ThunderFFT_kernel_reg<float, 4096, 1, true>(reg, W_precompute, workspace);
     #pragma unroll
-    for (int i = 0; i < ept / 2; ++i) {
-        int row = i * 4 + (laneid & 3);
-        int col0 = warpid * 16 + (laneid >> 2);
-        int col1 = col0 + 8;
-        reg[i] = smem[detail::smem_index_4096(row, col0)];
-        reg[i + ept / 2] = smem[detail::smem_index_4096(row, col1)];
-        rotate(reg[i], -col0 * row, 4096);
-        rotate(reg[i + ept / 2], -col1 * row, 4096);
-    }
-
-    thunderfft::unit::fft_kernel_r64_b16<false>((float*)reg);
-
-    #pragma unroll
-    for (int i = 0; i < ept / 2; ++i) {
-        int row = i * 4 + (laneid & 3);
-        int col0 = warpid * 16 + (laneid >> 2);
-        int col1 = col0 + 8;
-        smem[detail::smem_index_4096(row, col0)] = reg[i];
-        smem[detail::smem_index_4096(row, col1)] = reg[i + ept / 2];
-    }
-
-    __syncthreads();
-
-    #pragma unroll
-    for (int i = 0; i < ept / 2; ++i) {
-        int col = i + (laneid & 3) * 16;
-        int row0 = warpid * 16 + (laneid >> 2);
-        int row1 = row0 + 8;
-        reg[i] = smem[detail::smem_index_4096(row0, col)];
-        reg[i + ept / 2] = smem[detail::smem_index_4096(row1, col)];
+    for (int i = 0; i < ept; ++i) {
+        reg[i].y = -reg[i].y;
     }
 }
 
