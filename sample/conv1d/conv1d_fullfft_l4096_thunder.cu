@@ -174,8 +174,9 @@ __global__ void permute_filter_layout4096(const cpx_h* __restrict__ d_H_in,
 
     #pragma unroll
     for (int i = 0; i < 16; ++i) {
-        const int idx0 = h_base + (col_base * 64) + row_base + i;
-        const int idx1 = h_base + ((col_base + 8) * 64) + row_base + i;
+        // Match the forward FFT register's natural frequency: row * 64 + col.
+        const int idx0 = h_base + (row_base + i) * 64 + col_base;
+        const int idx1 = h_base + (row_base + i) * 64 + col_base + 8;
         d_H_perm[out_base + i * block_threads + thread_linear] = d_H_in[idx0];
         d_H_perm[out_base + (i + 16) * block_threads + thread_linear] = d_H_in[idx1];
     }

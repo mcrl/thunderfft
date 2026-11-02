@@ -241,10 +241,18 @@ divided by `N` against circular correlation. The corresponding references use
 Each line reports relative L2 error and maximum absolute error. A final line
 reports average pipeline milliseconds and the `include_filter_fft` setting.
 
-These comparisons are diagnostics for the current ordering and normalization
-investigation. Numerical correctness remains unresolved; the program does not
-select a correct convention or return failure for a large validation error.
-Use this example to investigate the fused path, not as a correctness reference.
+The 4096-point filter-frequency permutation now matches the forward FFT register
+layout. Previously, its row and column coordinates were transposed. Targeted
+A100 / CUDA 12.9 checks with seed 42, real inputs and filters, `B=D=1`, and
+`K=1,3,9,17,53` gave output/`N` circular-convolution relative L2 errors between
+`5.20e-4` and `9.90e-4`. For `K=9`, correcting the indices reduced the error from
+`0.281035` to approximately `0.000964` with the same FP16 arithmetic; an independent
+double-precision direct reference confirmed the result.
+
+These comparisons remain diagnostics: the program does not return failure for
+a large validation error. These small checks do not validate the other FFT
+lengths, complex filters, or the full paper workload. Use an explicit correctness
+gate and a common reference before collecting comparison timings.
 Keep `THFF_SKIP_MID_ROUNDTRIP=0`, the default CMake setting, when investigating
 correctness; the alternative explicitly skips a reorder for a timing experiment.
 
