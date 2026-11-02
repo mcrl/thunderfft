@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "paper": {
+    "filename": "PPoPP27_chaewon__FFT_ (3).pdf",
+    "sha256": "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50",
+    "implementation_name_in_paper": "xFFT",
+    "repository_name": "ThunderFFT"
+  },
+  "excluded": [
+    {
+      "id": "figure1",
+      "reason": "conceptual data-exchange diagram; no runtime evaluation"
+    },
+    {
+      "id": "table1",
+      "reason": "related-library survey; no runtime evaluation"
+    }
+  ],
+  "evaluations": [
+    {
+      "id": "table2",
+      "title": "Theoretical model and measured cuFFTDx utilization",
+      "paper_page": 3,
+      "implementation": "pending",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "table.csv"
+        ]
+      }
+    },
+    {
+      "id": "table3",
+      "title": "FFT kernel performance across GPUs, precisions and placements",
+      "paper_page": 8,
+      "implementation": "pending",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "table.csv"
+        ]
+      }
+    },
+    {
+      "id": "table4",
+      "title": "Peak, ideal MMA and 64-point unit throughput",
+      "paper_page": 8,
+      "implementation": "pending",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "table.csv"
+        ]
+      }
+    },
+    {
+      "id": "table5",
+      "title": "Numerical accuracy and finite dynamic range",
+      "paper_page": 9,
+      "implementation": "partial",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "table.csv"
+        ]
+      }
+    },
+    {
+      "id": "table6",
+      "title": "Comparison with prior Tensor Core FFT libraries",
+      "paper_page": 9,
+      "implementation": "pending",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "table.csv"
+        ]
+      }
+    },
+    {
+      "id": "table7",
+      "title": "64-point optimization ablation",
+      "paper_page": 9,
+      "implementation": "pending",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "table.csv"
+        ]
+      }
+    },
+    {
+      "id": "figure2",
+      "title": "A100 register-resident FFT kernel timing",
+      "paper_page": 9,
+      "implementation": "pending",
+      "owner": null,
+      "depends_on": [
+        "table3"
+      ],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "figure.pdf"
+        ]
+      }
+    },
+    {
+      "id": "figure3",
+      "title": "FFT performance normalized by communication-only baseline",
+      "paper_page": 10,
+      "implementation": "pending",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "figure.pdf"
+        ]
+      }
+    },
+    {
+      "id": "figure4",
+      "title": "A100 1D convolution comparison",
+      "paper_page": 10,
+      "implementation": "blocked",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "figure.pdf"
+        ]
+      }
+    },
+    {
+      "id": "figure5",
+      "title": "H100 2D convolution comparison",
+      "paper_page": 10,
+      "implementation": "pending",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "figure.pdf"
+        ]
+      }
+    }
+  ]
+}

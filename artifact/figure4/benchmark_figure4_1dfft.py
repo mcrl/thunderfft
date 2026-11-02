@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
+"""Legacy timing draft. Correctness and baseline semantics remain unresolved.
+
+The evaluated runner intentionally refuses to use this script until the tasks
+in README.md are complete. Historical CSVs are never overwritten by default.
+"""
 import argparse
 import csv
+import os
 import re
 import subprocess
 import sys
@@ -55,18 +61,19 @@ def run_ours(ours_bin, n, k, device, b, d, warmup, runs, include_filter_fft, rea
 
 def main():
     script_path = Path(__file__).resolve()
-    fig5_dir = script_path.parent
-    repo_root = fig5_dir.parent.parent
-    default_ours_bin = repo_root / "build" / "sample" / "conv1d" / "thff_conv1d_fullfft4096"
-    default_csv = fig5_dir / "compare_fft4096_realflash_vs_ours_complex_B64_D768_K3_63_step2.csv"
+    repo_root = Path(os.environ.get("THUNDERFFT_ROOT", script_path.parents[2]))
+    build_dir = Path(os.environ.get("THUNDERFFT_BUILD_DIR", repo_root / "build"))
+    result_dir = Path(os.environ.get("THUNDERFFT_RESULT_DIR", repo_root / "result" / "figure4"))
+    default_ours_bin = build_dir / "sample" / "conv1d" / "thff_conv1d_fullfft4096"
+    default_csv = result_dir / "legacy_timings.csv"
 
     p = argparse.ArgumentParser()
     p.add_argument("--L", type=int, default=4096)
-    p.add_argument("--B", type=int, default=8)
-    p.add_argument("--D", type=int, default=64)
+    p.add_argument("--B", type=int, default=64)
+    p.add_argument("--D", type=int, default=768)
     p.add_argument("--k-start", type=int, default=3)
-    p.add_argument("--k-end", type=int, default=1023)
-    p.add_argument("--k-step", type=int, default=32)
+    p.add_argument("--k-end", type=int, default=53)
+    p.add_argument("--k-step", type=int, default=2)
     p.add_argument("--warmup", type=int, default=5)
     p.add_argument("--runs", type=int, default=10)
     p.add_argument("--device", type=int, default=0)
@@ -79,6 +86,8 @@ def main():
     p.add_argument("--ours-real-filter", type=int, default=1)
     p.add_argument("--csv", type=str, default=str(default_csv))
     args = p.parse_args()
+
+    print("WARNING: legacy timing draft; correctness is disabled and baseline semantics are unresolved. See artifact/figure4/README.md.", file=sys.stderr)
 
     assert args.L == 4096, "this script assumes L=4096"
     flash_root = Path(args.flash_root).resolve()

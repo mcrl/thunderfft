@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
+"""Legacy convolution-layout search; not a Table 5 reproduction adapter."""
 import argparse
 import csv
 import itertools
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get('THUNDERFFT_ROOT', Path(__file__).resolve().parents[2]))
 LAYOUT = ROOT / 'include/thunderfft/thunderfft_layout_tuned.h'
-BUILD_DIR = ROOT / 'build'
+BUILD_DIR = Path(os.environ.get('THUNDERFFT_BUILD_DIR', ROOT / 'build'))
+RESULT_DIR = Path(os.environ.get('THUNDERFFT_RESULT_DIR', ROOT / 'result' / 'table5'))
 BIN = BUILD_DIR / 'sample/conv1d/thff_conv1d_fullfft4096'
 
 
@@ -63,7 +66,7 @@ def main():
     ap.add_argument('--b', type=int, default=64)
     ap.add_argument('--d', type=int, default=768)
     ap.add_argument('--device', type=int, default=0)
-    ap.add_argument('--out', type=Path, default=Path(__file__).resolve().parent / 'layout_sweep_conv1d.csv')
+    ap.add_argument('--out', type=Path, default=RESULT_DIR / 'layout_sweep_conv1d.csv')
     ap.add_argument('--keep-best', action='store_true')
     args = ap.parse_args()
 

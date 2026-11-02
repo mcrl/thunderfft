@@ -7,7 +7,5 @@ __pycache__/
 *.py[cod]
 /sample/conv1d/_local_artifacts/
 /sample/conv1d/*.log
-/artifact/figure5/*.log
-/artifact/figure5/*.csv
-/artifact/table5/*.log
-/artifact/table5/*.csv
+/result/*
+!/result/.gitkeep

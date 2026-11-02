@@ -122,22 +122,32 @@ A build of all targets includes this dependency. The optional native
 - `include/thunderfft/`: public header and implementation details.
 - `sample/`: runnable examples, the active benchmark and their usage guide.
 - `bench/`: earlier benchmark sources, outside the current CMake build.
-- `artifact/figure5/`: 1D convolution comparison driver and historical output.
-- `artifact/table5/`: precision/range experiments, layout sweeps and historical outputs.
+- `artifact/figure2/` through `artifact/figure5/`: figure-specific evaluation tasks.
+- `artifact/table2/` through `artifact/table7/`: table-specific evaluation tasks.
 - `artifact/flashfftconv/`: notes on the external dependency.
+- `run.sh`: unified evaluation launcher on this branch.
+- `result/`: generated outputs, separated by evaluation and run ID; ignored by Git.
 
 ## Artifact experiments
 
-See the [Figure 5 instructions](artifact/figure5/README.md) and
-[Table 5 instructions](artifact/table5/README.md) for reproduction commands.
-Figure 5 needs a Python environment with PyTorch and a separately installed
-FlashFFTConv clone. The Table 5 executable is available on this branch:
+See the [artifact task guide](artifact/README.md) for the ten assignment units,
+paper settings, adapter contract and current implementation status. The supplied
+paper calls 1D convolution Figure 4 and 2D convolution Figure 5.
 
 ```bash
-cmake --build build --target benchmark_table5_precision -j2
+./run.sh --list                 # inspect assignments and dependencies
+./run.sh --dry-run              # plan all evaluations without GPU work
+./run.sh                        # run all available smoke tasks; record pending work
+./run.sh table5                 # run one evaluation
+./run.sh table3 --profile paper # request the paper workload
 ```
 
-The included CSVs are historical local outputs preserved during repository
-preparation. They have not been revalidated as paper reference results.
-Numerical correctness and cross-implementation equivalence of these experiments
-are still being investigated.
+New outputs go to `result/<evaluation>/<run_id>/`; batch manifests and summaries
+go to `result/runs/<run_id>/`. Task folders include owner placeholders, required
+work and completion criteria. Most adapters are currently unfinished and return
+78; the launcher continues and returns 2 for a pending-only batch. Table 5 has a
+bounded measurement smoke path; other task READMEs describe the missing work.
+
+Existing checked-in CSVs remain historical local outputs. They have not been
+revalidated as paper reference results. Numerical correctness and equivalent
+baseline definitions remain explicit completion requirements.
