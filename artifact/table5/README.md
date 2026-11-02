@@ -1,23 +1,25 @@
-# Table5_precision
+# Table 5: precision and dynamic range
 
-`thunderfft/sample/bench/main.cu`는 기존 상태로 유지하고,
+`sample/bench/main.cu`는 기존 상태로 유지하고,
 정밀도/다이내믹레인지 전용 벤치는 여기 `main.cu`로 분리했습니다.
+
+이 디렉터리의 기존 CSV는 저장소 이전 시 복사한 로컬 실행 결과입니다. 이전된 소스에서 재검증한 결과가 아닙니다. 기존 결과를 보존하려면 재실행 시 다른 `--csv` 또는 `--out` 경로를 지정하세요.
 
 ## Build
 
-`thunderfft` 기존 빌드 디렉토리에서 전용 타겟만 빌드:
+저장소 루트에서 전용 타겟만 빌드:
 
 ```bash
-cmake -S /home/chaewon/fft/thunderfft -B /home/chaewon/fft/thunderfft/build
-cmake --build /home/chaewon/fft/thunderfft/build --target benchmark_table5_precision -j
+cmake -S . -B build
+cmake --build build --target benchmark_table5_precision -j
 ```
 
 ## Run (TF32 빠른 alpha sweep)
 
 ```bash
-/home/chaewon/fft/thunderfft/build/sample/bench/benchmark_table5_precision \
+./build/sample/bench/benchmark_table5_precision \
   --N-list 4096 --batch 64 --mode gaussian \
   --precision tf32 --alpha-sweep --alpha-exp-min -20 --alpha-exp-max 140 \
   --fast-finite-only --seed 1234 \
-  --csv /home/chaewon/fft/Table5_precision/tf32_alpha_sweep_fast.csv
+  --csv artifact/table5/tf32_alpha_sweep_fast.csv
 ```

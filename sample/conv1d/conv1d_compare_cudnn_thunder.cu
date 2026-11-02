@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <regex>
@@ -172,8 +173,9 @@ int main(int argc, char** argv) {
     int D = 1;
     int warmup = 3;
     int runs = 20;
-    std::string csv = "/home/chaewon/fft/thunderfft/sample/conv1d/compare_flash_cudnn_thunder.csv";
-    std::string thff_bin = "/home/chaewon/fft/thunderfft/build/sample/conv1d/thff_conv1d";
+    std::string csv = "compare_flash_cudnn_thunder.csv";
+    std::string thff_bin =
+        (std::filesystem::absolute(argv[0]).parent_path() / "thff_conv1d").string();
 
     if (argc >= 2) L = std::atoi(argv[1]);
     if (argc >= 3) Kb = std::atoi(argv[2]);

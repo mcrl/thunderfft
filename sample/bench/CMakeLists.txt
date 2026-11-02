@@ -27,7 +27,7 @@ target_compile_options(benchmark PRIVATE
 
 # Table5 precision/range benchmark (separated source, same build environment)
 add_executable(benchmark_table5_precision
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../../Table5_precision/main.cu
+  ${PROJECT_SOURCE_DIR}/artifact/table5/main.cu
   ${CMAKE_CURRENT_SOURCE_DIR}/baseline/baseline_cufft.cu
   ${CMAKE_CURRENT_SOURCE_DIR}/util/stat.cu
 )

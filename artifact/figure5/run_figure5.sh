@@ -2,18 +2,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-BUILD_DIR="${REPO_ROOT}/thunderfft/build"
-if [[ -n "${PYTHON:-}" ]]; then
-  PY="${PYTHON}"
-elif [[ -x "/home/chaewon/miniconda3/envs/fi-bench/bin/python" ]]; then
-  PY="/home/chaewon/miniconda3/envs/fi-bench/bin/python"
-else
-  PY="python3"
-fi
-
-cmake -S "${REPO_ROOT}/thunderfft" -B "${BUILD_DIR}"
-cmake --build "${BUILD_DIR}" --target thff_conv1d_fullfft4096 -j
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+BUILD_DIR="${REPO_ROOT}/build"
+PY="${PYTHON:-python3}"
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <flashfftconv_repo_root> [extra benchmark args]"
@@ -21,6 +12,13 @@ if [[ $# -lt 1 ]]; then
 fi
 FLASH_ROOT="$1"
 shift
+if [[ ! -d "${FLASH_ROOT}/flashfftconv" ]]; then
+  echo "FlashFFTConv package directory not found: ${FLASH_ROOT}/flashfftconv" >&2
+  exit 1
+fi
+
+cmake -S "${REPO_ROOT}" -B "${BUILD_DIR}"
+cmake --build "${BUILD_DIR}" --target thff_conv1d_fullfft4096 -j
 
 "${PY}" "${SCRIPT_DIR}/benchmark_figure5_1dfft.py" \
   --flash-root "${FLASH_ROOT}" \

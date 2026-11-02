@@ -5,8 +5,8 @@ import re
 import subprocess
 from pathlib import Path
 
-ROOT = Path('/home/chaewon/fft')
-BUILD = ROOT / 'thunderfft/build'
+ROOT = Path(__file__).resolve().parents[2]
+BUILD = ROOT / 'build'
 BIN = BUILD / 'sample/conv1d/thff_conv1d_fullfft4096'
 
 CANDIDATES = [
@@ -45,13 +45,13 @@ def main():
     ap.add_argument('--b', type=int, default=64)
     ap.add_argument('--d', type=int, default=768)
     ap.add_argument('--device', type=int, default=0)
-    ap.add_argument('--out', type=Path, default=ROOT / 'Table5_precision/lmid_sweep_conv1d.csv')
+    ap.add_argument('--out', type=Path, default=Path(__file__).resolve().parent / 'lmid_sweep_conv1d.csv')
     args = ap.parse_args()
 
     rows = []
     for p256, pad256, p1024, pad1024 in CANDIDATES:
         rc, out = run([
-            'cmake', '-S', str(ROOT / 'thunderfft'), '-B', str(BUILD),
+            'cmake', '-S', str(ROOT), '-B', str(BUILD),
             f'-DTHFF_LMID256_PAD_PERIOD={p256}',
             f'-DTHFF_LMID256_PAD={pad256}',
             f'-DTHFF_LMID1024_PAD_PERIOD={p1024}',

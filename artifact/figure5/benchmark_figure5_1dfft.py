@@ -26,7 +26,7 @@ def bench_cuda_ms(fn, warmup, runs):
 
 def parse_ours_ms(text):
     m = re.search(
-        r"ThunderFFT full FFT-Conv \(N=4096, include_filter_fft=[01], filter_fft_mode=[01]\) time:\s*([0-9.]+)\s*ms",
+        r"ThunderFFT full FFT-Conv \(N=4096, include_filter_fft=[01]\) time:\s*([0-9.eE+-]+)\s*ms",
         text,
     )
     if not m:
@@ -34,9 +34,10 @@ def parse_ours_ms(text):
     return float(m.group(1))
 
 
-def run_ours(ours_bin, k, device, b, d, warmup, runs, include_filter_fft, filter_fft_mode, real_input, real_filter):
+def run_ours(ours_bin, n, k, device, b, d, warmup, runs, include_filter_fft, real_input, real_filter):
     cmd = [
         ours_bin,
+        str(n),
         str(k),
         str(device),
         str(b),
@@ -45,7 +46,6 @@ def run_ours(ours_bin, k, device, b, d, warmup, runs, include_filter_fft, filter
         str(runs),
         str(include_filter_fft),
         "0",  # validate off for sweep speed
-        str(filter_fft_mode),
         str(real_input),
         str(real_filter),
     ]
@@ -56,8 +56,8 @@ def run_ours(ours_bin, k, device, b, d, warmup, runs, include_filter_fft, filter
 def main():
     script_path = Path(__file__).resolve()
     fig5_dir = script_path.parent
-    repo_root = fig5_dir.parent  # <repo>/fft
-    default_ours_bin = repo_root / "thunderfft" / "build" / "sample" / "conv1d" / "thff_conv1d_fullfft4096"
+    repo_root = fig5_dir.parent.parent
+    default_ours_bin = repo_root / "build" / "sample" / "conv1d" / "thff_conv1d_fullfft4096"
     default_csv = fig5_dir / "compare_fft4096_realflash_vs_ours_complex_B64_D768_K3_63_step2.csv"
 
     p = argparse.ArgumentParser()
@@ -74,7 +74,8 @@ def main():
                    help="Path to external FlashFFTConv repo root containing python package `flashfftconv`")
     p.add_argument("--ours-bin", type=str, default=str(default_ours_bin))
     p.add_argument("--ours-include-filter-fft", type=int, default=1)
-    p.add_argument("--ours-filter-fft-mode", type=int, default=1)
+    p.add_argument("--ours-filter-fft-mode", type=int, choices=[1], default=1,
+                   help="Legacy compatibility option; only 1 is supported because the current binary uses cuFFT for the filter FFT")
     p.add_argument("--ours-real-filter", type=int, default=1)
     p.add_argument("--csv", type=str, default=str(default_csv))
     args = p.parse_args()
@@ -99,8 +100,8 @@ def main():
         raise FileNotFoundError(
             f"ours binary not found: {ours_bin}\n"
             f"build it first, e.g.:\n"
-            f"  cmake -S {repo_root / 'thunderfft'} -B {repo_root / 'thunderfft' / 'build'}\n"
-            f"  cmake --build {repo_root / 'thunderfft' / 'build'} --target thff_conv1d_fullfft4096 -j"
+            f"  cmake -S {repo_root} -B {repo_root / 'build'}\n"
+            f"  cmake --build {repo_root / 'build'} --target thff_conv1d_fullfft4096 -j"
         )
 
     csv_path = Path(args.csv)
@@ -138,6 +139,7 @@ def main():
         t_cudnn = bench_cuda_ms(cudnn_real_fn, args.warmup, args.runs)
         t_ours = run_ours(
             str(ours_bin),
+            args.L,
             k,
             args.device,
             args.B,
@@ -145,7 +147,6 @@ def main():
             args.warmup,
             args.runs,
             args.ours_include_filter_fft,
-            args.ours_filter_fft_mode,
             1,
             args.ours_real_filter,
         )
