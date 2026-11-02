@@ -19,8 +19,10 @@ __global__ void ThunderFFT_benchmark_reg(
 
     vec2_t<T> reg[ept];
 
-    using L_in = typename bench_layout<T, N, BPB>::L_in;
-    using L_out = typename bench_layout<T, N, BPB>::L_out;
+    using L_fwd_in = typename bench_layout<T, N, BPB>::L_in;
+    using L_fwd_out = typename bench_layout<T, N, BPB>::L_out;
+    using L_in = std::conditional_t<forward, L_fwd_in, L_fwd_out>;
+    using L_out = std::conditional_t<forward, L_fwd_out, L_fwd_in>;
 
     
     vec2_t<T> W[36];
@@ -68,8 +70,10 @@ __global__ void ThunderFFT_benchmark_reg_e2e(
 
     vec2_t<T> reg[ept];
 
-    using L_in = typename bench_layout<T, N, BPB>::L_in;
-    using L_out = typename bench_layout<T, N, BPB>::L_out;
+    using L_fwd_in = typename bench_layout<T, N, BPB>::L_in;
+    using L_fwd_out = typename bench_layout<T, N, BPB>::L_out;
+    using L_in = std::conditional_t<forward, L_fwd_in, L_fwd_out>;
+    using L_out = std::conditional_t<forward, L_fwd_out, L_fwd_in>;
 
     vec2_t<T> W[36];
     if constexpr (std::is_same_v<T, half>) {
@@ -156,8 +160,10 @@ __global__ void ThunderFFT_benchmark_smem(
         unit_fp16::make_reg_b_precompute<N, forward>(W);
     }
 
-    using L_in = typename bench_layout<T, N, BPB>::L_in;
-    using L_out = typename bench_layout<T, N, BPB>::L_out;
+    using L_fwd_in = typename bench_layout<T, N, BPB>::L_in;
+    using L_fwd_out = typename bench_layout<T, N, BPB>::L_out;
+    using L_in = std::conditional_t<forward, L_fwd_in, L_fwd_out>;
+    using L_out = std::conditional_t<forward, L_fwd_out, L_fwd_in>;
 
     ThunderFFT_gmem2smem<T, L_in>(s_in, d_input + blockIdx.x * BPB * N);
     __syncthreads();
@@ -200,8 +206,10 @@ __global__ void ThunderFFT_benchmark_smem_e2e(
         unit_fp16::make_reg_b_precompute<N, forward>(W);
     }
 
-    using L_in = typename bench_layout<T, N, BPB>::L_in;
-    using L_out = typename bench_layout<T, N, BPB>::L_out;
+    using L_fwd_in = typename bench_layout<T, N, BPB>::L_in;
+    using L_fwd_out = typename bench_layout<T, N, BPB>::L_out;
+    using L_in = std::conditional_t<forward, L_fwd_in, L_fwd_out>;
+    using L_out = std::conditional_t<forward, L_fwd_out, L_fwd_in>;
 
     ThunderFFT_gmem2smem<T, L_in>(s_in, d_input + blockIdx.x * BPB * N);
     __syncthreads();

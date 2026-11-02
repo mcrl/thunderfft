@@ -24,3 +24,27 @@ target_compile_options(benchmark PRIVATE
   $<$<COMPILE_LANGUAGE:CUDA>:-O3 --use_fast_math -lineinfo>
   $<$<COMPILE_LANGUAGE:CXX>:-O3>
 )
+
+# Table5 precision/range benchmark (separated source, same build environment)
+add_executable(benchmark_table5_precision
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../Table5_precision/main.cu
+  ${CMAKE_CURRENT_SOURCE_DIR}/baseline/baseline_cufft.cu
+  ${CMAKE_CURRENT_SOURCE_DIR}/util/stat.cu
+)
+
+target_include_directories(benchmark_table5_precision PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/util
+  ${CMAKE_CURRENT_SOURCE_DIR}/baseline
+)
+
+target_link_libraries(benchmark_table5_precision PRIVATE
+  thunderfft
+  CUDA::cudart
+  CUDA::cufft
+)
+
+target_compile_options(benchmark_table5_precision PRIVATE
+  $<$<COMPILE_LANGUAGE:CUDA>:-O3 --use_fast_math -lineinfo>
+  $<$<COMPILE_LANGUAGE:CXX>:-O3>
+)

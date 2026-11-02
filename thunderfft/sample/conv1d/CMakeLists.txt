@@ -17,6 +17,18 @@ target_compile_options(thff_conv1d PRIVATE
 add_executable(thff_conv1d_fullfft4096
   ${CMAKE_CURRENT_SOURCE_DIR}/conv1d_fullfft_l4096_thunder.cu
 )
+set(THFF_LMID256_PAD_PERIOD 64 CACHE STRING "Mid-roundtrip layout pad_period for N=256")
+set(THFF_LMID256_PAD 1 CACHE STRING "Mid-roundtrip layout pad for N=256")
+set(THFF_LMID1024_PAD_PERIOD 16 CACHE STRING "Mid-roundtrip layout pad_period for N=1024")
+set(THFF_LMID1024_PAD 1 CACHE STRING "Mid-roundtrip layout pad for N=1024")
+set(THFF_SKIP_MID_ROUNDTRIP 0 CACHE STRING "Skip reg2smem->smem2reg in N!=4096 path (perf-only)")
+target_compile_definitions(thff_conv1d_fullfft4096 PRIVATE
+  THFF_LMID256_PAD_PERIOD=${THFF_LMID256_PAD_PERIOD}
+  THFF_LMID256_PAD=${THFF_LMID256_PAD}
+  THFF_LMID1024_PAD_PERIOD=${THFF_LMID1024_PAD_PERIOD}
+  THFF_LMID1024_PAD=${THFF_LMID1024_PAD}
+  THFF_SKIP_MID_ROUNDTRIP=${THFF_SKIP_MID_ROUNDTRIP}
+)
 target_link_libraries(thff_conv1d_fullfft4096 PRIVATE thunderfft CUDA::cudart CUDA::cufft)
 target_compile_options(thff_conv1d_fullfft4096 PRIVATE
   $<$<COMPILE_LANGUAGE:CUDA>:-O3 -lineinfo>

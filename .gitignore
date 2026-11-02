@@ -1,0 +1,8 @@
+thunderfft/build/
+thunderfft/build_*/
+thunderfft/build*/
+thunderfft/sample/conv1d/_local_artifacts/
+thunderfft/sample/conv1d/*.log
+thunderfft/sample/conv1d/__pycache__/
+Figure5_1dFFT/*.log
+Figure5_1dFFT/*.csv

@@ -1,0 +1,3 @@
+N,batch,mode,alpha,precision,rel_l2,max_abs,rel_linf,all_finite
+256,64,gaussian,1,fp16,1.40335316172,68.7385016994,1.33552493874,1
+1024,64,gaussian,1,fp16,1.32032375552,159.60950176,1.6051085549,1
