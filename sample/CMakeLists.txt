@@ -9,3 +9,8 @@ add_subdirectory(conv2d)
 add_subdirectory(conv1d)
 add_subdirectory(fft1d)
 add_subdirectory(bench)
+
+option(THUNDERFFT_BUILD_VALIDATION "Build the FP64-reference correctness suite" OFF)
+if(THUNDERFFT_BUILD_VALIDATION)
+  add_subdirectory(validation)
+endif()

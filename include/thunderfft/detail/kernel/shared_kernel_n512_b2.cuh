@@ -255,6 +255,36 @@ ThunderFFT_kernel_reg<half, 512, 2, true>(vec2_t<half>* __restrict__ reg,
     }
 }
 
+template<>
+__device__ __forceinline__ void
+ThunderFFT_kernel_reg<float, 512, 2, false>(vec2_t<float>* __restrict__ reg,
+                                           vec2_t<float>* W_precompute,
+                                           void* workspace) {
+    // The inverse has the same fragment layouts as the forward transform:
+    // IFFT(x) = conj(FFT(conj(x))), without the optional 1/N normalization.
+    #pragma unroll
+    for (int i = 0; i < 32; ++i) reg[i].y = -reg[i].y;
+    ThunderFFT_kernel_reg<float, 512, 2, true>(reg, W_precompute, workspace);
+    #pragma unroll
+    for (int i = 0; i < 32; ++i) reg[i].y = -reg[i].y;
+}
+
+template<>
+__device__ __forceinline__ void
+ThunderFFT_kernel_reg<half, 512, 2, false>(vec2_t<half>* __restrict__ reg,
+                                          vec2_t<half>* W_precompute,
+                                          void* workspace) {
+    // Negating only the imaginary half is exact, including signed zero.
+    #pragma unroll
+    for (int i = 0; i < 32; ++i)
+        reg[i] = __halves2half2(__low2half(reg[i]), __hneg(__high2half(reg[i])));
+    // The forward specialization prepares its own forward MMA coefficients.
+    ThunderFFT_kernel_reg<half, 512, 2, true>(reg, W_precompute, workspace);
+    #pragma unroll
+    for (int i = 0; i < 32; ++i)
+        reg[i] = __halves2half2(__low2half(reg[i]), __hneg(__high2half(reg[i])));
+}
+
 template <typename T, typename sL>
 __device__ __forceinline__ void
 ThunderFFT_smem2reg_N512(vec2_t<T>* __restrict__ reg,

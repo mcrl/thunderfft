@@ -123,25 +123,13 @@ __device__ __forceinline__ void
 ThunderFFT_kernel_reg<float, 2048, 1, false>(vec2_t<float>* __restrict__ reg,
                                              vec2_t<float>* W_precompute,
                                              void* workspace) {
-    int laneid = threadIdx.x & 31;
-    int warpid = threadIdx.y;
-    if (warpid >= 2) {
-        return;
-    }
-
-    vec2_t<float>* smem = reinterpret_cast<vec2_t<float>*>(workspace);
-    constexpr int ept = 32;
-
-    thunderfft::unit::fft_kernel_r64_b16<false>((float*)reg);
-
-    // TODO(2048-b1): implement the inverse transpose / twiddle stage pair.
-    // Keep the control flow parallel to the forward kernel above and mirror the
-    // 4096 inverse structure once the 2048 row/col mapping is fixed.
-
-    (void)laneid;
-    (void)smem;
-    (void)ept;
-    (void)W_precompute;
+    // Reuse the complete forward factorization and its fragment layouts.
+    // This produces the unnormalized inverse, matching cuFFT's convention.
+    #pragma unroll
+    for (int i = 0; i < 32; ++i) reg[i].y = -reg[i].y;
+    ThunderFFT_kernel_reg<float, 2048, 1, true>(reg, W_precompute, workspace);
+    #pragma unroll
+    for (int i = 0; i < 32; ++i) reg[i].y = -reg[i].y;
 }
 
 template<>
@@ -212,26 +200,18 @@ __device__ __forceinline__ void
 ThunderFFT_kernel_reg<half, 2048, 1, false>(vec2_t<half>* __restrict__ reg,
                                              vec2_t<half>* W_precompute,
                                              void* workspace) {
-    int laneid = threadIdx.x & 31;
-    int warpid = threadIdx.y;
-    if (warpid >= 2) {
-        return;
-    }
-
-    vec2_t<half>* smem = reinterpret_cast<vec2_t<half>*>(workspace);
-    constexpr int ept = 32;
-
-    thunderfft::unit_fp16::fft_kernel_r64_b16<false>(reg, W_precompute);
-
-    // TODO(2048-b1): implement the inverse transpose / twiddle stage pair.
-    // Keep the control flow parallel to the forward kernel above and mirror the
-    // 4096 inverse structure once the 2048 row/col mapping is fixed.
-
-    (void)laneid;
-    (void)smem;
-    (void)ept;
     (void)W_precompute;
-
+    #pragma unroll
+    for (int i = 0; i < 32; ++i)
+        reg[i] = __halves2half2(__low2half(reg[i]), __hneg(__high2half(reg[i])));
+    // The conjugation identity needs a forward FFT. A caller's inverse
+    // coefficients therefore cannot be reused for this factorization.
+    vec2_t<half> W_forward[36];
+    thunderfft::unit_fp16::make_reg_b_precompute<2048, true>(W_forward);
+    ThunderFFT_kernel_reg<half, 2048, 1, true>(reg, W_forward, workspace);
+    #pragma unroll
+    for (int i = 0; i < 32; ++i)
+        reg[i] = __halves2half2(__low2half(reg[i]), __hneg(__high2half(reg[i])));
 }
 
 template <typename T, typename sL>

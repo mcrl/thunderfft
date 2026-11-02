@@ -1,9 +1,10 @@
 # Samples
 
-Start with `thff_fft` for a small, checked example of the host launch API. The
-convolution examples demonstrate fusion inside a CUDA kernel; their printed
-errors need to be inspected separately. A successful build or process exit does
-not establish correctness for every FFT size, precision, direction, or layout.
+Start with `thff_fft` for a small, checked example of the host launch API, or
+`thff_validate` for a correctness matrix. The convolution examples demonstrate
+fusion inside a CUDA kernel; their validation scopes differ as described below.
+A successful build or process exit does not establish correctness for every
+FFT size, precision, direction, or layout.
 See the root [README](../README.md) for prerequisites and the current validation
 scope.
 
@@ -24,9 +25,12 @@ Use explicit targets when those optional dependencies are unavailable.
 | Target | Source | Purpose |
 | --- | --- | --- |
 | `thff_fft` | [fft1d/main.cu](fft1d/main.cu) | Forward FFT through the host launch API, checked against cuFFT |
-| `benchmark` | [bench/main.cu](bench/main.cu) | Fixed FFT benchmark with register and shared-memory variants |
+| `thff_validate` | [validation/fft_validation.cu](validation/fft_validation.cu) | Optional FP16/TF32 forward/inverse correctness suite; configure with `THUNDERFFT_BUILD_VALIDATION=ON` |
+| `thff_validate_cache` | [validation/cache_validation.cu](validation/cache_validation.cu) | Optional twiddle-cache lifecycle checks, with the same validation build option |
+| `benchmark` | [bench/main.cu](bench/main.cu) | Compile-time FFT benchmark with register and shared-memory variants |
+| `thff_paper_fft` | [bench/paper_fft.cu](bench/paper_fft.cu) | Configurable, correctness-gated Table 3 forward compute timing; separate end-to-end timing |
 | `thff_conv1d` | [conv1d/main.cu](conv1d/main.cu) | Tiled, valid 1D operation using 64-point FFTs |
-| `thff_conv1d_fullfft4096` | [conv1d/conv1d_fullfft_l4096_thunder.cu](conv1d/conv1d_fullfft_l4096_thunder.cu) | Experimental full-length FFT convolution diagnostics |
+| `thff_conv1d_fullfft4096` | [conv1d/conv1d_fullfft_l4096_thunder.cu](conv1d/conv1d_fullfft_l4096_thunder.cu) | Full-length FFT convolution with an optional correctness gate |
 | `thff_conv1d_compare` | [conv1d/conv1d_compare_cudnn_thunder.cu](conv1d/conv1d_compare_cudnn_thunder.cu) | Optional timing driver for CUDA, cuDNN, and ThunderFFT paths |
 | `thff_conv` | [conv2d/main.cu](conv2d/main.cu) | Experimental 2D convolution |
 
@@ -50,7 +54,8 @@ The forward FFT is unnormalized and is compared with `CUFFT_FORWARD` in natural
 frequency order.
 
 `batch` must be positive and divisible by 16, the number of transforms processed
-by one block for this size. The example rejects other values before launching.
+by one block for this size. The example rejects other values before launching;
+the underlying host API also supports partial batches and a zero-batch no-op.
 Choose the CUDA device with the second argument. Changing `N`, the type, or the
 direction requires editing and rebuilding the source and validating that path.
 
@@ -72,51 +77,80 @@ Tolerance:     5.000000e-03 (this example input)
 PASS
 ```
 
+## Correctness matrix: `thff_validate`
+
+Enable the optional suite and build its target explicitly:
+
+```bash
+cmake -S . -B build -DTHUNDERFFT_ARCHS=80 -DTHUNDERFFT_BUILD_VALIDATION=ON
+cmake --build build --target thff_validate -j2
+./build/sample/validation/thff_validate --quick
+./build/sample/validation/thff_validate --device 0 --csv validation.csv
+CUDA_VISIBLE_DEVICES="" ./build/sample/validation/thff_validate --host-only
+```
+
+Without `--quick`, the program runs its full matrix; there is no `--full` option.
+Both GPU modes cover all seven sizes, FP16 and TF32, forward and inverse,
+register cores and the public wrapper. The full matrix adds input patterns and
+additional partial-batch cases. References use cuFFT FP64 on the represented
+input values. Finite outputs, relative L2 error at most `5e-3`, and intact memory
+guards are required. `--host-only` checks argument handling without a GPU and
+does not accept `--csv`.
+
+See the [validation guide](validation/README.md) for the exact workload and exit
+codes. The remote A100 run passed all 500 full-matrix cases. Maximum observed
+relative L2 errors were `6.6232e-4` for FP16 and `2.6405e-3` for TF32, within the
+`5e-3` threshold. Compute Sanitizer memcheck, racecheck and synccheck each ran
+88 quick-matrix cases with no reported errors. The H100 run passed the same
+checks, with maximum FP16 `6.6232e-4` and TF32 `2.6454e-3` relative L2 error.
+This suite measures correctness, not performance, and its bounded
+inputs do not establish error limits for every input range. Native CUDA 13/SM 100
+binaries were built for B200; that GPU remains unmeasured because no suitable
+single-GPU rental was available.
+
 ## Current limitations
 
-The checked demo covers only the out-of-place, 64-point complex float forward
-FFT with a batch divisible by 16. The source contains these launch tuples; the
-table describes implementation coverage, not a validated support matrix:
+The library implements the following launch tuples for both `float` and `half`
+and both transform directions. This table describes implementation coverage;
+the validation guide defines the checks available for those paths:
 
 | `N` | FFTs per block (`BPB`) | Warps per block (`WPB`) | Implementation notes |
 | --- | --- | --- | --- |
 | 64 | 16 | 1 | Used by `thff_fft` in float forward mode |
-| 128 | 8 | 1 | Used by the fixed benchmark |
+| 128 | 8 | 1 | Size-specific register kernels and fragment mappings |
 | 256 | 16 | 4 | Size-specific register kernels and fragment mappings |
-| 512 | 2 | 1 | Forward only; inverse has no definition |
+| 512 | 2 | 1 | Forward and inverse register kernels and fragment mappings |
 | 1024 | 1 | 1 | Size-specific register kernels and fragment mappings |
-| 2048 | 1 | 2 | Inverse stages and shared-memory fragment mappings contain TODOs |
+| 2048 | 1 | 2 | Forward and inverse register kernels and fragment mappings |
 | 4096 | 1 | 4 | Size-specific register kernels and fragment mappings |
 
 Use these additional contracts when calling the APIs directly:
 
-- `ThunderFFT_global` requires a positive global batch divisible by `BPB` and
-  distinct input/output buffers of `batch*N` complex values. Its kernel accesses
-  complete tiles without masking the final block; the wrapper does not reject a
-  partial batch. The demo performs that check before calling it.
-- The global wrapper passes `W=nullptr` to the register FFT. Its half paths for
-  `N=64,128,256,1024,2048` require nonnull per-thread coefficients, so they cannot
-  be used through this wrapper as written. The fused half examples explicitly
-  prepare the required coefficients. Other instantiated paths still require
-  numerical validation.
-- Forward and implemented inverse kernels are unnormalized. Apply `1/N` after
-  inverse, or incorporate that scale into the operation being fused. The
-  512-point missing inverse and 2048-point unfinished inverse are unusable as
-  general inverse FFTs.
+- `ThunderFFT_global` accepts any nonnegative global batch. A positive batch
+  requires separate, non-overlapping input/output buffers of `batch*N` complex
+  values. The final partial block zero-fills inactive transforms and masks their
+  output writes. Zero batch returns before CUDA or pointer access. Negative
+  batch, null pointers for a positive batch, and identical pointers throw
+  `std::invalid_argument`; other input/output overlap is also prohibited.
+- The global wrapper prepares the size- and direction-specific per-thread
+  FP16 coefficients. Fused kernels calling the register API directly remain
+  responsible for their own coefficient setup.
+- Forward and inverse kernels are unnormalized. Apply `1/N` after inverse, or
+  incorporate that scale into the operation being fused.
 - The global wrapper synchronizes the supplied stream before returning,
-  including earlier work in that stream, and discards its synchronization
-  status. The caller must check CUDA errors and completion explicitly; the
-  [basic example](fft1d/main.cu) checks both `cudaGetLastError()` and
-  `cudaDeviceSynchronize()` after the call.
+  including earlier work in that stream. Attribute setup, launch and completion
+  failures throw `std::runtime_error`. It is a synchronous host interface.
 - Call `ThunderFFTInitialize<T>(N)` on the current device before use. There is
-  one cached size per component type, shared by callers; initializing another
-  size replaces the allocation. Finish dependent kernels before replacement or
-  `ThunderFFTFinalize<T>()`. Keep the cache lifetime on one device, finalize on
-  that device, and serialize cache changes: it is not keyed by device or
-  protected for concurrent callers. Finalization frees the cached allocation
-  without resetting every device symbol or the half unit-table initialization
-  flag; reinitialize before reuse and do not assume a fresh device context is
-  supported by an existing cache lifecycle.
+  one cached size per component type and CUDA device, shared by callers on that
+  device; another size replaces that allocation. Unsupported sizes throw
+  `std::invalid_argument` before CUDA access. Host initialization/finalization
+  calls are serialized per type, but execution is not protected by that lock:
+  finish all dependent kernels before replacement or `ThunderFFTFinalize<T>()`.
+  Finalization affects the current device, clears its pointer/size symbols and
+  initialization state, and checks CUDA errors. Reinitialize before reuse; other
+  devices' caches remain intact. CUDA failures throw `std::runtime_error`.
+  Resetting the CUDA device or replacing its context during a cache lifetime is
+  unsupported.
 - `preprocess_W`, `ThunderFFT_kernel_smem`, and `ThunderFFT_kernel_smem_pad` are
   declaration-only APIs in this release. Use `ThunderFFTInitialize/Finalize`,
   the implemented movement helpers, and `ThunderFFT_kernel_reg` as shown in the
@@ -132,12 +166,13 @@ described with each executable below.
 ```
 
 This executable currently has no command-line arguments. `main()` selects a
-128-point forward FFT, batch 65536, and FP32 complex storage. ThunderFFT uses
+1024-point forward FFT, batch 65536, and FP32 complex storage by default. ThunderFFT uses
 TF32 Tensor Core arithmetic; the printed `fp32` label describes storage rather
 than full FP32 arithmetic throughout. The input is a real sinusoid stored
 in contiguous complex `float2` arrays with zero imaginary components. The
-active `test<128>()` call selects the length; changing a nearby profile macro
-alone does not change that call.
+`THUNDERFFT_PROFILE_N` compile-time macro selects the length;
+`THUNDERFFT_PROFILE_BATCH`, `THUNDERFFT_PROFILE_FLOAT`, and
+`THUNDERFFT_PROFILE_HALF` select the batch and enabled precisions.
 
 The `FFT benchmark results` table contains `cufft`, `th_r(fp32)` (register), and
 `th_s(fp32)` (shared-memory) rows. Interpret its columns as follows:
@@ -154,6 +189,25 @@ before interpreting timings. Repeated in-place transforms used for timing have
 different numerical behavior from the separate single-pass validation. This
 fixed workload is not a supported-configuration test suite or a complete AE
 benchmark sweep.
+
+## Configurable forward timing: `thff_paper_fft`
+
+```bash
+cmake --build build --target thff_paper_fft -j2
+./build/sample/bench/thff_paper_fft 1024 fp16 register 1000 3 65536
+```
+
+The CLI is `N fp16|tf32 register|shared [R=1000] [trials=3] [batch=65536]`.
+It accepts the seven supported lengths and a positive batch divisible by that
+length's FFTs per block. Before timing it checks a separate single forward FFT
+against cuFFT FP64 on deterministic complex input, with a relative L2 limit of
+`5e-3`. CSV goes to stdout; GPU and CUDA/cuFFT versions go to stderr.
+
+Table 3 compute latency is `(t_2R_us-t_R_us)/R`, using CUDA events after warmup.
+The separate `e2e_out_of_place_us` column includes global input/output traffic
+for a single FFT. Timed repeated-FFT outputs may overflow and are not used as
+the correctness reference. This target measures ThunderFFT; it does not run
+the paper's cuFFTDx parameter sweep or establish its speedup claims.
 
 ## Tiled 1D operation: `thff_conv1d`
 
@@ -202,7 +256,7 @@ threshold or numerical failure exit code in this example.
 changes the number of logical FFT blocks processed by a warp and requires a
 rebuild; it is not another command-line argument.
 
-## Full-length 1D diagnostics: `thff_conv1d_fullfft4096`
+## Full-length 1D convolution: `thff_conv1d_fullfft4096`
 
 The executable retains its historical name but accepts three FFT lengths:
 
@@ -224,9 +278,9 @@ For a small diagnostic run:
 | `B`, `D` | Positive batch and channel counts; `B*D` must be divisible by 16 for `N=256`; the other two lengths process one transform per block |
 | `warmup`, `runs` | Nonnegative warmup count and positive timed launch count |
 | `include_filter_fft` | Nonzero times filter FFT preparation and permutation on every iteration; zero prepares them once before timing |
-| `validate` | Nonzero prints direct-reference diagnostics |
+| `validate` | 1 enables direct-reference diagnostics and the correctness gate; 0 skips them |
 | `real_input` | Must be 1; the complex-input path is unavailable |
-| `real_filter` | Keep 1 for real filters; zero generates complex filter coefficients while output still contains only the real component |
+| `real_filter` | Must be 1; complex filters are rejected because output is real-only |
 
 Input and output have contiguous real-half shape `[B][D][N]`, with one filter
 per channel shared across batches. Filter storage has padded complex shape
@@ -249,10 +303,17 @@ A100 / CUDA 12.9 checks with seed 42, real inputs and filters, `B=D=1`, and
 `0.281035` to approximately `0.000964` with the same FP16 arithmetic; an independent
 double-precision direct reference confirmed the result.
 
-These comparisons remain diagnostics: the program does not return failure for
-a large validation error. These small checks do not validate the other FFT
-lengths, complex filters, or the full paper workload. Use an explicit correctness
-gate and a common reference before collecting comparison timings.
+With `validate=1`, output/`N` circular-convolution relative L2 error must be finite
+and no greater than `5e-3`. The program prints `PASS` or `FAIL` and returns a
+nonzero status on failure. `validate=0` disables this gate. Real input and real
+filter flags must both equal 1; complex paths are rejected.
+
+The targeted measurements above predate the latest general FFT fixes. Subsequent
+remote A100 validation passed eight real convolution cases, including lengths
+256, 1024 and 4096; the H100 campaign also completed successfully. These small
+checks do not validate the full paper workload or establish a matched speedup.
+Use a common reference and equivalent operation definitions before interpreting
+comparison timings.
 Keep `THFF_SKIP_MID_ROUNDTRIP=0`, the default CMake setting, when investigating
 correctness; the alternative explicitly skips a reorder for a timing experiment.
 

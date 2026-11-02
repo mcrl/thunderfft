@@ -10,23 +10,34 @@ inline void ThunderFFT_global(vec2_t<T>* d_input,
                             cudaStream_t stream) {
   using T2=vec2_t<T>;
 
+  static_assert(std::is_same_v<T, float> || std::is_same_v<T, half>,
+                "ThunderFFT_global supports float and half only");
+  static_assert(N == 64 || N == 128 || N == 256 || N == 512 ||
+                N == 1024 || N == 2048 || N == 4096,
+                "Unsupported ThunderFFT length");
+  if (batch < 0) throw std::invalid_argument("ThunderFFT batch must be nonnegative");
+  if (batch == 0) return;
+  if (!d_input || !d_output || d_input == d_output)
+    throw std::invalid_argument("ThunderFFT requires separate non-null input/output buffers");
+
   constexpr int BPB   = batch_per_block<N>;
   constexpr int WPB   = warp_per_block<N>;
 
-    dim3 grid((batch + BPB - 1) / BPB);
+    dim3 grid((batch - 1) / BPB + 1);
     dim3 block(threads_per_warp, WPB);
     constexpr size_t shmem_bytes = (sizeof(T) * 2) * (N + pad_h(N)) * BPB;
 
-    CHECK_CUDA(cudaFuncSetAttribute(
+    tf_check_cuda(cudaFuncSetAttribute(
         detail::ThunderFFT_global_kernel<T, N, forward>,
         cudaFuncAttributeMaxDynamicSharedMemorySize,
         static_cast<int>(shmem_bytes)
-    ));
+    ), "ThunderFFT_global shared-memory attribute");
     
     detail::ThunderFFT_global_kernel<T, N, forward>
             <<<grid, block, shmem_bytes, stream>>>(d_input, d_output, batch);
 
-    cudaStreamSynchronize(stream);
+    tf_check_cuda(cudaGetLastError(), "ThunderFFT_global launch");
+    tf_check_cuda(cudaStreamSynchronize(stream), "ThunderFFT_global synchronize");
 }
 } // namespace thunderfft
 

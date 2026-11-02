@@ -28,26 +28,53 @@ If `nvcc` is not on `PATH`, add
 `-DCUDAToolkit_ROOT=/path/to/cuda` to the configure command. `THUNDERFFT_ARCHS`
 controls compilation; changing it does not establish correctness on another GPU.
 
-## Supported configurations and current limits
+## Implemented configurations and validation
 
-The quick-start validation covers the following entry point:
+The host wrapper and register core implement these configurations:
 
-| API | Storage and arithmetic | Transform | Batch requirement |
+| Component type | Storage and arithmetic | Transform | Host-wrapper batch |
 | --- | --- | --- | --- |
-| `ThunderFFT_global<float, 64, true>` | `float2` complex storage; TF32 Tensor Core arithmetic | Length-64 forward C2C, unnormalized, natural-order input/output | Positive multiple of 16 |
+| `float` | `float2` complex storage; TF32 Tensor Core arithmetic | Length 64, 128, 256, 512, 1024, 2048 or 4096; forward/inverse C2C, unnormalized | Any nonnegative batch; partial final blocks are masked |
+| `half` | `half2` complex storage; FP16 Tensor Core arithmetic | Same lengths and directions | Same; required per-thread coefficients are prepared internally |
 
-`float` storage does not imply full-precision FP32 multiplication. The source
-also contains `half`/`half2` routines and specializations for lengths 128, 256,
-512, 1024, 2048 and 4096; these remain experimental outside the documented
-example. The 512-point inverse has no specialization, the 2048-point inverse is
-incomplete, and several FP16 host-wrapper paths require twiddle data that the
-wrapper currently does not pass. See [current limitations](sample/README.md#current-limitations)
-before using another configuration.
+`float` storage does not imply full-precision FP32 multiplication. Implementation
+coverage does not guarantee accuracy for every signal or input range. The
+quick-start example remains a bounded, length-64 forward check and deliberately
+accepts only positive multiples of 16.
 
-The host wrapper requires `batch % batch_per_block<N> == 0`; its kernel does not
-guard a partial final block. It calls `cudaStreamSynchronize(stream)` internally.
-The twiddle cache is shared per scalar type and holds one FFT length at a time;
-use one CUDA device and serialize initialization, execution and finalization.
+Build the optional correctness suite to exercise both types, both directions,
+all seven sizes, public-wrapper partial batches and guarded register workspaces:
+
+```bash
+cmake -S . -B build -DTHUNDERFFT_ARCHS=80 -DTHUNDERFFT_BUILD_VALIDATION=ON
+cmake --build build --target thff_validate -j2
+./build/sample/validation/thff_validate --quick
+./build/sample/validation/thff_validate --csv result-validation.csv
+CUDA_VISIBLE_DEVICES="" ./build/sample/validation/thff_validate --host-only
+```
+
+The second invocation runs the full matrix; no `--full` flag is needed. See the
+[validation guide](sample/validation/README.md) for inputs, references, tolerances
+and exit codes. A remote A100 campaign passed all 500 full-matrix cases at the
+`5e-3` relative L2 threshold. Its largest observed FFT relative L2 errors were
+`6.6232e-4` for FP16 and `2.6405e-3` for TF32. Compute Sanitizer memcheck,
+racecheck and synccheck each completed 88 quick-matrix cases with no reported
+errors, and eight real 1D convolution cases passed their correctness gate.
+The remote H100 campaign passed the same checks; its largest TF32 relative L2
+error was `2.6454e-3`. Forward kernel latency over the 28 Table 3 configurations
+was -2.78% to +6.61% versus the paper on A100, and +4.38% to +15.98% on H100.
+The H100 gap remains unresolved; full paper performance reproduction is not
+established. These results apply to the tested inputs and configurations.
+B200 has a native CUDA 13/SM 100 build but remains
+unmeasured because no suitable single-GPU rental was available.
+
+The host wrapper synchronizes its supplied stream before returning and throws
+`std::runtime_error` for CUDA failures. A negative batch, null buffers for a
+positive batch or identical input/output pointers throws `std::invalid_argument`.
+Zero batch is a no-op. Positive batches require separate, non-overlapping buffers.
+Twiddle caches are keyed by CUDA device and component type, holding one FFT
+length per pair. Finish all dependent kernels before changing that device's
+cache or calling finalization. See the [API contracts](sample/README.md#current-limitations).
 
 ## Basic usage
 
@@ -70,9 +97,9 @@ void forward_fft64_batch16(float2* d_input, float2* d_output,
 }
 ```
 
-`true` selects the forward transform. Implemented inverse routines use the
+`true` selects the forward transform. Inverse routines use the
 positive exponent without a `1/N` normalization; apply scaling explicitly when
-using a validated inverse path. Keep initialization before the first transform
+using an inverse path. Keep initialization before the first transform
 and finalization after the last use of its twiddle tables. The complete
 [FFT example](sample/fft1d/main.cu) includes allocation, deterministic input,
 reference computation, error checks and cleanup.
@@ -105,8 +132,10 @@ output and validation behavior. Additional targets can be built explicitly:
 cmake --build build --target benchmark thff_conv1d thff_conv1d_fullfft4096 -j2
 ```
 
-`benchmark` is an FFT timing experiment. The convolution programs are experimental
-and print diagnostic errors without enforcing a correctness threshold.
+`benchmark` is an FFT timing experiment. Full-length 1D convolution enforces a
+relative L2 correctness threshold when validation is enabled; the tiled 1D and
+2D programs still print diagnostic errors without a numerical failure gate.
+See the sample guide before using their timing output.
 
 The 2D target `thff_conv` additionally needs NVIDIA MathDX with cuFFTDx and bundled
 CUTLASS/CuTe headers; configure with `-DMATHDX_ROOT=/path/to/nvidia/mathdx/25.06`.

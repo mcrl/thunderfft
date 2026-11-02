@@ -44,18 +44,21 @@ struct layout_t {
 };
 
 
-// Initialize internal twiddle tables for T=float or T=half and positive N on
-// the current CUDA device before any FFT call. There is one cached N per T;
-// initializing another N replaces that allocation. Initialization/finalization
-// are not stream-ordered: finish all users before replacing or releasing it.
-// The cache is not keyed by device or protected against concurrent callers;
-// keep its lifetime on one current device and serialize cache changes.
+// Initialize internal twiddle tables for T=float or T=half and
+// N=64/128/256/512/1024/2048/4096 on the current CUDA device before FFT use.
+// Unsupported N throws std::invalid_argument before touching CUDA. There is
+// one cached N per T per CUDA device; another N replaces that device's cache.
+// Host initialization/finalization calls are serialized per T, but are not
+// stream-ordered with FFT execution: finish all users before cache changes.
+// CUDA failures throw std::runtime_error. Device reset/context replacement
+// during a cache lifetime is unsupported.
 template <typename T>
 void ThunderFFTInitialize(int N);
 
-// Release the cached allocation on the same current device after all dependent
-// kernels finish. Call Initialize again before reuse; this is not a full reset
-// of device symbols or the FP16 unit-table initialization flag.
+// Release the current device's cached allocation after all dependent kernels
+// finish. Clears its twiddle pointer/size symbols and initialization state;
+// Initialize must be called again before reuse. Other devices' caches remain.
+// CUDA failures throw std::runtime_error.
 template <typename T>
 void ThunderFFTFinalize();
 
@@ -130,19 +133,19 @@ ThunderFFT_smem2gmem(vec2_t<T>* __restrict__ gmem,
 //
 // Implemented launch tuples (N, FFTs per block, warps per block):
 // (64,16,1), (128,8,1), (256,16,4), (512,2,1), (1024,1,1),
-// (2048,1,2), (4096,1,4). This lists implementation coverage, not a correctness
-// guarantee; consult sample/README.md for verified configurations and limits.
-// batch must be positive and a multiple of FFTs per block: the kernel processes
-// complete tiles and does not mask a partial final block.
-//
-// N=512 has no inverse definition; N=2048 inverse is incomplete. The wrapper
-// supplies W=nullptr internally, so half at N=64/128/256/1024/2048 cannot be used
-// through this interface: those specializations require per-thread coefficients.
+// (2048,1,2), (4096,1,4), for T=float/half in both directions. This lists
+// implementation coverage, not a correctness guarantee for every input range;
+// consult sample/validation/README.md for the available validation matrix.
+// A positive batch may contain a partial final block: inactive transforms are
+// zero-filled and their outputs are not written. A zero batch is a no-op before
+// CUDA or pointer access. A negative batch, null pointer for a positive batch,
+// or identical input/output pointers throws std::invalid_argument; all other
+// input/output overlap is also prohibited. FP16 coefficients are prepared by
+// the wrapper for the selected size and direction.
 //
 // Initialize<T>(N) first. The wrapper synchronizes stream before returning,
-// including prior work in that stream, but discards the synchronization status
-// and returns no status. Check CUDA errors in the caller; sample/README.md shows
-// a checked call. The current wrapper is not an asynchronous launch interface.
+// including prior work in that stream. CUDA attribute, launch and completion
+// failures throw std::runtime_error. This is not an asynchronous interface.
 
 template <typename T, int N, bool forward = true>
 inline void ThunderFFT_global(vec2_t<T>* d_input,
@@ -175,8 +178,8 @@ ThunderFFT_kernel_smem_pad(vec2_t<T>* __restrict__ s_input,
 
 // Device FFT for fusion into a caller-owned CUDA kernel. Here batch is the
 // compile-time FFT count per block, not the global batch. Only the explicit
-// (T,N,batch,forward) specializations included below are defined. N=512 inverse
-// is undefined and N=2048 inverse is incomplete, as for the host wrapper.
+// (T,N,batch,forward) specializations included below are defined. Both directions
+// exist for float/half at the seven sizes and matching launch tuples above.
 //
 // Launch a complete block of dim3(32, warp_per_block<N>) and call collectively
 // with every participating lane/warp; several specializations contain block
