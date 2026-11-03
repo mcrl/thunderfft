@@ -174,23 +174,30 @@ A build of all targets includes this dependency. The optional native
 
 ## Artifact experiments
 
-See the [artifact task guide](artifact/README.md) for the ten assignment units,
-paper settings, adapter contract and current implementation status. The supplied
+See the [artifact task guide](artifact/README.md) for the ten paper assignments,
+the correctness task, paper settings and implementation status. The supplied
 paper calls 1D convolution Figure 4 and 2D convolution Figure 5.
 
 ```bash
 ./run.sh --list                 # inspect assignments and dependencies
-./run.sh --dry-run              # plan all evaluations without GPU work
-./run.sh                        # run all available smoke tasks; record pending work
+./run.sh --dry-run              # preview available tasks without GPU work
+./run.sh                        # validation, Table 2/3/5 and Figure 2 smoke checks
+./run.sh all                    # include unfinished assignments as pending
 ./run.sh table5                 # run one evaluation
 ./run.sh table3 --profile paper # request the paper workload
 ```
 
 New outputs go to `result/<evaluation>/<run_id>/`; batch manifests and summaries
 go to `result/runs/<run_id>/`. Task folders include owner placeholders, required
-work and completion criteria. Most adapters are currently unfinished and return
-78; the launcher continues and returns 2 for a pending-only batch. Table 5 has a
-bounded measurement smoke path; other task READMEs describe the missing work.
+work and completion criteria. The default batch uses CUDA Toolkit and Python;
+install the plotting dependency with `python3 -m pip install -r artifact/requirements.txt`.
+It produces correctness results, Table 2's calculated rows, all 28 ThunderFFT
+Table 3 configurations, the corresponding A100 Figure 2 subset, and Table 5
+accuracy/range measurements. The excluded cuFFTDx comparisons and external FFT
+libraries remain explicit in the output metadata. FP32 in Table 5 is cuFFT.
+`./run.sh all` also visits unfinished tasks, which return 78; the batch returns
+2 for pending-only work and 1 for actual failures. See each task's README for
+profile settings and exact scope. `bash artifact/check.sh` runs CPU checks.
 
 Existing checked-in CSVs remain historical local outputs. They have not been
 revalidated as paper reference results. Numerical correctness and equivalent

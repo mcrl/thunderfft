@@ -2,7 +2,7 @@
 
 Owner: unassigned
 
-Status: ThunderFFT measured on A100 and H100; B200 measurement and cuFFTDx sweep pending
+Status: operational ThunderFFT-only adapter; cuFFTDx sweep/comparison and complete multi-GPU reproduction pending
 
 Paper p. 8, Section 6.2: single A100 PCIe 80GB, H100 PCIe, and B200; FFT
 sizes 64/128/256/512/1024/2048/4096; batch 65,536. Measure register-input and
@@ -21,7 +21,60 @@ builds as `thff_paper_fft`. It selects all seven sizes, FP16 or TF32, and regist
 or shared input: **28 ThunderFFT configurations per GPU**. It uses the existing
 benchmark kernels in `sample/bench/baseline/thunderfft_bench.h`. This driver
 does not implement the cuFFTDx parameter sweep, matched speedups or complete
-Table 3 reproduction. The unified `run.sh table3` adapter remains pending.
+Table 3 reproduction. The unified adapter below completes the ThunderFFT-only
+subset without requiring cuFFTDx/MathDX or other external FFT libraries. cuFFT
+from the CUDA toolkit is used as an FP64 correctness reference, not as a timed
+comparison implementation.
+
+From the repository root:
+
+```sh
+# All seven N values, FP16/TF32, register/shared: 28 configurations.
+./run.sh table3 --profile smoke --device 0
+
+# Paper-sized ThunderFFT measurements for the selected GPU.
+./run.sh table3 --profile paper --device 0
+```
+
+The adapter configures/builds `thff_paper_fft`, then saves its raw CSV and
+stderr separately for every configuration. Smoke defaults to batch 1024,
+R=256 and two trials; it is a short installation/numerical/timing check, not a
+paper performance comparison. Paper defaults to batch 65536, R=1000 and three
+trials. Results are written to `result/table3/<run_id>/`; neither profile runs
+cuFFTDx or creates baseline speedups/geometric means. Success means the
+declared 28-configuration ThunderFFT subset completed on one selected GPU.
+
+Set `CUDACXX` and `THUNDERFFT_ARCHS` for the evaluation GPU/toolkit before
+running, for example:
+
+```sh
+CUDACXX=/usr/local/cuda-12.9/bin/nvcc THUNDERFFT_ARCHS=80 \
+  ./run.sh table3 --profile smoke
+```
+
+`--device` is a logical ordinal within any inherited `CUDA_VISIBLE_DEVICES`.
+The adapter preserves scheduler-assigned ordinal/UUID masks, selecting just
+that device; it never expands the visible GPU set. The native executable
+reports the actual GPU name/compute capability. A100/H100/B200 names select
+their corresponding paper target; unknown models retain their real name and
+get no paper target rather than silently comparing against A100.
+
+Environment overrides are `THUNDERFFT_TABLE3_BATCH`,
+`THUNDERFFT_TABLE3_REPEATS`, `THUNDERFFT_TABLE3_TRIALS` and
+`THUNDERFFT_TABLE3_TIMEOUT` (seconds per executable call, default 120). Batch
+must be a positive multiple of 16; all other values must be positive integers.
+The paper profile requires batch 65536 and R=1000. Any override is recorded in
+metadata. A nonpositive/noisy differential measurement fails instead of being
+discarded or replaced; repeat with a better-controlled GPU or a larger smoke
+batch if needed. No failed candidate is silently retried or selected away.
+
+Every CSV row must match its requested configuration and trial, have positive
+finite raw/differential/e2e times, and pass the native single-FFT finite-output
+and `relL2 <= 0.005` gate. The Python adapter independently checks those CSV
+fields and consistency of `(t_2R_us-t_R_us)/R`. Missing/duplicate trials,
+identity changes and subprocess failures/timeouts fail the evaluation while
+preserving partial raw evidence. This bounded gate does not substitute for
+the broader FFT validation adapter.
 
 Build from the repository root, choosing the compiler and architecture for the
 target GPU. The paper uses CUDA 12.9 / SM80 for A100 and CUDA 13.0 / SM90 or
@@ -212,16 +265,38 @@ N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_o
 - Validate each implementation using matched input, reference and tolerances
   before reporting timings or speedups. Preserve separate correctness input and
   performance input; never validate the overflowed repeated-loop output.
-- Finish the unified adapter, canonical CSV conversion and table generator.
-  Record GPU/software metadata for every independently measured GPU.
+- Run the unified adapter independently on the remaining target GPUs. Its
+  metadata records one actual GPU; a successful single-GPU run does not
+  establish multi-GPU reproduction.
 
 ## Results and completion
 
-The completed unified adapter must write `data.csv` and `table.csv` under
-`THUNDERFFT_RESULT_DIR`. Proposed canonical raw
-columns: `gpu,N,batch,placement,library,precision,configuration,repeat,time_us,rel_l2,passed,selected`.
-Keep all tuning candidates, raw timings, validation reports, and derived
-speedups/geometric means. Completion requires the complete confirmed matrix
-across all three GPUs, correctness evidence, and an auditable sweep/selection
-process. Partial GPU runs must identify missing configurations. See the
-[runner contract](../README.md).
+The adapter writes these outputs under `THUNDERFFT_RESULT_DIR`:
+
+- `data.csv`: every validated timing trial, with canonical columns
+  `gpu,N,batch,placement,library,precision,trial,time_us,e2e_out_of_place_us,rel_l2,passed,inside_repeats,t_R_us,t_2R_us,shared_bytes,raw_csv`.
+  `library=ThunderFFT`; `time_us` is the differential compute latency.
+- `table.csv`: per-configuration median/min/max latency, separate median e2e
+  latency and maximum validation error. Paper targets/deviations appear only
+  for paper-sized measurements on a recognized GPU. These targets are
+  transcribed references, never replacement measurements.
+- `metadata.json`: expected/completed coverage, explicit missing cuFFTDx
+  comparison, exact executable argv, timeout/exit status, GPU/software metadata,
+  source/binary SHA256, Git revision/dirty state and CMake build flags.
+- `raw/*.csv`, `raw/*.log`, `commands.txt`, `configure.log`, `build.log`:
+  auditable raw measurements, native metadata and build output.
+
+[`Figure 2`](../figure2/README.md) consumes `data.csv` from the same runner's
+Table 3 dependency, retaining its A100/register subset. A smoke-derived figure
+is a smoke result; it is not relabeled as paper-sized data.
+
+Complete paper Table 3 comparison still requires matched cuFFTDx tuning
+candidates and winner selection across all three GPUs. Until supplied, the
+metadata records `full_paper_comparison_complete=false` and the summary's
+`cufftdx_comparison=not_measured`. See the [runner contract](../README.md).
+
+Parser/validation contract checks run without a GPU:
+
+```sh
+python3 -m unittest discover -s artifact/table3 -p 'test_*.py' -v
+```

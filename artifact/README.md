@@ -12,14 +12,15 @@ and Table 1 is a literature survey, so neither has a GPU evaluation task.
 
 | Task | Paper page | Deliverable | Starting point / dependency |
 | --- | ---: | --- | --- |
-| [figure2](figure2/README.md) | 9 | A100 FFT kernel time plot | Derive from Table 3; no duplicate measurement |
+| [validation](validation/README.md) | — | FFT correctness and memory guards | Ready: 88 smoke / 500 full cases plus 18 host API checks |
+| [figure2](figure2/README.md) | 9 | A100 FFT kernel time plot | Ready: ThunderFFT-only subset derived from this run's Table 3 |
 | [figure3](figure3/README.md) | 10 | End-to-end FFT normalized performance | `sample/bench/`; communication-only and baseline work pending |
 | [figure4](figure4/README.md) | 10 | A100 1D convolution plot | Native correctness gate available; paper workload and comparable semantics pending |
 | [figure5](figure5/README.md) | 10 | H100 2D convolution plot | `sample/conv2d/`; full benchmark pending |
-| [table2](table2/README.md) | 3 | A100 performance model and measured reference | Model plus measured cuFFTDx rows |
-| [table3](table3/README.md) | 8 | FFT kernel latency matrix | ThunderFFT A100/H100 checks measured; B200 and cuFFTDx sweep pending |
+| [table2](table2/README.md) | 3 | A100 performance model and measured reference | Ready: calculated rows; measured cuFFTDx row excluded |
+| [table3](table3/README.md) | 8 | FFT kernel latency matrix | Ready: ThunderFFT 28 configurations/GPU; cuFFTDx comparison excluded |
 | [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | MMA microbenchmark pending |
-| [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Dedicated source exists; FP32 path is cuFFT |
+| [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Ready: measurements and tables; FP32 is cuFFT; published provenance unconfirmed |
 | [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | External baseline integration pending |
 | [table7](table7/README.md) | 9 | Optimization ablation | Baseline variants and profiling pending |
 
@@ -30,14 +31,41 @@ those explicitly in the task README.
 
 ## Run from the repository root
 
+Use Python 3.9 or newer, CMake 3.18 or newer, a C++17 compiler and the CUDA
+toolkit for the GPU being evaluated. The tested A100 setup uses CUDA 12.9 and
+`THUNDERFFT_ARCHS=80`. Only the selected CMake targets are built, so the
+optional convolution targets' MathDX/cuDNN dependencies are not required.
+Install the plotting dependency once:
+
+```bash
+python3 -m pip install -r artifact/requirements.txt
+bash artifact/check.sh          # CPU contracts and failure-path checks
+```
+
 ```bash
 ./run.sh --list
 ./run.sh --dry-run
-./run.sh                         # all tasks, smoke profile
+./run.sh                         # available tasks, smoke profile
+./run.sh all                     # also report unfinished tasks as pending
+./run.sh validation --profile paper
 ./run.sh figure4 table5          # selected tasks
 ./run.sh table3 --profile paper --device 0 --jobs 8
 ./run.sh table5 --result-dir /path/to/results --build-dir /path/to/build
 ```
+
+By default, `run.sh` selects **validation, Table 2, Table 3, Table 5 and Figure 2**,
+in dependency order, with no downloaded FFT library or cuFFTDx tuning data.
+CUDA Toolkit's cuFFT is still used as an FP64 numerical reference and Table 5's
+explicitly labeled FP32 path; no cuFFT performance tuning is required.
+`./run.sh all` includes unfinished assignments; `./run.sh --list` lists every
+assignment, while `./run.sh --dry-run` previews the available default batch.
+
+The runnable Table 2/3/Figure 2 adapters cover the subsets in the table above.
+Successful execution does not imply that the excluded cuFFTDx comparison or
+the complete multi-GPU paper experiment has been reproduced. Each task's
+`coverage` and `full_paper_comparison=false` are retained in runner status and
+the batch manifest. B200/H100 measurements require their own compatible GPU
+and native architecture build; Figure 2 requires A100 source measurements.
 
 `smoke` checks the implemented path with small workloads. `paper` requests the
 documented paper settings. Adapters must record effective arguments, including
@@ -45,8 +73,19 @@ overrides, and must not label a small smoke run as a paper reproduction.
 CUDA/CMake and their development libraries must be available for implemented GPU
 tasks. Set `CUDACXX=/path/to/cuda/bin/nvcc` and
 `CUDAToolkit_ROOT=/path/to/cuda` when the toolkit is not discoverable. Table 5's
-paper profile additionally requires an explicitly confirmed
-`THUNDERFFT_TABLE5_BATCH`; the default smoke profile uses only a small population.
+paper profile uses the retained evaluator's operational batch 65536 and seed
+1234, whose exact published provenance is unconfirmed. For a bounded full-size
+and exponent scan use
+`THUNDERFFT_TABLE5_BATCH=64 ./run.sh table5 --profile paper`; the override is
+recorded and does not establish the original population.
+
+The 2026-11-03 local A100 check completed all five default smoke tasks. An
+additional run passed the 500-case correctness matrix, measured all 28
+ThunderFFT configurations at batch 65536/R=1000/three trials, generated the
+corresponding Figure 2 PDF, and checked all four Table 5 sizes over exponents
+0 through 127 at batch 64 (1548 raw rows including accuracy checks). This
+establishes execution of the declared subsets on that A100; it does not
+establish the excluded comparisons, other GPUs or Table 5's original population.
 
 The runner creates a unique run directory for each evaluation:
 

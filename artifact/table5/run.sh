@@ -13,16 +13,14 @@ case "${THUNDERFFT_PROFILE}" in
     WIDE_MIN=120; WIDE_MAX=127
     ;;
   paper)
-    if [[ -z "${THUNDERFFT_TABLE5_BATCH:-}" ]]; then
-      artifact_pending "Table 5 paper profile requires explicit THUNDERFFT_TABLE5_BATCH. The source default is 65536; confirm the author's sample population and available host/GPU memory first. FP32 currently uses cuFFT, so its paper provenance also needs confirmation."
-    fi
     TABLE5_N_LIST=64,256,1024,4096
-    TABLE5_BATCH="${THUNDERFFT_TABLE5_BATCH}"
+    TABLE5_BATCH="${THUNDERFFT_TABLE5_BATCH:-65536}"
     FP16_MIN=0; FP16_MAX=127
     WIDE_MIN=0; WIDE_MAX=127
     ;;
   *) echo "Unsupported THUNDERFFT_PROFILE=${THUNDERFFT_PROFILE}" >&2; exit 2 ;;
 esac
+TABLE5_N_LIST="${THUNDERFFT_TABLE5_N_LIST:-${TABLE5_N_LIST}}"
 
 TABLE5_SEED="${THUNDERFFT_TABLE5_SEED:-1234}"
 TABLE5_TIMEOUT="${THUNDERFFT_TABLE5_TIMEOUT:-600}"
@@ -48,14 +46,29 @@ export CUDA_VISIBLE_DEVICES="${TABLE5_EFFECTIVE_CUDA_VISIBLE_DEVICES}"
 "${THUNDERFFT_PYTHON}" - <<'PY'
 import json
 import os
+import re
 from pathlib import Path
 
+raw_sizes = os.environ["TABLE5_N_LIST"]
+if not re.fullmatch(r"[0-9]+(?:,[0-9]+)*", raw_sizes):
+    raise SystemExit("THUNDERFFT_TABLE5_N_LIST must be comma-separated supported FFT sizes.")
+sizes = [int(n) for n in raw_sizes.split(",")]
+if len(set(sizes)) != len(sizes) or set(sizes) - {64, 128, 256, 512, 1024, 2048, 4096}:
+    raise SystemExit("THUNDERFFT_TABLE5_N_LIST contains duplicate or unsupported FFT sizes.")
+seed = int(os.environ["TABLE5_SEED"])
+if seed > 2**64 - 1:
+    raise SystemExit("THUNDERFFT_TABLE5_SEED must fit an unsigned 64-bit integer.")
+if int(os.environ["TABLE5_BATCH"]) > 2**31 - 1:
+    raise SystemExit("THUNDERFFT_TABLE5_BATCH must fit a positive signed 32-bit integer.")
 metadata = {
     "evaluation": "table5",
     "profile": os.environ["THUNDERFFT_PROFILE"],
-    "N": [int(n) for n in os.environ["TABLE5_N_LIST"].split(",")],
+    "N": sizes,
     "batch": int(os.environ["TABLE5_BATCH"]),
-    "seed": int(os.environ["TABLE5_SEED"]),
+    "seed": seed,
+    "population_provenance": "Operational defaults are batch=65536 and seed=1234 in the retained evaluator source; the supplied paper does not establish its exact batch/seed.",
+    "overrides": {key: os.environ[key] for key in ("THUNDERFFT_TABLE5_BATCH", "THUNDERFFT_TABLE5_SEED", "THUNDERFFT_TABLE5_N_LIST") if key in os.environ},
+    "complete_paper_size_set": set(sizes) == {64, 256, 1024, 4096},
     "input": "complex Gaussian; per-FFT L2 norm / sqrt(N) = alpha",
     "reference": "cuFFT Z2Z (FP64) applied to the generated FP32 input",
     "implementations": {"fp16": "ThunderFFT", "tf32": "ThunderFFT", "fp32": "cuFFT C2C"},
@@ -69,22 +82,26 @@ metadata = {
     "previous_CUDA_VISIBLE_DEVICES_was_set": bool(os.environ["TABLE5_PREVIOUS_CUDA_VISIBLE_DEVICES_SET"]),
     "previous_CUDA_VISIBLE_DEVICES": os.environ["TABLE5_PREVIOUS_CUDA_VISIBLE_DEVICES"] if os.environ["TABLE5_PREVIOUS_CUDA_VISIBLE_DEVICES_SET"] else None,
     "scientific_validation": "not_assessed",
-    "remaining_work": ["Confirm paper FP32 implementation provenance", "Confirm paper batch, seed, hardware, and expected tolerances"],
+    "paper_comparison": "Informational comparison only; published input population and FP32 implementation provenance are not established.",
 }
 path = Path(os.environ["THUNDERFFT_RESULT_DIR"]) / "metadata.json"
 path.write_text(json.dumps(metadata, indent=2) + "\n")
 PY
 
-artifact_configure
+artifact_configure -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+printf '%q ' cmake --build "${THUNDERFFT_BUILD_DIR}" --target benchmark_table5_precision -j "${THUNDERFFT_JOBS}" >> "${THUNDERFFT_RESULT_DIR}/commands.txt"
+printf '\n' >> "${THUNDERFFT_RESULT_DIR}/commands.txt"
 cmake --build "${THUNDERFFT_BUILD_DIR}" --target benchmark_table5_precision -j "${THUNDERFFT_JOBS}"
 TABLE5_BIN="${THUNDERFFT_BUILD_DIR}/sample/bench/benchmark_table5_precision"
+"${THUNDERFFT_PYTHON}" "${SCRIPT_DIR}/provenance.py" "${THUNDERFFT_RESULT_DIR}" "${THUNDERFFT_ROOT}" "${THUNDERFFT_BUILD_DIR}" "${TABLE5_BIN}"
 command -v timeout >/dev/null
 
 run_measurement() {
   local name="$1"
   shift
   local args=("${TABLE5_BIN}" --N-list "${TABLE5_N_LIST}" --batch "${TABLE5_BATCH}"
-    --mode gaussian --seed "${TABLE5_SEED}" "$@" --csv "${THUNDERFFT_RESULT_DIR}/${name}.csv")
+    --mode gaussian --seed "${TABLE5_SEED}" "$@" --csv "${THUNDERFFT_RESULT_DIR}/${name}.csv"
+    --environment-json "${THUNDERFFT_RESULT_DIR}/${name}.environment.json")
   printf '%q ' timeout --signal=TERM --kill-after=10s "${TABLE5_TIMEOUT}s" "${args[@]}" >> "${THUNDERFFT_RESULT_DIR}/commands.txt"
   printf '\n' >> "${THUNDERFFT_RESULT_DIR}/commands.txt"
   timeout --signal=TERM --kill-after=10s "${TABLE5_TIMEOUT}s" "${args[@]}" 2>&1 | tee "${THUNDERFFT_RESULT_DIR}/${name}.log"

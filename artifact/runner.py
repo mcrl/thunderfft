@@ -61,10 +61,14 @@ def request_interrupt(_signum, _frame):
 
 def select_tasks(requested, entries, parser):
     by_id = {entry["id"]: entry for entry in entries}
-    if not requested or requested == ["all"]:
+    if not requested or requested == ["available"]:
+        requested = [entry["id"] for entry in entries if entry.get("available", False)]
+        if not requested:
+            parser.error("no available evaluations are registered")
+    elif requested == ["all"]:
         requested = list(by_id)
-    elif "all" in requested:
-        parser.error("use 'all' by itself, or list evaluation IDs")
+    elif "all" in requested or "available" in requested:
+        parser.error("use 'all' or 'available' by itself, or list evaluation IDs")
     unknown = set(requested) - set(by_id)
     if unknown:
         parser.error("unknown evaluation(s): " + ", ".join(sorted(unknown)))
@@ -107,6 +111,8 @@ def execute(entry, output, args, dependency_results=None):
     state = {"evaluation": entry["id"], "title": entry["title"],
              "profile": args.profile, "status": "running", "exit_code": None,
              "implementation": entry["implementation"], "owner": entry.get("owner"),
+             "coverage": entry.get("coverage", "See the task README"),
+             "full_paper_comparison": entry.get("full_paper_comparison", False),
              "scientific_validation": "not_assessed", "command": command,
              "started_at": now(), "result_dir": str(output)}
     atomic_json(output / "status.json", state)
@@ -169,7 +175,8 @@ def write_summary(directory, states):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("evaluations", nargs="*", help="evaluation IDs, or all (default)")
+    parser.add_argument("evaluations", nargs="*",
+                        help="evaluation IDs, available (default), or all including unfinished tasks")
     parser.add_argument("--list", action="store_true", help="list work items without running")
     parser.add_argument("--dry-run", action="store_true", help="show plan without creating results or querying GPUs")
     parser.add_argument("--profile", choices=["smoke", "paper"], default="smoke")
@@ -182,7 +189,8 @@ def main():
                         help="per-evaluation timeout in seconds; 0 disables it")
     args = parser.parse_args()
     registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
-    entries = select_tasks(args.evaluations, registry["evaluations"], parser)
+    requested = ["all"] if args.list and not args.evaluations else args.evaluations
+    entries = select_tasks(requested, registry["evaluations"], parser)
     if args.list or args.dry_run:
         for entry in entries:
             dependencies = ",".join(entry.get("depends_on", [])) or "-"
@@ -203,6 +211,8 @@ def main():
     batch_dir.mkdir(parents=True, exist_ok=False)
     metadata = {"schema_version": 1, "run_id": run_id, "started_at": now(),
                 "profile": args.profile, "evaluations": [e["id"] for e in entries],
+                "selection": args.evaluations or ["available"],
+                "coverage": {e["id"]: e.get("coverage", "See the task README") for e in entries},
                 "device": args.device, "build_dir": str(args.build_dir),
                 "jobs": args.jobs, "timeout_seconds": args.timeout,
                 "launch_args": sys.argv[1:],
@@ -213,10 +223,9 @@ def main():
                 "worktree": capture(["git", "status", "--porcelain"]),
                 "gpu": capture(["nvidia-smi", "--query-gpu=index,name,driver_version,memory.total",
                                 "--format=csv,noheader"]),
-                "configuration": {key: os.environ[key] for key in
-                    ("CUDA_VISIBLE_DEVICES", "CUDACXX", "NVCC", "CUDAToolkit_ROOT",
-                     "MATHDX_ROOT", "THUNDERFFT_ARCHS", "THUNDERFFT_TABLE5_BATCH")
-                    if key in os.environ},
+                "configuration": {key: value for key, value in os.environ.items()
+                    if key.startswith(("THUNDERFFT_TABLE3_", "THUNDERFFT_TABLE5_")) or key in
+                    ("CUDA_VISIBLE_DEVICES", "CUDACXX", "NVCC", "CUDAToolkit_ROOT", "MATHDX_ROOT", "THUNDERFFT_ARCHS")},
                 "paper": registry["paper"], "scientific_validation": "not_assessed"}
     atomic_json(batch_dir / "manifest.json", metadata)
     states, by_id = [], {}

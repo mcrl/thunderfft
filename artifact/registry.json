@@ -18,10 +18,33 @@
   ],
   "evaluations": [
     {
+      "id": "validation",
+      "title": "FFT correctness, API arguments and memory guards",
+      "paper_page": null,
+      "implementation": "ready",
+      "owner": null,
+      "available": true,
+      "coverage": "FP16/TF32 forward/inverse, seven sizes, public/core and guards; no performance claim",
+      "full_paper_comparison": false,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv",
+          "table.csv",
+          "validation.json"
+        ],
+        "paper": [
+          "data.csv",
+          "table.csv",
+          "validation.json"
+        ]
+      }
+    },
+    {
       "id": "table2",
       "title": "Theoretical model and measured cuFFTDx utilization",
       "paper_page": 3,
-      "implementation": "pending",
+      "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -32,13 +55,16 @@
           "data.csv",
           "table.csv"
         ]
-      }
+      },
+      "available": true,
+      "full_paper_comparison": false,
+      "coverage": "Calculated A100 model rows; measured cuFFTDx row excluded"
     },
     {
       "id": "table3",
       "title": "FFT kernel performance across GPUs, precisions and placements",
       "paper_page": 8,
-      "implementation": "pending",
+      "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -49,7 +75,10 @@
           "data.csv",
           "table.csv"
         ]
-      }
+      },
+      "available": true,
+      "full_paper_comparison": false,
+      "coverage": "ThunderFFT only, 28 configurations per GPU; cuFFTDx sweep and speedups excluded"
     },
     {
       "id": "table4",
@@ -66,13 +95,15 @@
           "data.csv",
           "table.csv"
         ]
-      }
+      },
+      "available": false,
+      "full_paper_comparison": false
     },
     {
       "id": "table5",
       "title": "Numerical accuracy and finite dynamic range",
       "paper_page": 9,
-      "implementation": "partial",
+      "implementation": "ready",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -83,7 +114,10 @@
           "data.csv",
           "table.csv"
         ]
-      }
+      },
+      "available": true,
+      "full_paper_comparison": false,
+      "coverage": "Accuracy and finite-range measurements; FP32 is cuFFT; published provenance unconfirmed"
     },
     {
       "id": "table6",
@@ -100,7 +134,9 @@
           "data.csv",
           "table.csv"
         ]
-      }
+      },
+      "available": false,
+      "full_paper_comparison": false
     },
     {
       "id": "table7",
@@ -117,13 +153,15 @@
           "data.csv",
           "table.csv"
         ]
-      }
+      },
+      "available": false,
+      "full_paper_comparison": false
     },
     {
       "id": "figure2",
       "title": "A100 register-resident FFT kernel timing",
       "paper_page": 9,
-      "implementation": "pending",
+      "implementation": "ready_subset",
       "owner": null,
       "depends_on": [
         "table3"
@@ -136,7 +174,10 @@
           "data.csv",
           "figure.pdf"
         ]
-      }
+      },
+      "available": true,
+      "full_paper_comparison": false,
+      "coverage": "A100 ThunderFFT FP16/TF32 register series derived from this run Table3; cuFFTDx series excluded"
     },
     {
       "id": "figure3",
@@ -153,7 +194,9 @@
           "data.csv",
           "figure.pdf"
         ]
-      }
+      },
+      "available": false,
+      "full_paper_comparison": false
     },
     {
       "id": "figure4",
@@ -170,7 +213,9 @@
           "data.csv",
           "figure.pdf"
         ]
-      }
+      },
+      "available": false,
+      "full_paper_comparison": false
     },
     {
       "id": "figure5",
@@ -187,7 +232,9 @@
           "data.csv",
           "figure.pdf"
         ]
-      }
+      },
+      "available": false,
+      "full_paper_comparison": false
     }
   ]
 }

@@ -59,6 +59,7 @@ struct Options {
     ReferenceMode reference = ReferenceMode::FP64;
     uint64_t seed = 1234;
     std::string csv_path = "fft_accuracy.csv";
+    std::string environment_path;
 };
 
 struct Metrics {
@@ -159,7 +160,8 @@ static void print_usage(const char* prog) {
         << "  --fast-finite-only                (skip reference FFT; check finite only)\n"
         << "  --reference <fp64|fp32>           (default: fp64)\n"
         << "  --seed <uint64>                   (default: 1234)\n"
-        << "  --csv <path>                      (default: fft_accuracy.csv)\n";
+        << "  --csv <path>                      (default: fft_accuracy.csv)\n"
+        << "  --environment-json <path>         (record selected GPU and library versions)\n";
 }
 
 static Options parse_args(int argc, char** argv) {
@@ -213,6 +215,8 @@ static Options parse_args(int argc, char** argv) {
             opt.seed = static_cast<uint64_t>(std::stoull(need("--seed")));
         } else if (a == "--csv") {
             opt.csv_path = need("--csv");
+        } else if (a == "--environment-json") {
+            opt.environment_path = need("--environment-json");
         } else if (a == "--help" || a == "-h") {
             print_usage(argv[0]);
             std::exit(0);
@@ -226,6 +230,45 @@ static Options parse_args(int argc, char** argv) {
         std::swap(opt.alpha_exp_min, opt.alpha_exp_max);
     }
     return opt;
+}
+
+static std::string json_string(const std::string& value) {
+    std::ostringstream result;
+    result << '"';
+    for (unsigned char c : value) {
+        if (c == '"' || c == '\\') result << '\\' << c;
+        else if (c < 0x20) result << "\\u" << std::hex << std::setw(4) << std::setfill('0') << int(c);
+        else result << c;
+    }
+    result << '"';
+    return result.str();
+}
+
+static void write_environment(const std::string& path) {
+    if (path.empty()) return;
+    int device = 0, driver = 0, runtime = 0, cufft_version = 0;
+    cudaDeviceProp properties{};
+    CHECK_CUDA(cudaGetDevice(&device));
+    CHECK_CUDA(cudaGetDeviceProperties(&properties, device));
+    CHECK_CUDA(cudaDriverGetVersion(&driver));
+    CHECK_CUDA(cudaRuntimeGetVersion(&runtime));
+    CHECK_CUFFT(cufftGetVersion(&cufft_version));
+    char pci_bus_id[32]{};
+    CHECK_CUDA(cudaDeviceGetPCIBusId(pci_bus_id, sizeof(pci_bus_id), device));
+    std::ofstream output(path);
+    if (!output) {
+        std::cerr << "failed to open environment path: " << path << '\n';
+        std::exit(EXIT_FAILURE);
+    }
+    output << "{\n  \"gpu_name\": " << json_string(properties.name)
+           << ",\n  \"local_cuda_device\": " << device
+           << ",\n  \"pci_bus_id\": " << json_string(pci_bus_id)
+           << ",\n  \"compute_capability\": " << json_string(std::to_string(properties.major) + "." + std::to_string(properties.minor))
+           << ",\n  \"total_global_memory_bytes\": " << properties.totalGlobalMem
+           << ",\n  \"cuda_driver_api_version\": " << driver
+           << ",\n  \"cuda_runtime_version\": " << runtime
+           << ",\n  \"cuda_compile_version\": " << CUDART_VERSION
+           << ",\n  \"cufft_version\": " << cufft_version << "\n}\n";
 }
 
 static std::vector<float> make_alphas(const Options& opt) {
@@ -663,6 +706,7 @@ static void dispatch_n(const Options& opt,
 
 int main(int argc, char** argv) {
     const Options opt = parse_args(argc, argv);
+    write_environment(opt.environment_path);
     const auto alphas = make_alphas(opt);
 
     std::vector<Row> rows;

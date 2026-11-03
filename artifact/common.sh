@@ -34,7 +34,7 @@ artifact_configure() {
   if [[ -n "${MATHDX_ROOT:-}" ]]; then
     args+=("-DMATHDX_ROOT=${MATHDX_ROOT}")
   fi
-  cmake "${args[@]}"
+  cmake "${args[@]}" "$@"
 }
 
 artifact_pending() {
