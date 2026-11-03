@@ -55,18 +55,33 @@ CUDA_VISIBLE_DEVICES="" ./build/sample/validation/thff_validate --host-only
 
 The second invocation runs the full matrix; no `--full` flag is needed. See the
 [validation guide](sample/validation/README.md) for inputs, references, tolerances
-and exit codes. A remote A100 campaign passed all 500 full-matrix cases at the
-`5e-3` relative L2 threshold. Its largest observed FFT relative L2 errors were
+and exit codes. On 2026-11-02, a remote A100 campaign passed all 500 full-matrix
+cases at the `5e-3` relative L2 threshold. Its largest observed FFT relative L2 errors were
 `6.6232e-4` for FP16 and `2.6405e-3` for TF32. Compute Sanitizer memcheck,
 racecheck and synccheck each completed 88 quick-matrix cases with no reported
 errors, and eight real 1D convolution cases passed their correctness gate.
 The remote H100 campaign passed the same checks; its largest TF32 relative L2
-error was `2.6454e-3`. Forward kernel latency over the 28 Table 3 configurations
-was -2.78% to +6.61% versus the paper on A100, and +4.38% to +15.98% on H100.
+error was `2.6454e-3`. At that revision, forward kernel latency over the 28
+Table 3 configurations was -2.78% to +6.61% versus the paper on A100, and
++4.38% to +15.98% on H100.
 The H100 gap remains unresolved; full paper performance reproduction is not
 established. These results apply to the tested inputs and configurations.
 B200 has a native CUDA 13/SM 100 build but remains
 unmeasured because no suitable single-GPU rental was available.
+
+On 2026-11-03, reusing the initialized twiddle table for the SM80 float N=1024
+path reduced matched A100 TF32 register-input latency from `137.24` to
+`126.53` microseconds (-7.81%; paper: `127.85`), and shared-input latency from
+`160.78` to `155.63` microseconds (-3.20%; paper: `155.34`). These are median
+R=1000 differential compute times at batch 65536, with nine register and six
+shared observations per version. The corrected build passed all 500 full-matrix
+cases and 112 checks of the actual benchmark entry points, including per-transform
+error checks. Memcheck, initcheck and synccheck passed 88 quick cases each;
+racecheck reported no hazards in a short repeated N=1024 benchmark. This local
+run used unmodified clocks on a GPU with intermittent background activity.
+It does not establish a single-FFT end-to-end speedup or update the other
+Table 3 configurations. Native SM90 and SM100 builds retain their previous
+code paths; SM80 PTX JIT-compiled on a newer GPU would use the cached path.
 
 The host wrapper synchronizes its supplied stream before returning and throws
 `std::runtime_error` for CUDA failures. A negative batch, null buffers for a
