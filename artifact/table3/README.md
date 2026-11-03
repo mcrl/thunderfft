@@ -76,7 +76,7 @@ per available GPU. Each configuration used batch 65536, R=1000 and two timing
 trials per version, with the same harness and flags for the corrected library
 and parent `2f0810c7d4adb2663702b0774baf832900665d4b`.
 
-| GPU | Toolkit / architecture | Current latency versus paper | Current versus parent latency |
+| GPU | Toolkit / architecture | Then-current latency versus paper | Then-current versus parent latency |
 | --- | --- | --- | --- |
 | A100 PCIe 80GB | CUDA 12.9 / SM80 | -2.78% to +6.61% | -0.61% to +0.19%; geometric mean -0.063% |
 | H100 PCIe 80GB | CUDA 13.0 / SM90 | +4.38% to +15.98% | -0.49% to +0.51%; geometric mean +0.041% |
@@ -87,8 +87,8 @@ paper; the H100 run remains slower, so full paper performance reproduction is
 not established. With the descriptive 10% threshold, A100 has 28/28 and H100
 20/28 configurations within range. That threshold is not specified by the
 paper. The small before/after differences with two trials do not demonstrate
-an optimization or a regression. Forward FFT bodies were retained while
-inverse and API correctness were repaired.
+an optimization or a regression. At that revision, forward FFT bodies were
+retained while inverse and API correctness were repaired.
 
 Before timing, each GPU passed the 500-case FFT correctness matrix, 88 cases
 under each of Compute Sanitizer memcheck, synccheck and racecheck, and eight
@@ -107,6 +107,59 @@ clocks and the paper's clock settings were not recorded together, so the
 remaining H100 gap cannot be attributed to a clock difference from this run.
 The cuFFTDx exhaustive sweep and full convolution comparison remain separate
 artifact tasks.
+
+## N=1024 SM80 follow-up: 2026-11-03
+
+The float N=1024 core now reuses the twiddle table already prepared by
+`ThunderFFTInitialize<float>(1024)` instead of evaluating sin/cos for each FFT.
+This change applies to SM80 only, in both directions; the measured forward
+register and shared-input paths use the same core. Native SM90 and SM100 builds
+keep their previous paths; SM80 PTX JIT-compiled on a newer GPU would use the
+cached path.
+
+Matched local A100 PCIe 80GB runs used CUDA 12.9, native SM80,
+`-O3 --use_fast_math -lineinfo`, batch 65536 and R=1000. Register runs interleaved
+three invocations per version, each with three trials. Shared runs used two
+invocations per version, each with three trials. The table reports medians;
+percentages describe latency, so negative values mean faster.
+
+| TF32 input placement | Before (us) | After (us) | Change | Paper (us) | After versus paper |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Register | 137.240570 | 126.527481 | -7.81% | 127.85 | -1.03% |
+| Shared | 160.784378 | 155.632126 | -3.20% | 155.34 | +0.19% |
+
+The register baseline used 255 registers/thread without spills. Shared load
+and store conflict-counter/wavefront ratios were 0.065% and 0.070%; these are
+memory-counter ratios, not percentages of kernel time. Static bank mapping
+and ideal/actual shared wavefront counters did not identify excessive bank
+serialization. Global loads and stores used eight 32-byte sectors per
+256-byte full-warp float2 access. Register caps introduced spills and slowed
+the tested candidates. The accepted change reuses the existing table without
+changing launch geometry, synchronization or the timing harness.
+In the accepted register benchmark's compiled repeat loop, 32 COS and 32 SIN
+instructions disappear; the twiddle loads are hoisted outside that loop.
+The cached version still uses 255 registers/thread and introduces a 64-byte
+stack with 60 bytes each of spill loads/stores. Thus the observed improvement
+comes with a spill tradeoff, rather than from lower register use. Native SM90
+and SM100 builds were checked to retain identical SASS across all 116 compiled
+functions compared with the preceding build.
+
+The production build passed 500 full-matrix correctness cases and 112 actual
+benchmark-entry checks, including a `5e-3` maximum per-transform relative L2
+gate, finite outputs and output guards. Memcheck, initcheck and synccheck each
+passed the 88-case quick matrix. A short repeated N=1024 register benchmark
+also passed racecheck with no hazards. Initcheck here covers global-memory
+initialization; it is not a proof of shared-memory initialization.
+
+Raw matched data, profiler reports, build metadata and validation outputs are
+under local generated directory `result/n1024-performance-fix-20261103/`, with
+`local-matched/`, `local-shared-matched/`, `profile/` and `validation/`
+subdirectories. Clocks and power settings were not changed; intermittent jobs
+from another account were present on the GPU. The repeated interleaved A/B
+observations support this local improvement, with those environmental limits.
+The separate single-FFT end-to-end metric did not show an improvement.
+Other Table 3 configurations were not retimed, and the cuFFTDx sweep remains
+pending. This follow-up does not establish full paper reproduction.
 
 ## Timing and correctness definitions
 
