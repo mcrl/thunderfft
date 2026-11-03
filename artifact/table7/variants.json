@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "scope": "Historical N64 TF32 candidates; exact identity with the paper's ablation is unconfirmed",
+  "gpu_validation": "not_run",
+  "variants": [
+    {"id": "radix16", "status": "missing", "title": "Radix-16 baseline", "reason": "An identifiable N64 source has not been recovered"},
+    {"id": "radix4_compute", "status": "missing", "title": "Radix-4 with reduced computation", "reason": "The original stage-wise shared-memory implementation has not been recovered"},
+    {"id": "register_branch", "status": "available", "title": "Recovered register FFT with lane-dependent branches", "source": "ablation/kernels/recovered.cuh", "kernel": "fft_kernel_radix64_batch16_branch", "candidate_paper_role": "reduced communication", "paper_identity": "unconfirmed"},
+    {"id": "register_uniform", "status": "available", "title": "Recovered register FFT with remapped fragments", "source": "ablation/kernels/recovered.cuh", "kernel": "fft_kernel_radix64_batch16", "candidate_paper_role": "reduced branch divergence", "paper_identity": "unconfirmed"}
+  ]
+}

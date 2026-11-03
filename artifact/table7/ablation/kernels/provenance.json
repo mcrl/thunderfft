@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "status": "Recovered historical candidates; exact paper-ablation identity and runtime correctness are unverified.",
+  "source_repository": "https://github.com/rhrnald/fft",
+  "source_commit": "403c6ae8b152684d5b60bf04ebf067f02e97e026",
+  "source_commit_url": "https://github.com/rhrnald/fft/commit/403c6ae8b152684d5b60bf04ebf067f02e97e026",
+  "source_files": [
+    {
+      "path": "fft/my_fft.cu",
+      "sha256": "8f8869bb43f5103630802a7ebae27e8464ede22e16f0a754690adddf891f7b1e"
+    },
+    {
+      "path": "fft/my_fft.h",
+      "sha256": "2008ffd0456e15604dca9f9638ededa90300d16b73f90b62bec8a864b6564281"
+    },
+    {
+      "path": "fft/utils.h",
+      "sha256": "0eaa30496736ffda7dace2ebece625aa0dd7b1ed8797bbc64f4449d7d0fcace9"
+    }
+  ],
+  "extracted_functions": [
+    {
+      "symbol": "W",
+      "source_path": "fft/utils.h",
+      "source_lines": [
+        66,
+        69
+      ],
+      "source_excerpt_sha256": "47ae4851d2227cc732a67a9264776012322a41f357078ba74a23d6bc5da96848"
+    },
+    {
+      "symbol": "reverse_2bit_groups",
+      "source_path": "fft/my_fft.h",
+      "source_lines": [
+        23,
+        31
+      ],
+      "source_excerpt_sha256": "7dda64caf6fd29c4b5404d10d51c46f4a66124931da1951996ff8f948483d2cf"
+    },
+    {
+      "symbol": "fill_reg_b",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        73,
+        106
+      ],
+      "source_excerpt_sha256": "25bc40eac58a4fdc5e02838abc5ce07c68685df6189e9a60a19e4f114e64ec76"
+    },
+    {
+      "symbol": "fill_reg_b_branch",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        108,
+        126
+      ],
+      "source_excerpt_sha256": "9555ff8e307b8a0882c2cc89df1e21d0768d095df18b49b777c97d85aa161658"
+    },
+    {
+      "symbol": "mma_m16n8k8_tf32_f32_rowcol",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        141,
+        161
+      ],
+      "source_excerpt_sha256": "5447ed7adadde4028215c4cc6500fbc5a00218c3ffff2c716ba6ce379c0a07aa"
+    },
+    {
+      "symbol": "swap_inline",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        263,
+        268
+      ],
+      "source_excerpt_sha256": "5e834953be274d7a83e02a3947bebbcc4d8d04eb12ab795622661998d737c48b"
+    },
+    {
+      "symbol": "permute_radix4_tmp",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        269,
+        279
+      ],
+      "source_excerpt_sha256": "34fc37d1b4a8b4df5e89bc07f105fb0c25a5e10bc8adae044f0962a3ea39b5ed"
+    },
+    {
+      "symbol": "permute_radix4",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        281,
+        417
+      ],
+      "source_excerpt_sha256": "ce39765880482621e00a420fe49ffe546cbcfb2d46e4135f7310a79a642e3410"
+    },
+    {
+      "symbol": "fft_kernel_r64_b16",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        420,
+        534
+      ],
+      "source_excerpt_sha256": "72085c5d9bb7370e8044893321f9d0d2ea2cac2f0538b58b7352e5ae4fb43942"
+    },
+    {
+      "symbol": "fft_kernel_radix64_batch16",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        672,
+        767
+      ],
+      "source_excerpt_sha256": "69d1a477dd87b7a5fe7faa1dd7e7f6288b168eb16fa2eba7375a852eb83f0d17"
+    },
+    {
+      "symbol": "fft_kernel_r64_b16_branch",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        769,
+        840
+      ],
+      "source_excerpt_sha256": "281e27208e13f147d449e17cb2ce7ceec139df6458dee2d95310c1384f6764df"
+    },
+    {
+      "symbol": "fft_kernel_radix64_batch16_branch",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        844,
+        897
+      ],
+      "source_excerpt_sha256": "ae2c57cd06619727733b4d13875aec9820870b25119cac433491b51a51492fce"
+    }
+  ],
+  "adaptations": [
+    "Extracted the minimal TF32 device/helper/global closure into one self-contained CUDA header; omitted the legacy host benchmark headers and unrelated FP16/prototype functions.",
+    "Wrapped recovered names in namespace thff_table7_legacy. Replaced needed preprocessor constants by same-value namespace constexpr constants to avoid leaking macros.",
+    "Kept W arithmetic and the original double PI literal; changed the PI identifier to local kLegacyPi to avoid collisions with existing project PI macros.",
+    "Added __syncwarp() after the branch global shared-output store loop, before cross-lane shared reads for the final global stores.",
+    "Fixed the historical uniform global output omission: retained the i<ept loop and original first-group index, and added a same-column store into batch laneid/4+8 from reg[i+ept] for both real and imaginary lanes. Input/output mappings and core arithmetic are otherwise preserved.",
+    "Removed trailing whitespace while preserving executable statements and original loop-unroll directives."
+  ],
+  "known_limitations": [
+    "Paper stage mapping is a candidate only: branch and uniform versions also differ in layout and unrolling.",
+    "N=64, forward, TF32 raw-bit MMA input behavior, one warp per block, batch a positive multiple of 16. No batch-tail support.",
+    "No runtime validation or GPU measurement was performed during source recovery.",
+    "The uniform output-coverage correction and branch output barrier are adaptations; they have not been runtime-validated in this source-recovery step."
+  ],
+  "kernels": [
+    {
+      "name": "thff_table7_legacy::fft_kernel_radix64_batch16",
+      "candidate_paper_stage": "reducing_branch_divergence",
+      "block": [
+        32,
+        1,
+        1
+      ],
+      "grid": "batch / 16",
+      "dynamic_shared_bytes": 8192,
+      "twiddle_pointer": "Unused by TF32 helpers; nullptr is valid."
+    },
+    {
+      "name": "thff_table7_legacy::fft_kernel_radix64_batch16_branch",
+      "candidate_paper_stage": "reducing_communication",
+      "block": [
+        32,
+        1,
+        1
+      ],
+      "grid": "batch / 16",
+      "dynamic_shared_bytes": 0,
+      "static_shared_bytes": 8448,
+      "twiddle_pointer": "Unused by TF32 helpers; nullptr is valid."
+    }
+  ],
+  "external_code_copied": false,
+  "license_note": "No LICENSE/COPYING/NOTICE file was found in the inspected original project tree. Retain original commit provenance; no external tcFFT source is included."
+}

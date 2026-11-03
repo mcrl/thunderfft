@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.18)
+project(thunderfft_ablation LANGUAGES CXX CUDA)
+find_package(CUDAToolkit REQUIRED)
+add_executable(thff_ablation ablation/benchmark.cu)
+target_link_libraries(thff_ablation PRIVATE CUDA::cudart)
+set_target_properties(thff_ablation PROPERTIES CXX_STANDARD 17 CUDA_STANDARD 17)
+target_compile_options(thff_ablation PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3 --use_fast_math -lineinfo>)

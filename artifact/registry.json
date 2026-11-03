@@ -142,7 +142,7 @@
       "id": "table7",
       "title": "64-point optimization ablation",
       "paper_page": 9,
-      "implementation": "pending",
+      "implementation": "prepared_subset",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -155,7 +155,8 @@
         ]
       },
       "available": false,
-      "full_paper_comparison": false
+      "full_paper_comparison": false,
+      "coverage": "Recovered N64 register-branch/uniform candidates and measurement code; radix16/radix4 sources missing; GPU validation not run"
     },
     {
       "id": "figure2",

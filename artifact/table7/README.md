@@ -1,45 +1,97 @@
-# Table 7: Optimization ablation
+# Table 7: optimization ablation
 
-Owner: unassigned
+The measurement sources are self-contained in this folder:
 
-Status: pending
+```text
+ablation/benchmark.cu                 correctness and timing driver
+ablation/kernels/recovered.cuh        two historical TF32 implementations
+ablation/kernels/provenance.json      source commits, hashes and adaptations
+variants.json                        available and missing implementations
+build.sh                             compile without launching a GPU workload
+measure.py                           selection, execution and table export
+collect_profile.py                   optional Nsight Compute collection
+run.sh                               root-runner adapter
+```
 
-Paper p. 9, Section 6.4: N=64 unit kernel, batch 65,536. Evaluate these
-incremental configurations:
+The available candidates are `register_branch` and `register_uniform`, recovered
+from the same historical commit. Their fragment and input/output layouts and
+loop unrolling also differ. They are not established as the exact original
+paper variants, or as a comparison that isolates only branch divergence.
+The uniform wrapper's omitted second group of output FFTs and the branch
+wrapper's missing output barrier have been repaired; provenance lists these
+adaptations. Kernel arithmetic and original mappings are otherwise retained.
 
-1. Radix-16 baseline following the prior Tensor Core execution pattern.
-2. Radix-4 with reduced arithmetic and fused twiddle computation.
-3. Add permutation-fused execution to reduce communication.
-4. Add branch-uniform register remapping to reduce branch divergence.
+The original `radix16` and `radix4_compute` sources have not been recovered.
+They remain explicit missing entries. With no selection, `./run.sh table7`
+returns pending (78 from the adapter, 2 from the root runner) before building
+or launching GPU kernels. It does not silently replace the paper's four rows
+with the two available candidates. This task is excluded from the default
+available batch while the original variants and GPU validation remain missing.
 
-Report runtime in milliseconds, Tensor Core utilization, and speedup relative
-to the radix-16 baseline. The paper values are 0.0074/0.0120/0.0079/0.0035 ms,
-70%/22%/33%/75% utilization, and 1.00/0.62/0.95/2.18 speedup; these are
-historical paper targets, not fresh measurements from this branch.
+## Build without measuring
 
-## Starting points and work to assign
+```sh
+CUDACXX=/usr/local/cuda-12.9/bin/nvcc THUNDERFFT_ARCHS=80 \
+  bash artifact/table7/build.sh
+./build_artifact/table7/thff_ablation --help
+python3 artifact/table7/test_contract.py
+python3 artifact/table7/test_profile.py
+```
 
-- Inspect `include/thunderfft/detail/kernel/unit_kernel_{fp16,fp32}.cuh` and
-  `sample/bench/baseline/thunderfft_bench.h` for the current kernel. Standalone
-  drivers and the first three historical ablation variants are not present.
-- Recover or implement each incremental variant, with a clear source mapping to
-  the stated change. Implement a matched driver, profiler collection, raw CSV,
-  table generator, and `run.sh`.
-- Confirm GPU, precision, input placement, FFT direction, exact baseline,
-  utilization definition and metric, profiling tool/version, input/seed,
-  timing/repetition method, and statistic. Section 6.4 does not fully specify
-  these settings; do not infer them from nearby tables.
-- Validate every variant against the same-input FFT reference before timings
-  and counters. Use identical workload, normalization, and launch-policy rules;
-  record necessary configuration differences.
-- Collect timing and utilization under a documented method. Do not substitute
-  computed speedup or theoretical utilization for a profiler measurement.
+The build uses only CUDA Toolkit and a C++17 compiler. It needs no cuFFTDx
+parameters, external FFT checkout or GPU execution. Native compilation and
+CPU contracts have been checked; GPU numerical validation and timing have not
+been run for these recovered candidates.
 
-## Results and completion
+## Run an explicitly selected subset
 
-Write `data.csv` and `table.csv` under `THUNDERFFT_RESULT_DIR`. Proposed raw
-columns: `gpu,N,batch,precision,placement,variant,repeat,time_ms,utilization_pct,metric,rel_l2,passed`.
-Retain raw profiler files, commands, validation evidence, and the speedup
-derivation. Completion requires four identifiable validated variants with
-matched fresh timing and utilization measurements. See the
-[runner contract](../README.md).
+These commands launch GPU work when the evaluator chooses to measure:
+
+```sh
+THUNDERFFT_TABLE7_VARIANTS=register_branch,register_uniform ./run.sh table7
+THUNDERFFT_TABLE7_VARIANTS=register_branch,register_uniform \
+  ./run.sh table7 --profile paper
+```
+
+The smoke protocol uses N=64, batch1024, R256 and two trials; the paper-sized
+protocol uses batch65536, R1000 and three trials. `THUNDERFFT_TABLE7_BATCH`,
+`THUNDERFFT_TABLE7_REPEATS` and `THUNDERFFT_TABLE7_TRIALS` permit explicit
+smoke overrides. Paper-sized mode requires batch65536 and R1000. These are
+artifact protocol choices: the supplied Table 7 does not specify its original
+GPU, precision, repetitions or exact utilization metric. The recovered code
+uses TF32 and requires compute capability 8.0 or newer. Choose a matching
+native architecture build and the root runner's logical `--device` selection.
+
+Before timing either variant, independent bounded complex Gaussian and tone
+inputs at batch64 undergo R=1 comparison against a CPU FP64 DFT of the represented
+FP32 input. Every transform must have relative L2 at most 0.005, every output
+must be finite, and the 16-element guards on both sides must be intact.
+
+Each timed launch receives the same immutable input through a device copy
+outside the event interval. After three warmups for each repeat count, compute
+time is `(time(2R)-time(R))/R`. Repeated outputs may overflow and are not used
+as an accuracy check. Invalid numerical gates, guards or nonpositive timing
+differences fail the evaluation. Results go under root `result/table7/<run_id>/`
+and include raw CSV/logs, `data.csv`, `table.csv`, `coverage.json`, source/binary
+hashes, compiler commands and the exact measurement commands. Speedup against
+the missing radix-16 baseline is left blank.
+
+## Optional utilization counter
+
+Set `THUNDERFFT_TABLE7_NCU=1` with the explicit subset command to collect
+`sm__pipe_tensor_cycles_active.avg.pct_of_peak_sustained_active` separately from
+ordinary timing. Set `THUNDERFFT_NCU` to the executable path when needed.
+The native `--profile` mode performs its two R=1 numerical gates, then exactly
+one R32 launch. Nsight Compute skips the two correctness launches and profiles
+that third matching kernel. Clocks and cache controls are left unchanged.
+
+Profiler CSV/logs, tool version, metric name, unit, kernel identity and exact
+command are retained. The measured percentage is stored with its metric name;
+it is not claimed to be the same counter used for the paper's utilization.
+`THUNDERFFT_TABLE7_METRIC` may select another percentage metric explicitly.
+Without profiling, utilization remains blank. No profiler was run as part of
+the CPU-only preparation.
+
+The complete paper table still requires the two missing implementations,
+confirmation of original experimental settings and validated measurements.
+The printed paper times and speedups are not substituted for fresh results.
