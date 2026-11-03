@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the 28 ThunderFFT-only Table 3 configurations and retain their evidence."""
+"""Collect selected ThunderFFT Table 3 configurations and retain their evidence."""
 
 import argparse
 import csv
@@ -101,6 +101,15 @@ def gpu_name(log):
     return family.group(1) if family else name, name, f"{major}.{minor}"
 
 
+def gpu_uuid(log):
+    entries = re.findall(r"^GPU_UUID=(.*)$", log, re.MULTILINE)
+    if not entries:
+        return None  # Historical logs predate native UUID reporting.
+    if len(entries) != 1 or not re.fullmatch(r"GPU-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", entries[0]):
+        raise ValueError("native executable reported an invalid or duplicate GPU UUID")
+    return entries[0]
+
+
 def parse_raw(text, *, n, precision, placement, batch, repeats, trials, gpu, raw_csv):
     """Validate the native CSV before treating any measurement as successful."""
     reader = csv.DictReader(io.StringIO(text))
@@ -173,6 +182,20 @@ def positive_env(name, default):
     return int(value)
 
 
+def selection_env(name, allowed, convert=str):
+    """Keep split runs explicit; reject typos instead of silently skipping work."""
+    text = os.environ.get(name)
+    if text is None:
+        return tuple(allowed)
+    tokens = [value.strip() for value in text.split(",")]
+    if not tokens or any(not value for value in tokens):
+        raise ValueError(f"{name} must be a nonempty comma-separated list")
+    values = tuple(convert(value) for value in tokens)
+    if len(set(values)) != len(values) or not set(values) <= set(allowed):
+        raise ValueError(f"{name} must contain unique values from {tuple(allowed)}")
+    return values
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
@@ -191,11 +214,20 @@ def main():
         parser.error("THUNDERFFT_TABLE3_BATCH must be a positive multiple of 16")
     if args.profile == "paper" and (settings["batch"] != 65536 or settings["repeats"] != 1000):
         parser.error("paper profile requires batch=65536 and R=1000; use smoke for custom checks")
+    try:
+        selection = {"N": selection_env("THUNDERFFT_TABLE3_N_LIST", SIZES, int),
+                     "precisions": selection_env("THUNDERFFT_TABLE3_PRECISIONS", PRECISIONS),
+                     "placements": selection_env("THUNDERFFT_TABLE3_PLACEMENTS", PLACEMENTS)}
+    except ValueError as error:
+        parser.error(str(error))
+    selected_count = math.prod(len(values) for values in selection.values())
     metadata = {"schema_version": 1, "evaluation": "table3", "profile": args.profile,
                 "started_at": now(), "status": "running", "settings": settings,
+                "selection": selection,
                 "scope": "ThunderFFT-only; cuFFTDx tuning and comparison excluded",
                 "full_paper_comparison_complete": False,
                 "coverage": {"expected_thunderfft_configurations": 28, "measured_thunderfft_configurations": 0,
+                             "selected_thunderfft_configurations": selected_count,
                              "cufftdx_configurations": 0, "other_gpus": "not measured by this run"},
                 "correctness": {"gate": "finite single-FFT output and aggregate relL2 <= 0.005",
                                 "reference": "cuFFT FP64 on exact storage-rounded input",
@@ -215,9 +247,9 @@ def main():
     identity = None
     atomic_json(args.output / "metadata.json", metadata)
     try:
-        for n in SIZES:
-            for precision in PRECISIONS:
-                for placement in PLACEMENTS:
+        for n in selection["N"]:
+            for precision in selection["precisions"]:
+                for placement in selection["placements"]:
                     label = f"n{n}-{precision}-{placement}"
                     command = [str(args.binary.resolve()), str(n), precision, placement,
                                str(settings["repeats"]), str(settings["trials"]), str(settings["batch"])]
@@ -243,17 +275,20 @@ def main():
                     if process.returncode:
                         raise RuntimeError(f"{label}: executable exited {process.returncode}; see {log_path}")
                     gpu, name, compute = gpu_name(log_path.read_text())
-                    this_identity = (gpu, name, compute)
+                    native_uuid = gpu_uuid(log_path.read_text())
+                    this_identity = (gpu, name, compute, native_uuid)
                     if identity is not None and this_identity != identity:
                         raise ValueError("CUDA device identity changed during the matrix")
                     identity = this_identity
-                    metadata.update(gpu=gpu, gpu_name=name, compute_capability=compute,
+                    metadata.update(gpu=gpu, gpu_name=name, compute_capability=compute, gpu_uuid=native_uuid,
                                     paper_target_gpu_recognized=gpu in ("A100", "H100", "B200"))
                     record["native_metadata"] = log_path.read_text().splitlines()
                     output_rows += parse_raw(csv_path.read_text(), n=n, precision=precision, placement=placement,
                                              batch=settings["batch"], repeats=settings["repeats"], trials=settings["trials"],
                                              gpu=gpu, raw_csv=str(csv_path.relative_to(args.output)))
                     write_csv(args.output / "data.csv", output_rows, FIELDS)
+                    summary = summarize(output_rows, args.profile)
+                    write_csv(args.output / "table.csv", summary, tuple(summary[0]))
                     metadata["coverage"]["measured_thunderfft_configurations"] += 1
                     atomic_json(args.output / "metadata.json", metadata)
         summary = summarize(output_rows, args.profile)
@@ -266,7 +301,8 @@ def main():
     finally:
         metadata["finished_at"] = now()
         atomic_json(args.output / "metadata.json", metadata)
-    print(f"Completed 28 ThunderFFT configurations; cuFFTDx comparison excluded. Results: {args.output}")
+    print(f"Completed {selected_count}/28 ThunderFFT configurations on this GPU; "
+          f"cuFFTDx comparison excluded. Results: {args.output}")
     return 0
 
 

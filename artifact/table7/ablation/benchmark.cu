@@ -299,6 +299,13 @@ int main(int argc, char** argv) {
             batch / kTransformsPerBlock, variant == Variant::uniform ? 8192 : 0,
             attributes.sharedSizeBytes, attributes.numRegs, attributes.localSizeBytes,
             kSeed, kGuardElements, profile ? "profile" : "timing");
+        std::fprintf(stderr, "gpu_uuid=GPU-");
+        for (int byte = 0; byte < 16; ++byte) {
+            if (byte == 4 || byte == 6 || byte == 8 || byte == 10)
+                std::fprintf(stderr, "-");
+            std::fprintf(stderr, "%02x", static_cast<unsigned char>(properties.uuid.bytes[byte]));
+        }
+        std::fprintf(stderr, "\n");
 
         const Validation gaussian = validate_r1(variant, false);
         const Validation tone = validate_r1(variant, true);

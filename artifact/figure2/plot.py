@@ -120,7 +120,7 @@ def read_source(directory, profile):
     return fields, rows, groups, provenance
 
 
-def make_plot(groups, output, profile, batch, repeats):
+def make_plot(groups, output, profile, batch, repeats, allow_partial=False):
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -130,10 +130,14 @@ def make_plot(groups, output, profile, batch, repeats):
     plt.rcParams.update({"font.size": 11, "pdf.fonttype": 42, "ps.fonttype": 42})
     figure, axis = plt.subplots(figsize=(8.6, 5.0))
     for precision in PRECISIONS:
-        values = [list(groups[(size, precision)].values()) for size in SIZES]
-        medians = [statistics.median(value) / 1000.0 for value in values]
-        errors = [[mid - min(value) / 1000.0 for mid, value in zip(medians, values)],
-                  [max(value) / 1000.0 - mid for mid, value in zip(medians, values)]]
+        values = [list(groups.get((size, precision), {}).values()) if allow_partial
+                  else list(groups[(size, precision)].values()) for size in SIZES]
+        if not any(values):
+            continue
+        # NaNs are intentional gaps: missing measurements are neither zero nor interpolated.
+        medians = [statistics.median(value) / 1000.0 if value else math.nan for value in values]
+        errors = [[mid - min(value) / 1000.0 if value else math.nan for mid, value in zip(medians, values)],
+                  [max(value) / 1000.0 - mid if value else math.nan for mid, value in zip(medians, values)]]
         axis.errorbar(range(len(SIZES)), medians, yerr=errors,
                       label=f"ThunderFFT ({precision})", color=COLORS[precision],
                       marker="o" if precision == "TF32" else "s", markersize=5,
@@ -150,6 +154,8 @@ def make_plot(groups, output, profile, batch, repeats):
     caption = ("ThunderFFT-only subset; cuFFTDx comparison is pending.\n"
                f"{profile} profile; batch={batch:,}, R={repeats:,}. "
                "Points: median; bars: trial min–max. 1 ms = 1000 μs.")
+    if allow_partial and len(groups) < 14:
+        caption += f"\nCollected {len(groups)}/14 points; gaps indicate measurements still pending."
     figure.text(0.07, 0.025, caption, ha="left", va="bottom", fontsize=9)
     figure.tight_layout(rect=(0.01, 0.15, 0.99, 0.84))
     figure.savefig(output, metadata={"CreationDate": None, "ModDate": None,

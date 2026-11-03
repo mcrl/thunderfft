@@ -14,10 +14,16 @@ import subprocess
 import sys
 import time
 import uuid
+import importlib.util
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = Path(__file__).with_name("registry.json")
+
+# Also works when CPU tests load this file by path rather than as a module.
+_spec = importlib.util.spec_from_file_location("artifact_collection", Path(__file__).with_name("collection.py"))
+collection = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(collection)
 
 
 def now():
@@ -127,6 +133,8 @@ def execute(entry, output, args, dependency_results=None):
                         "THUNDERFFT_RUN_ID": args.run_id,
                         "THUNDERFFT_RESULTS_ROOT": str(args.result_dir),
                         "THUNDERFFT_DEPENDENCY_RESULTS": json.dumps(dependency_results or {})})
+    if getattr(args, "collection", None):
+        environment["THUNDERFFT_COLLECTION"] = args.collection
     started = time.monotonic()
     process = None
     try:
@@ -179,7 +187,8 @@ def main():
                         help="evaluation IDs, available (default), or all including unfinished tasks")
     parser.add_argument("--list", action="store_true", help="list work items without running")
     parser.add_argument("--dry-run", action="store_true", help="show plan without creating results or querying GPUs")
-    parser.add_argument("--profile", choices=["smoke", "paper"], default="smoke")
+    parser.add_argument("--profile", choices=["smoke", "paper"], default=None,
+                        help="default: collection profile if it exists, otherwise smoke")
     parser.add_argument("--result-dir", type=Path, default=ROOT / "result")
     parser.add_argument("--build-dir", type=Path, default=ROOT / "build_artifact")
     parser.add_argument("--device", type=nonnegative, default=0,
@@ -187,10 +196,39 @@ def main():
     parser.add_argument("--jobs", type=positive, default=2)
     parser.add_argument("--timeout", type=nonnegative, default=0,
                         help="per-evaluation timeout in seconds; 0 disables it")
+    parser.add_argument("--collection", help="retain independent result parts in a named collection")
+    parser.add_argument("--part", help="immutable label for this collected/imported part (default: run ID)")
+    parser.add_argument("--assemble", action="store_true",
+                        help="generate tables/figures and missing.csv from collected CSVs; no GPU execution")
+    parser.add_argument("--import-result", action="append", default=[], metavar="EVALUATION=DIR",
+                        help="import a completed result bundle with CSVs and metadata; no GPU execution")
     args = parser.parse_args()
     registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
-    requested = ["all"] if args.list and not args.evaluations else args.evaluations
+    collection_dir = None
+    if (args.part or args.assemble or args.import_result) and not args.collection:
+        parser.error("--part, --assemble and --import-result require --collection")
+    if args.import_result and args.evaluations:
+        parser.error("--import-result uses EVALUATION=DIR; omit positional evaluations")
+    if args.assemble and args.part and not args.import_result:
+        parser.error("--part applies to collection/import, not assembly")
+    try:
+        if args.collection:
+            collection_dir = collection.location(args.result_dir, args.collection)
+            if args.part:
+                collection.name(args.part)
+            existing = collection.read_manifest(collection_dir)
+            if existing and args.profile and existing["profile"] != args.profile:
+                parser.error(f"collection profile is {existing['profile']}; use a separate collection for {args.profile}")
+            args.profile = args.profile or (existing["profile"] if existing else "smoke")
+        else:
+            args.profile = args.profile or "smoke"
+    except (ValueError, OSError) as error:
+        parser.error(str(error))
+    requested = ["all"] if (args.list or args.assemble) and not args.evaluations else args.evaluations
     entries = select_tasks(requested, registry["evaluations"], parser)
+    if args.collection and not args.assemble and not args.import_result and not args.list:
+        # Derived figures are regenerated offline from the collection's sources.
+        entries = [e for e in entries if e["id"] != "figure2"]
     if args.list or args.dry_run:
         for entry in entries:
             dependencies = ",".join(entry.get("depends_on", [])) or "-"
@@ -198,13 +236,57 @@ def main():
                   f'owner={entry.get("owner") or "unassigned"} '
                   f'depends={dependencies} | {entry["title"]}')
         if args.dry_run:
-            print(f"Profile: {args.profile}; device: {args.device}; sequential execution")
-            print(f"Results: {args.result_dir.resolve()}/<evaluation>/<run_id>/")
+            if args.assemble or args.import_result:
+                print(f"Profile: {args.profile}; offline import/assembly; no GPU queries or execution")
+            else:
+                print(f"Profile: {args.profile}; device: {args.device}; sequential execution")
+            if collection_dir:
+                print(f"Collection: {collection_dir}")
+                if args.assemble and (collection_dir / "assembled/manifest.json").is_file():
+                    print("Previously assembled evaluations will also be refreshed and preserved.")
+            if args.import_result:
+                print("Import: " + ", ".join(args.import_result))
+            if not args.assemble and not args.import_result:
+                print(f"Results: {args.result_dir.resolve()}/<evaluation>/<run_id>/")
             print("No evaluations executed; no measurements or result files created.")
         return 0
 
     args.result_dir = args.result_dir.resolve()
     args.build_dir = args.build_dir.resolve()
+    if collection_dir:
+        try:
+            collection.initialize(collection_dir, args.profile)
+            registered = {e["id"] for e in registry["evaluations"]}
+            if args.part and not args.import_result and not args.assemble:
+                previous = collection.read_manifest(collection_dir)["parts"]
+                selected_ids = {e["id"] for e in entries}
+                duplicates = [p["evaluation"] for p in previous
+                              if p["part"] == args.part and p["evaluation"] in selected_ids]
+                if duplicates:
+                    raise ValueError("part already exists for " + ", ".join(duplicates)
+                                     + "; choose another --part before collecting")
+            for request in args.import_result:
+                evaluation, separator, path = request.partition("=")
+                if not separator or evaluation not in registered or not path:
+                    raise ValueError("--import-result must be a registered EVALUATION=DIR")
+                if evaluation == "figure2":
+                    raise ValueError("import Table 3 source data; Figure 2 is generated during --assemble")
+                label = args.part or Path(path).resolve().name
+                collection.add_part(collection_dir, evaluation, label, Path(path), args.profile)
+                print(f"Imported {evaluation}/{label}: {collection_dir / 'parts' / evaluation / label}")
+            if args.assemble:
+                states = collection.assemble_collection(collection_dir, entries, args.profile)
+                for state in states:
+                    print(f"[{state['evaluation']}] {state['status']}; missing {len(state.get('missing', []))}")
+                print(f"Assembled outputs: {collection_dir / 'assembled'}")
+                print("No GPU measurements executed. Missing values remain uncollected.")
+                return 0 if all(s["status"] == "complete" for s in states) else 2
+            if args.import_result:
+                print(f"Assemble with: ./run.sh --collection {args.collection} --assemble --result-dir {args.result_dir}")
+                return 0
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            print(f"Collection error: {error}", file=sys.stderr)
+            return 1
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     args.run_id = run_id
     batch_dir = args.result_dir / "runs" / run_id
@@ -212,6 +294,7 @@ def main():
     metadata = {"schema_version": 1, "run_id": run_id, "started_at": now(),
                 "profile": args.profile, "evaluations": [e["id"] for e in entries],
                 "selection": args.evaluations or ["available"],
+                "collection": args.collection, "part": args.part or run_id,
                 "coverage": {e["id"]: e.get("coverage", "See the task README") for e in entries},
                 "device": args.device, "build_dir": str(args.build_dir),
                 "jobs": args.jobs, "timeout_seconds": args.timeout,
@@ -224,7 +307,7 @@ def main():
                 "gpu": capture(["nvidia-smi", "--query-gpu=index,name,driver_version,memory.total",
                                 "--format=csv,noheader"]),
                 "configuration": {key: value for key, value in os.environ.items()
-                    if key.startswith(("THUNDERFFT_TABLE3_", "THUNDERFFT_TABLE5_")) or key in
+                    if key.startswith(("THUNDERFFT_TABLE3_", "THUNDERFFT_TABLE5_", "THUNDERFFT_TABLE7_")) or key in
                     ("CUDA_VISIBLE_DEVICES", "CUDACXX", "NVCC", "CUDAToolkit_ROOT", "MATHDX_ROOT", "THUNDERFFT_ARCHS")},
                 "paper": registry["paper"], "scientific_validation": "not_assessed"}
     atomic_json(batch_dir / "manifest.json", metadata)
@@ -246,6 +329,20 @@ def main():
             print(f'[{entry["id"]}] running; log: {output / "run.log"}', flush=True)
             dependency_results = {d: by_id[d]["result_dir"] for d in entry.get("depends_on", [])}
             state = execute(entry, output, args, dependency_results)
+            recover_checkpoint = (entry["id"] == "table3" and state["status"] in ("failed", "interrupted")
+                                  and (output / "data.csv").is_file())
+            if collection_dir and (state["status"] == "completed" or recover_checkpoint):
+                try:
+                    record = collection.add_part(collection_dir, entry["id"], args.part or run_id,
+                                                 output, args.profile)
+                    state["collection_part"] = record["path"]
+                except (ValueError, OSError, KeyError, TypeError) as error:
+                    if recover_checkpoint:
+                        state["checkpoint_import_error"] = str(error)
+                    else:
+                        state.update(status="failed", runner_exit_code=65,
+                                     detail="measurement retained, collection import failed: " + str(error))
+                atomic_json(output / "status.json", state)
         interrupted = interrupted or state["status"] == "interrupted"
         states.append(state)
         by_id[entry["id"]] = state
@@ -262,6 +359,9 @@ def main():
     metadata.update(finished_at=now(), exit_code=exit_code)
     atomic_json(batch_dir / "manifest.json", metadata)
     print(f"Summary: {batch_dir / 'summary.csv'}", flush=True)
+    if collection_dir:
+        print(f"Collected parts: {collection_dir / 'parts'}")
+        print(f"Assemble with: ./run.sh --collection {args.collection} --assemble --result-dir {args.result_dir}")
     return exit_code
 
 

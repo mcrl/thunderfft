@@ -5,9 +5,9 @@ This branch organizes reproduction work for the supplied PPoPP'27 draft,
 implementation named **ThunderFFT** in this repository. Paper numbers below
 refer to that draft; confirm them if the paper changes.
 
-The folders are assignment units, not a claim that every experiment is ready.
-Assign an owner in each task's README and `registry.json`, resolve its unknown settings, and finish
-its adapter before reporting reproduction results. Figure 1 is a design diagram
+The folders are independent evaluations; some adapters are still incomplete.
+Each task documents its implemented scope and missing measurements.
+Figure 1 is a design diagram
 and Table 1 is a literature survey, so neither has a GPU evaluation task.
 
 | Task | Paper page | Deliverable | Starting point / dependency |
@@ -22,7 +22,7 @@ and Table 1 is a literature survey, so neither has a GPU evaluation task.
 | [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | MMA microbenchmark pending |
 | [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Ready: measurements and tables; FP32 is cuFFT; published provenance unconfirmed |
 | [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | External baseline integration pending |
-| [table7](table7/README.md) | 9 | Optimization ablation | Baseline variants and profiling pending |
+| [table7](table7/README.md) | 9 | Optimization ablation | Two recovered candidates can be collected separately; first two variants remain unavailable |
 
 The general paper environment (p. 7) is one GPU with an AMD EPYC-class host:
 A100 PCIe 80GB with Ubuntu 20.04/CUDA 12.9, and H100 PCIe or B200 with Ubuntu
@@ -104,7 +104,92 @@ same task result directory. Existing source-adjacent CSVs are historical inputs,
 not results of the new runner; their original measurements have not been
 revalidated against this branch. Keep them separate from fresh measurements.
 
-## Adapter contract for task owners
+## Collect CSVs separately and assemble later
+
+A named collection stores independent result bundles. Each bundle contains its
+CSVs, raw logs, correctness evidence and measurement settings. Missing inputs
+remain pending; no placeholder timing or utilization values are inserted.
+Collection and assembly are separate operations:
+
+```bash
+# Collect two parts on the same A100 with the same build and settings.
+THUNDERFFT_TABLE3_PRECISIONS=fp16 \
+  ./run.sh table3 --profile paper --collection ae --part a100-fp16
+THUNDERFFT_TABLE3_PRECISIONS=tf32 \
+  ./run.sh table3 --collection ae --part a100-tf32
+
+# Collect each available ablation candidate independently.
+THUNDERFFT_TABLE7_VARIANTS=register_branch THUNDERFFT_TABLE7_PHASE=timing \
+  ./run.sh table7 --collection ae --part ablation-branch-time
+THUNDERFFT_TABLE7_VARIANTS=register_uniform THUNDERFFT_TABLE7_PHASE=timing \
+  ./run.sh table7 --collection ae --part ablation-uniform-time
+
+# Generate the tables/figures from whatever has been collected. No GPU work.
+./run.sh --collection ae --assemble
+```
+
+`--profile` defaults to the collection's existing profile, or `smoke` for a new
+collection. Use a different collection for smoke and paper data or incompatible
+measurement settings. Table 3 supports `THUNDERFFT_TABLE3_N_LIST`,
+`THUNDERFFT_TABLE3_PRECISIONS`, and `THUNDERFFT_TABLE3_PLACEMENTS`. Table 5 supports
+`THUNDERFFT_TABLE5_N_LIST` and `THUNDERFFT_TABLE5_PHASES`; Table 7 supports
+`THUNDERFFT_TABLE7_VARIANTS` and `THUNDERFFT_TABLE7_PHASE=timing|profile|both`.
+Their READMEs list the exact values and measurement commands. Collecting Table 7
+without an explicit variant list in collection mode selects its two available
+candidates and leaves the missing original stages pending.
+
+Existing successful runs can be imported without measuring again. Transfer the
+whole evaluation directory, including its metadata and raw evidence, when
+collecting on another machine:
+
+```bash
+./run.sh --collection ae --part a100-existing \
+  --import-result table3=/path/to/completed/table3/run-directory
+./run.sh --collection ae --assemble figure2
+```
+
+The second command assembles Table 3's collected parts and generates Figure 2
+from its A100 register data. It does not run Table 3 again. During collection,
+selecting Figure 2 selects its Table 3 source measurements; figures are generated
+by the separate assembly command.
+
+Table 3 also retains each fully validated configuration as a checkpoint. If a
+later configuration fails or the runner is interrupted, completed configurations
+can still be imported; the unsuccessful run keeps its original failure status.
+Running bundles and incomplete trials are never accepted. Collect the remaining
+configurations into a new part with the selection variables above.
+
+```text
+result/collections/ae/
+  manifest.json                     # explicit part list and file hashes
+  parts/<evaluation>/<part>/         # immutable CSV/log/metadata snapshots
+  assembled/
+    status.csv                      # complete, partial or pending per evaluation
+    missing.csv                     # all still-uncollected inputs
+    <evaluation>/table.csv          # collected cells plus blank pending cells
+    figure2/figure.pdf              # plotted when at least one valid point exists
+```
+
+Assembly does not automatically pick the latest run or merge unrelated CSVs.
+Adapters validate input correctness and reject incompatible settings, source or
+binary hashes, GPU identity and software versions. Table 3 keeps different GPU
+families in separate rows. Duplicate/conflicting parts are rejected unless an
+adapter explicitly verifies they are identical. Choose nonoverlapping selections
+when collecting a matrix. Existing parts cannot be overwritten; start a new
+collection to compare a revised implementation.
+
+`--assemble` can also initialize an empty collection and produce its missing-input
+list. It returns **2** while requested measurements remain pending, **1** for
+invalid or conflicting evidence, and **0** when its requested scope is complete.
+An invalid assembly preserves the previous assembled output and records
+`assembly-error.json`; that previous output does not incorporate the rejected
+parts. When updating selected evaluations, previously assembled evaluations are
+also refreshed, so existing tables and derived figures are preserved.
+Missing Figure 2 points are gaps, not zero values or interpolated lines.
+Unsupported evaluations and external comparisons remain listed as pending.
+The implemented subset and full-paper completeness are recorded separately.
+
+## Adapter contract
 
 Implement `artifact/<evaluation>/run.sh`. The root runner supplies:
 
@@ -120,6 +205,7 @@ Implement `artifact/<evaluation>/run.sh`. The root runner supplies:
 | `THUNDERFFT_RUN_ID` | Unique batch run ID |
 | `THUNDERFFT_RESULTS_ROOT` | Root result directory |
 | `THUNDERFFT_DEPENDENCY_RESULTS` | JSON mapping of dependency IDs to their result directories |
+| `THUNDERFFT_COLLECTION` | Named collection when collecting independent parts; unset for ordinary runs |
 
 Write all new results under `THUNDERFFT_RESULT_DIR`; do not overwrite checked-in
 CSVs. Return `0` only after the task's checks and promised outputs succeed.
@@ -143,6 +229,17 @@ the source file and hash. Selecting Figure 2 alone does not make old CSVs new da
 records `scientific_validation: not_assessed`; the adapter's own validation
 report and the task owner's review establish numerical correctness and faithful
 paper reproduction. It does not infer those claims from exit code zero.
+
+For incremental assembly, provide `artifact/<evaluation>/assemble.py` with
+`assemble(parts, output, profile)`. `parts` contains immutable result-directory
+paths; `output` is an empty staging directory. This function must only read and
+validate collected evidence and write derived files, without GPU queries,
+compilation or measurement. Return `status` (`complete`, `partial`, or `pending`),
+`missing` (objects with `item` and `reason`), and `full_paper_comparison`.
+Validate numerical gates, configuration completeness and compatible provenance
+before combining values. Keep output references relative when they point to
+other assembled files because the staging directory is renamed on publication.
+Adapters without this implementation remain pending in the collection.
 
 ## Completion and provenance
 

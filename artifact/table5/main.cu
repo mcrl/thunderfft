@@ -255,12 +255,20 @@ static void write_environment(const std::string& path) {
     CHECK_CUFFT(cufftGetVersion(&cufft_version));
     char pci_bus_id[32]{};
     CHECK_CUDA(cudaDeviceGetPCIBusId(pci_bus_id, sizeof(pci_bus_id), device));
+    std::ostringstream gpu_uuid;
+    gpu_uuid << "GPU-" << std::hex << std::setfill('0');
+    for (int index = 0; index < 16; ++index) {
+        if (index == 4 || index == 6 || index == 8 || index == 10) gpu_uuid << '-';
+        gpu_uuid << std::setw(2) << static_cast<unsigned int>(
+            static_cast<unsigned char>(properties.uuid.bytes[index]));
+    }
     std::ofstream output(path);
     if (!output) {
         std::cerr << "failed to open environment path: " << path << '\n';
         std::exit(EXIT_FAILURE);
     }
     output << "{\n  \"gpu_name\": " << json_string(properties.name)
+           << ",\n  \"gpu_uuid\": " << json_string(gpu_uuid.str())
            << ",\n  \"local_cuda_device\": " << device
            << ",\n  \"pci_bus_id\": " << json_string(pci_bus_id)
            << ",\n  \"compute_capability\": " << json_string(std::to_string(properties.major) + "." + std::to_string(properties.minor))

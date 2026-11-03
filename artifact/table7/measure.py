@@ -77,11 +77,27 @@ def capture(argv):
         return {"argv": argv, "error": str(error)}
 
 
-def write_csv(path, rows):
+def write_csv(path, rows, fields=None):
     with path.open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(stream, fieldnames=fields or list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
+
+
+def requested_variants(manifest):
+    explicit = os.environ.get("THUNDERFFT_TABLE7_VARIANTS")
+    if explicit is None and os.environ.get("THUNDERFFT_COLLECTION"):
+        return ",".join(v["id"] for v in manifest["variants"] if v["status"] == "available")
+    return explicit
+
+
+def selected_phase():
+    phase = os.environ.get("THUNDERFFT_TABLE7_PHASE")
+    if phase is None:
+        phase = "both" if os.environ.get("THUNDERFFT_TABLE7_NCU", "0") == "1" else "timing"
+    if phase not in ("timing", "profile", "both"):
+        raise ValueError("THUNDERFFT_TABLE7_PHASE must be timing, profile, or both")
+    return phase
 
 
 def setting(name, default):
@@ -101,13 +117,15 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = json.loads((HERE / "variants.json").read_text())
-    coverage = {"scope": manifest["scope"], "requested": os.environ.get("THUNDERFFT_TABLE7_VARIANTS", "all"),
+    selection = requested_variants(manifest)
+    phase = selected_phase()
+    coverage = {"scope": manifest["scope"], "requested": selection or "all", "phase": phase,
                 "source_available": [v["id"] for v in manifest["variants"] if v["status"] == "available"],
                 "source_missing": [v["id"] for v in manifest["variants"] if v["status"] != "available"],
                 "full_paper_comparison": False, "gpu_validation": "not_run_by_selection_check"}
     (args.output / "coverage.json").write_text(json.dumps(coverage, indent=2) + "\n")
     try:
-        variants = select_variants(os.environ.get("THUNDERFFT_TABLE7_VARIANTS"), manifest)
+        variants = select_variants(selection, manifest)
     except MissingVariants as error:
         print(f"PENDING [table7]: {error}. Select recovered candidates explicitly with THUNDERFFT_TABLE7_VARIANTS.", file=sys.stderr)
         return 78
@@ -124,7 +142,7 @@ def main():
     if args.profile == "paper" and (batch != 65536 or repeats != 1000):
         raise ValueError("paper-sized ablation protocol requires batch65536 and R1000")
     sources = [p for p in HERE.rglob("*") if p.is_file() and p.suffix in (".cu", ".cuh", ".py", ".sh", ".json", ".txt") and "__pycache__" not in p.parts]
-    metadata = {"evaluation": "table7", "profile": args.profile, "coverage": coverage,
+    metadata = {"evaluation": "table7", "profile": args.profile, "phase": phase, "coverage": coverage,
                 "settings": {"batch": batch, "R": repeats, "trials": trials, "precision": "TF32"},
                 "source_sha256": {str(p.relative_to(HERE)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources},
                 "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest(),
@@ -145,28 +163,31 @@ def main():
     try:
         for variant in variants:
             identifier = variant["id"]
-            command = [str(args.binary.resolve()), identifier, str(batch), str(repeats), str(trials)]
-            metadata["commands"].append(command)
-            (args.output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-            with (args.output / f"{identifier}.csv").open("w") as out, (args.output / f"{identifier}.log").open("w") as log:
-                run = subprocess.run(command, stdout=out, stderr=log, timeout=180)
-            if run.returncode:
-                raise ValueError(f"{identifier} failed with exit {run.returncode}; see its log")
-            measured = parse_raw((args.output / f"{identifier}.csv").read_text(), identifier, batch, repeats, trials)
-            rows.extend(measured)
-            times = [r["compute_us"] for r in measured]
             summaries.append({"variant": identifier, "N": 64, "batch": batch, "precision": "tf32",
-                              "median_time_ms": statistics.median(times) / 1000,
-                              "min_time_ms": min(times) / 1000, "max_time_ms": max(times) / 1000,
-                              "max_transform_relative_l2": max(r["max_transform_relative_l2"] for r in measured),
-                              "utilization_pct": "", "radix16_speedup": "", "paper_identity": "unconfirmed"})
-            if os.environ.get("THUNDERFFT_TABLE7_NCU", "0") == "1":
+                              "median_time_ms": "", "min_time_ms": "", "max_time_ms": "",
+                              "max_transform_relative_l2": "", "utilization_pct": "", "utilization_metric": "",
+                              "radix16_speedup": "", "paper_identity": "unconfirmed"})
+            if phase in ("timing", "both"):
+                command = [str(args.binary.resolve()), identifier, str(batch), str(repeats), str(trials)]
+                metadata["commands"].append(command)
+                (args.output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+                with (args.output / f"{identifier}.csv").open("w") as out, (args.output / f"{identifier}.log").open("w") as log:
+                    run = subprocess.run(command, stdout=out, stderr=log, timeout=180)
+                if run.returncode:
+                    raise ValueError(f"{identifier} failed with exit {run.returncode}; see its log")
+                measured = parse_raw((args.output / f"{identifier}.csv").read_text(), identifier, batch, repeats, trials)
+                rows.extend(measured)
+                times = [r["compute_us"] for r in measured]
+                summaries[-1].update(median_time_ms=statistics.median(times) / 1000,
+                                     min_time_ms=min(times) / 1000, max_time_ms=max(times) / 1000,
+                                     max_transform_relative_l2=max(r["max_transform_relative_l2"] for r in measured))
+            if phase in ("profile", "both"):
                 from collect_profile import collect, DEFAULT_METRIC
                 counter = collect(args.binary, identifier, batch, args.output,
                                   os.environ.get("THUNDERFFT_NCU", "ncu"),
                                   os.environ.get("THUNDERFFT_TABLE7_METRIC", DEFAULT_METRIC))
                 summaries[-1].update(utilization_pct=counter["value"], utilization_metric=counter["metric"])
-        write_csv(args.output / "data.csv", rows)
+        write_csv(args.output / "data.csv", [dict(r, passed=int(r["passed"])) for r in rows], RAW_FIELDS)
         write_csv(args.output / "table.csv", summaries)
         (args.output / "commands.txt").write_text("\n".join(shlex.join(c) for c in metadata["commands"]) + "\n")
         metadata["status"] = "completed_declared_subset"

@@ -10,6 +10,7 @@ variants.json                        available and missing implementations
 build.sh                             compile without launching a GPU workload
 measure.py                           selection, execution and table export
 collect_profile.py                   optional Nsight Compute collection
+assemble.py                          combine collected parts without GPU work
 run.sh                               root-runner adapter
 ```
 
@@ -25,8 +26,9 @@ The original `radix16` and `radix4_compute` sources have not been recovered.
 They remain explicit missing entries. With no selection, `./run.sh table7`
 returns pending (78 from the adapter, 2 from the root runner) before building
 or launching GPU kernels. It does not silently replace the paper's four rows
-with the two available candidates. This task is excluded from the default
-available batch while the original variants and GPU validation remain missing.
+with the two available candidates. In a named collection, the default selection
+is the two available candidates, while assembly retains all four rows and marks
+the uncollected entries as missing. Ordinary default batches exclude this task.
 
 ## Build without measuring
 
@@ -36,6 +38,7 @@ CUDACXX=/usr/local/cuda-12.9/bin/nvcc THUNDERFFT_ARCHS=80 \
 ./build_artifact/table7/thff_ablation --help
 python3 artifact/table7/test_contract.py
 python3 artifact/table7/test_profile.py
+python3 artifact/table7/test_assemble.py
 ```
 
 The build uses only CUDA Toolkit and a C++17 compiler. It needs no cuFFTDx
@@ -75,6 +78,57 @@ differences fail the evaluation. Results go under root `result/table7/<run_id>/`
 and include raw CSV/logs, `data.csv`, `table.csv`, `coverage.json`, source/binary
 hashes, compiler commands and the exact measurement commands. Speedup against
 the missing radix-16 baseline is left blank.
+
+## Collect separate parts and assemble
+
+Timing and utilization can be collected in different executions. The following
+collection commands launch GPU work; the final assembly command reads files
+only. Keep the same compiled binary, source files, GPU and protocol settings for
+all parts of one table.
+
+```sh
+THUNDERFFT_TABLE7_VARIANTS=register_branch THUNDERFFT_TABLE7_PHASE=timing \
+  ./run.sh table7 --collection a100-ablation --profile paper --part branch-timing
+THUNDERFFT_TABLE7_VARIANTS=register_uniform THUNDERFFT_TABLE7_PHASE=timing \
+  ./run.sh table7 --collection a100-ablation --profile paper --part uniform-timing
+
+# This can be collected later, after Nsight Compute is available.
+THUNDERFFT_TABLE7_PHASE=profile \
+  ./run.sh table7 --collection a100-ablation --profile paper --part utilization
+
+./run.sh table7 --collection a100-ablation --profile paper --assemble
+```
+
+`THUNDERFFT_TABLE7_PHASE=timing` collects ordinary timing trials; `profile`
+collects only the utilization counter and its independent correctness checks;
+`both` collects both kinds. The default is `timing`; the existing
+`THUNDERFFT_TABLE7_NCU=1` option selects `both` unless an explicit phase is set.
+Within a collection, `THUNDERFFT_TABLE7_VARIANTS` may be omitted to collect the
+two available implementations.
+
+Collected parts are retained under
+`result/collections/a100-ablation/parts/table7/`. Assembly writes
+`result/collections/a100-ablation/assembled/table7/table.csv`, the combined
+timing `data.csv`, and metadata listing collected and missing measurements.
+Run assembly at any point: missing timing or utilization cells remain blank,
+and the result stays `partial` until all required cells are present. The two
+unrecovered implementations remain missing even after the available candidates
+have been measured. Paper identity remains unconfirmed.
+
+The assembler checks the numerical gates, raw CSVs, profiler logs and hashes.
+It rejects mixed smoke/paper protocols, settings, source/binary hashes, GPU
+identities, runtime/compiler versions, or utilization counters. Identical
+duplicates are harmless; overlapping measurements with different values require
+choosing one result, rather than silently overwriting or averaging them.
+Parts created before native GPU UUID logging was added cannot be combined
+through this strict assembly contract.
+
+For direct offline use with existing successful result directories:
+
+```sh
+python3 artifact/table7/assemble.py path/to/branch-part path/to/uniform-part \
+  --profile paper --output result/table7-assembled
+```
 
 ## Optional utilization counter
 

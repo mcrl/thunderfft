@@ -21,6 +21,7 @@ case "${THUNDERFFT_PROFILE}" in
   *) echo "Unsupported THUNDERFFT_PROFILE=${THUNDERFFT_PROFILE}" >&2; exit 2 ;;
 esac
 TABLE5_N_LIST="${THUNDERFFT_TABLE5_N_LIST:-${TABLE5_N_LIST}}"
+TABLE5_PHASES="${THUNDERFFT_TABLE5_PHASES:-accuracy_reduced,accuracy_fp32_cufft,range_fp16,range_tf32,range_fp32_cufft}"
 
 TABLE5_SEED="${THUNDERFFT_TABLE5_SEED:-1234}"
 TABLE5_TIMEOUT="${THUNDERFFT_TABLE5_TIMEOUT:-600}"
@@ -33,7 +34,7 @@ if [[ ! "${TABLE5_SEED}" =~ ^[0-9]+$ || ! "${TABLE5_TIMEOUT}" =~ ^[1-9][0-9]*$ ]
   exit 2
 fi
 
-export TABLE5_N_LIST TABLE5_BATCH TABLE5_SEED FP16_MIN FP16_MAX WIDE_MIN WIDE_MAX
+export TABLE5_N_LIST TABLE5_BATCH TABLE5_SEED TABLE5_PHASES FP16_MIN FP16_MAX WIDE_MIN WIDE_MAX
 export TABLE5_PREVIOUS_CUDA_VISIBLE_DEVICES_SET="${CUDA_VISIBLE_DEVICES+x}"
 export TABLE5_PREVIOUS_CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES-}"
 # The native executable uses local CUDA device 0. Select the requested ordinal
@@ -60,14 +61,19 @@ if seed > 2**64 - 1:
     raise SystemExit("THUNDERFFT_TABLE5_SEED must fit an unsigned 64-bit integer.")
 if int(os.environ["TABLE5_BATCH"]) > 2**31 - 1:
     raise SystemExit("THUNDERFFT_TABLE5_BATCH must fit a positive signed 32-bit integer.")
+phases = os.environ["TABLE5_PHASES"].split(",")
+allowed_phases = {"accuracy_reduced", "accuracy_fp32_cufft", "range_fp16", "range_tf32", "range_fp32_cufft"}
+if not phases or len(set(phases)) != len(phases) or set(phases) - allowed_phases:
+    raise SystemExit("THUNDERFFT_TABLE5_PHASES must select unique comma-separated Table 5 phase names.")
 metadata = {
     "evaluation": "table5",
     "profile": os.environ["THUNDERFFT_PROFILE"],
     "N": sizes,
+    "selected_phases": phases,
     "batch": int(os.environ["TABLE5_BATCH"]),
     "seed": seed,
     "population_provenance": "Operational defaults are batch=65536 and seed=1234 in the retained evaluator source; the supplied paper does not establish its exact batch/seed.",
-    "overrides": {key: os.environ[key] for key in ("THUNDERFFT_TABLE5_BATCH", "THUNDERFFT_TABLE5_SEED", "THUNDERFFT_TABLE5_N_LIST") if key in os.environ},
+    "overrides": {key: os.environ[key] for key in ("THUNDERFFT_TABLE5_BATCH", "THUNDERFFT_TABLE5_SEED", "THUNDERFFT_TABLE5_N_LIST", "THUNDERFFT_TABLE5_PHASES") if key in os.environ},
     "complete_paper_size_set": set(sizes) == {64, 256, 1024, 4096},
     "input": "complex Gaussian; per-FFT L2 norm / sqrt(N) = alpha",
     "reference": "cuFFT Z2Z (FP64) applied to the generated FP32 input",
@@ -107,11 +113,16 @@ run_measurement() {
   timeout --signal=TERM --kill-after=10s "${TABLE5_TIMEOUT}s" "${args[@]}" 2>&1 | tee "${THUNDERFFT_RESULT_DIR}/${name}.log"
 }
 
-run_measurement accuracy_reduced --precision both --alpha 1 --reference fp64
-run_measurement accuracy_fp32_cufft --precision fp32 --alpha 1 --reference fp64
-run_measurement range_fp16 --precision fp16 --alpha-sweep --alpha-exp-min "${FP16_MIN}" --alpha-exp-max "${FP16_MAX}" --fast-finite-only
-run_measurement range_tf32 --precision tf32 --alpha-sweep --alpha-exp-min "${WIDE_MIN}" --alpha-exp-max "${WIDE_MAX}" --fast-finite-only
-run_measurement range_fp32_cufft --precision fp32 --alpha-sweep --alpha-exp-min "${WIDE_MIN}" --alpha-exp-max "${WIDE_MAX}" --fast-finite-only
+IFS=',' read -r -a selected_phases <<< "${TABLE5_PHASES}"
+for phase in "${selected_phases[@]}"; do
+  case "${phase}" in
+    accuracy_reduced) run_measurement "${phase}" --precision both --alpha 1 --reference fp64 ;;
+    accuracy_fp32_cufft) run_measurement "${phase}" --precision fp32 --alpha 1 --reference fp64 ;;
+    range_fp16) run_measurement "${phase}" --precision fp16 --alpha-sweep --alpha-exp-min "${FP16_MIN}" --alpha-exp-max "${FP16_MAX}" --fast-finite-only ;;
+    range_tf32) run_measurement "${phase}" --precision tf32 --alpha-sweep --alpha-exp-min "${WIDE_MIN}" --alpha-exp-max "${WIDE_MAX}" --fast-finite-only ;;
+    range_fp32_cufft) run_measurement "${phase}" --precision fp32 --alpha-sweep --alpha-exp-min "${WIDE_MIN}" --alpha-exp-max "${WIDE_MAX}" --fast-finite-only ;;
+  esac
+done
 
 "${THUNDERFFT_PYTHON}" "${SCRIPT_DIR}/summarize.py" "${THUNDERFFT_RESULT_DIR}"
-echo "Table 5 measurements and numerical sanity checks completed; paper provenance remains unassessed."
+echo "Selected Table 5 phases completed and passed numerical sanity checks; paper provenance remains unassessed."

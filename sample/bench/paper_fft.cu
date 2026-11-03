@@ -169,6 +169,13 @@ int main(int argc,char**argv) {
     std::fprintf(stderr,"compiled_CUDART=%d runtime=%d driver=%d cuFFT=%d extra_R_warmups=3\n",
                  CUDART_VERSION,runtime,driver,cufft_version);
     std::fprintf(stderr,"GPU=%s compute=%d.%d batch=%d R=%d trials=%d single_fft_relL2_limit=0.005\n",prop.name,prop.major,prop.minor,b,r,t);
+    // CUDA ordinals need not match nvidia-smi indices; retain the actual device UUID.
+    std::fputs("GPU_UUID=GPU-", stderr);
+    for (int i=0; i<16; ++i) {
+      if (i==4 || i==6 || i==8 || i==10) std::fputc('-', stderr);
+      std::fprintf(stderr,"%02x", static_cast<unsigned char>(prop.uuid.bytes[i]));
+    }
+    std::fputc('\n', stderr);
     std::puts("N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_out_of_place_us,single_fft_relL2,shared_bytes");
     switch(n) {
       case 64:choose<64>(precision,placement,b,r,t);break;

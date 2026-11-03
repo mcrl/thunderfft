@@ -75,6 +75,7 @@ class VariantSelectionContract(unittest.TestCase):
     def test_default_selection_check_exits_pending_before_measurement(self):
         environment = dict(os.environ)
         environment.pop("THUNDERFFT_TABLE7_VARIANTS", None)
+        environment.pop("THUNDERFFT_COLLECTION", None)
         environment["CUDA_VISIBLE_DEVICES"] = ""
         with tempfile.TemporaryDirectory() as directory:
             result = subprocess.run(

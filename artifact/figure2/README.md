@@ -36,11 +36,39 @@ python3 artifact/figure2/plot.py \
   --output-dir result/figure2/<new_plot_id> --profile paper
 ```
 
-The source must have a completed `table3` `status.json`, exit code 0, and the
+This single-run plotting command requires a completed `table3` `status.json`, exit code 0, and the
 same profile. Missing dependency files or a source without A100/register data
 return 78 (pending). Failed source rows, missing configurations, duplicate
 trials, inconsistent batch/repeat counts, and nonfinite data return 65. This
 figure is explicitly scoped to A100; H100/B200 measurements are not relabeled.
+
+## Assemble a partially collected figure
+
+Table 3 can be collected in independent parts using its size, precision and
+placement selectors; see [split collection](../table3/README.md#collect-independent-parts-and-assemble-later).
+To update Figure 2 from all available parts, without rerunning measurements:
+
+```bash
+./run.sh --assemble --collection ae --profile paper
+```
+
+The offline assembler first validates and merges Table 3 evidence, then writes
+the available A100/register points to `assembled/figure2/` in the collection.
+Its `summary.csv` retains all 14 ThunderFFT point positions; uncollected points
+have blank numeric values and `status=pending`. The PDF contains gaps for these
+points, with no zero fill or connecting line across a gap. With no measured
+points, the CSV and missing list are written and no PDF is fabricated.
+
+Every point is checked against the original native CSV, command and device log.
+Source hashes, configuration/trial coverage, positive finite timings,
+differential timing and the numerical gate must agree. Assembly rejects changed
+or incompatible evidence. It preserves the blue TF32 and green FP16 series and
+the legend above the data area. Original measurement files remain unchanged.
+
+The assembled figure remains `partial` while the cuFFTDx series are missing.
+`complete_declared_subset=true` indicates that all 14 ThunderFFT points exist;
+it does not claim completion of the paper's full comparison. The missing list
+retains the cuFFTDx series even when every ThunderFFT point is present.
 
 ## Data and plotting contract
 

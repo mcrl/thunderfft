@@ -1,7 +1,5 @@
 # Table 3: FFT kernel latency matrix
 
-Owner: unassigned
-
 Status: operational ThunderFFT-only adapter; cuFFTDx sweep/comparison and complete multi-GPU reproduction pending
 
 Paper p. 8, Section 6.2: single A100 PCIe 80GB, H100 PCIe, and B200; FFT
@@ -42,7 +40,49 @@ R=256 and two trials; it is a short installation/numerical/timing check, not a
 paper performance comparison. Paper defaults to batch 65536, R=1000 and three
 trials. Results are written to `result/table3/<run_id>/`; neither profile runs
 cuFFTDx or creates baseline speedups/geometric means. Success means the
-declared 28-configuration ThunderFFT subset completed on one selected GPU.
+selected ThunderFFT configurations completed on one selected GPU.
+
+## Collect independent parts and assemble later
+
+The collection runner keeps each part's original CSV, native logs and metadata.
+Select sizes, precisions and placements independently, using distinct part names:
+
+```sh
+THUNDERFFT_TABLE3_N_LIST=64,128,256 THUNDERFFT_TABLE3_PLACEMENTS=register \
+  ./run.sh table3 --collection ae --part a100-register-small --profile paper
+THUNDERFFT_TABLE3_N_LIST=512,1024,2048,4096 THUNDERFFT_TABLE3_PLACEMENTS=register \
+  ./run.sh table3 --collection ae --part a100-register-large --profile paper
+THUNDERFFT_TABLE3_PLACEMENTS=shared \
+  ./run.sh table3 --collection ae --part a100-shared --profile paper
+
+# Offline: reread existing evidence and regenerate the current table and figure.
+./run.sh --assemble --collection ae --profile paper
+```
+
+`THUNDERFFT_TABLE3_PRECISIONS=fp16` or `tf32` can split each command further.
+All three selectors accept nonempty comma-separated lists; omitted selectors
+include all their values. Duplicate or unsupported values fail. Use the same
+profile, batch, R, trial count, source, binary/build and physical GPU for parts
+belonging to the same GPU column. A100, H100 and B200 have separate columns and
+must use the same source revision, while allowing their required architecture/toolkit builds.
+Overlapping configurations
+and incompatible parts are rejected instead of silently averaged. Keep different
+measurement campaigns in different collections.
+
+After every complete configuration, `data.csv` and `table.csv` are checkpointed.
+If a later configuration fails or the process is interrupted, assembly can
+retain earlier complete configurations after rechecking their successful command
+record, native CSV/log, numerical error and differential timing. Incomplete or
+corrupt trial groups fail validation. Uncollected configurations remain blank
+with `status=pending` in the assembled 84-row ThunderFFT grid. The assembly's
+missing list also records the pending cuFFTDx comparison. Already collected
+values are never replaced with the paper's reference targets.
+
+Assembly writes `data.csv`, `table.csv` and `metadata.json` to the collection's
+`assembled/table3/` directory and derives Figure 2 from its A100/register subset.
+It launches no GPU workloads. Table 3 remains `partial` while cuFFTDx is missing;
+`complete_declared_subset=true` means only that all 84 ThunderFFT configurations
+have been collected. Original part outputs remain unchanged.
 
 Set `CUDACXX` and `THUNDERFFT_ARCHS` for the evaluation GPU/toolkit before
 running, for example:
@@ -58,6 +98,11 @@ that device; it never expands the visible GPU set. The native executable
 reports the actual GPU name/compute capability. A100/H100/B200 names select
 their corresponding paper target; unknown models retain their real name and
 get no paper target rather than silently comparing against A100.
+The native log also records the CUDA device UUID. Assembly matches this UUID
+against the saved GPU inventory, because CUDA ordinals and `nvidia-smi` indices
+can differ. Historical logs without UUIDs require an explicit UUID visibility
+mask or exactly one device with the recorded model name; ambiguous device
+identity is rejected.
 
 Environment overrides are `THUNDERFFT_TABLE3_BATCH`,
 `THUNDERFFT_TABLE3_REPEATS`, `THUNDERFFT_TABLE3_TRIALS` and
@@ -254,7 +299,7 @@ Raw CSV columns are:
 N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_out_of_place_us,single_fft_relL2,shared_bytes
 ```
 
-## Remaining work to assign
+## Remaining comparison requirements
 
 - Implement cuFFTDx device-level register/shared paths and an exhaustive legal
   launch-parameter sweep. Retain every candidate and the winner-selection rule.

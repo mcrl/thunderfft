@@ -50,6 +50,56 @@ Direct invocation is also supported and defaults to a result directory under the
 bash artifact/table5/run.sh
 ```
 
+## Collect separate CSV parts and assemble later
+
+The five phases can be collected independently with `THUNDERFFT_TABLE5_PHASES`:
+`accuracy_reduced`, `accuracy_fp32_cufft`, `range_fp16`, `range_tf32`, and
+`range_fp32_cufft`. The default selects all five. Combine this with
+`THUNDERFFT_TABLE5_N_LIST` to split work by FFT size. A selected phase must
+finish its entire declared size/exponent grid and pass the same checks as a
+full run. Each invocation stores an immutable result bundle; use a unique
+`--part` name when adding it to a collection.
+
+For example, collect the accuracy CSVs and the three range CSVs in separate
+executions, then assemble them without using the GPU:
+
+```bash
+THUNDERFFT_TABLE5_PHASES=accuracy_reduced,accuracy_fp32_cufft \
+  ./run.sh table5 --collection ae --part table5-accuracy
+
+THUNDERFFT_TABLE5_PHASES=range_fp16 \
+  ./run.sh table5 --collection ae --part table5-range-fp16
+
+THUNDERFFT_TABLE5_PHASES=range_tf32,range_fp32_cufft \
+  ./run.sh table5 --collection ae --part table5-range-wide
+
+./run.sh --assemble --collection ae
+```
+
+Use `--profile paper` consistently for a paper-profile collection. To collect
+one size at a time, add `THUNDERFFT_TABLE5_N_LIST=64`, then collect the other
+sizes with different part names. Keep batch and seed fixed across the parts;
+any batch override must be repeated in each invocation. No new measurements
+are launched by assembly.
+
+Assembly can run after any part is collected. Missing accuracy or range
+cells remain blank in CSV and show `pending` in the readable table. The
+collection reports the exact missing phase/size combinations. An interrupted
+scan cannot supply a finite boundary; all exponents in that profile's window
+must be present and validated. Identical duplicate components are deduplicated;
+conflicting duplicates are rejected.
+
+Parts must match in profile, batch, seed, input/reference definitions,
+implementation labels, scan windows, source hashes, binary hash, build/compiler
+settings, and the measured GPU UUID/CUDA/cuFFT environment. This prevents combining
+measurements taken under incompatible conditions. Assembly revalidates raw
+CSVs, records source-file hashes, and preserves the original bundles.
+A legacy bundle without a GPU UUID can be assembled on its own or deduplicated
+against an identical bundle; it cannot be combined with independently collected
+parts. PCI bus IDs and GPU names alone do not establish device identity across hosts.
+Completing the expected CSV grid establishes collection completeness; exact
+paper population and FP32 provenance remain unestablished.
+
 ## Generated outputs
 
 All new files go under `$THUNDERFFT_RESULT_DIR`, a runner-generated directory inside repository-root `result/`:
@@ -58,11 +108,11 @@ All new files go under `$THUNDERFFT_RESULT_DIR`, a runner-generated directory in
 - `accuracy_fp32_cufft.csv` / `.log`: cuFFT FP32 error against FP64 at `alpha=1`.
 - `range_fp16.csv`, `range_tf32.csv`, `range_fp32_cufft.csv` and their `.log` files: raw exponent scans with finite-output flags.
 - `data.csv`: canonical combined long-form raw rows, labeled by phase, source CSV, actual implementation, and reference. Finite-only error values remain `nan`.
-- `table.csv` and identical `table5_summary.csv`: per-size and per-precision measured errors and largest finite exponent observed, with scan bounds, overflow/censoring flags, and actual implementation labels.
+- `table.csv` and identical `table5_summary.csv`: per-size and per-precision measured errors and largest finite exponent observed, with scan bounds, overflow/censoring flags, actual implementation labels, and separate accuracy/range completion flags. Uncollected cells remain blank.
 - `table.md`: readable exported table.
 - `comparison.csv`: informational differences and error ratios against the retained source reference CSV. Non-paper sizes have blank reference columns; this comparison has no invented paper-acceptance threshold.
 - `metadata.json`, `commands.txt`: population and overrides, seed, input definition, precision provenance, device selection, source commit/status and SHA-256 hashes, binary hash, CMake settings, compiler version, measured GPU/CUDA/cuFFT versions, build and exact native commands.
-- `*.environment.json`: selected GPU, PCI bus identity, total global memory, compute capability, driver API/runtime/compile versions and cuFFT version from each native invocation.
+- `*.environment.json`: selected GPU UUID, PCI bus identity, total global memory, compute capability, driver API/runtime/compile versions and cuFFT version from each native invocation.
 - `validation.json`: row completeness, finite alpha=1 outputs, broad numerical sanity limits (`1e-2` for FP16/TF32, `1e-5` for cuFFT FP32), monotonicity of the scanned finite boundary, and consistent measured environment across invocations.
 
 `run.sh` returns nonzero if those numerical sanity checks fail. These are broad implementation checks, not author-approved paper acceptance thresholds. Neither process completion nor these checks establish the exact published numbers or FP32 provenance. Metadata explicitly leaves scientific validation unassessed.
@@ -75,6 +125,6 @@ For interpreting the published table, the exact original batch, seed, hardware/r
 
 A scan's largest finite exponent is an observation over its recorded population. `right_censored=true` means all samples were still finite at the scan maximum, and `left_censored=true` means none were finite within the selected window. Neither condition establishes an unobserved boundary. A finite-output range does not assert small numerical error at every scale.
 
-CPU-only summarizer failure checks are available with `python3 artifact/table5/check_summary.py`; they exercise complete data, missing/duplicate rows, excessive alpha=1 error, nonmonotonic overflow boundaries and inconsistent environments. No CUDA math is changed by this adapter.
+CPU-only checks are available with `python3 artifact/table5/check_summary.py` and `python3 artifact/table5/test_assemble.py`; they exercise complete data, missing/duplicate rows, excessive alpha=1 error, nonmonotonic overflow boundaries and inconsistent environments. No CUDA math is changed by this adapter.
 
 The retained `sweep_layout_conv1d.py` and `sweep_lmid_conv1d.py` are legacy convolution tuning helpers, not Table 5 numerical evaluations. They can mutate layout source or CMake settings and are excluded from the unified runner. Their default CSV locations now use root `result/table5/` (or `$THUNDERFFT_RESULT_DIR`). Any historical CSVs must remain immutable reference data.
