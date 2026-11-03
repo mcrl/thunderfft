@@ -1,4 +1,14 @@
 namespace thunderfft {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 800
+template <bool Forward>
+__device__ __forceinline__ void rotate_n1024_cached(float2& value, int index) {
+    // Initialize<float>(1024) supplies the positive-angle table. Reusing it
+    // avoids evaluating sin/cos for every transform on the SM80 path.
+    const float2 factor = __ldg(ThunderFFT_get_twiddle<float>() + index);
+    value = cmul(value, make_float2(factor.x, Forward ? -factor.y : factor.y));
+}
+#endif
+
 template<>
 __device__ __forceinline__ void
 ThunderFFT_kernel_reg<float, 1024, 1, true>(vec2_t<float>* __restrict__ reg, vec2_t<float>* W_precompute, void *workspace) {
@@ -31,8 +41,13 @@ ThunderFFT_kernel_reg<float, 1024, 1, true>(vec2_t<float>* __restrict__ reg, vec
         reg[i] = smem[index0];
         reg[i+ept/2] = smem[index1];
         
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 800
+        rotate_n1024_cached<true>(reg[i], col0 * rev_row);
+        rotate_n1024_cached<true>(reg[i+ept/2], col1 * rev_row);
+#else
         rotate(reg[i], col0 * rev_row, 1024);
         rotate(reg[i+ept/2], col1 * rev_row, 1024);
+#endif
     }
 
     thunderfft::unit::fft_kernel_r16_b64<true>((float*) (reg));
@@ -68,8 +83,13 @@ ThunderFFT_kernel_reg<float, 1024, 1, false>(vec2_t<float>* __restrict__ reg, ve
         reg[i] = smem[index0];
         reg[i+ept/2] = smem[index1];
         
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ == 800
+        rotate_n1024_cached<false>(reg[i], col0 * rev_row);
+        rotate_n1024_cached<false>(reg[i+ept/2], col1 * rev_row);
+#else
         rotate(reg[i], -col0 * rev_row, 1024);
         rotate(reg[i+ept/2], -col1 * rev_row, 1024);
+#endif
     }
 
     thunderfft::unit::fft_kernel_r16_b64<false>((float*) (reg));
