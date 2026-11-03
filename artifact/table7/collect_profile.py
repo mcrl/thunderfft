@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Optional Nsight Compute collection, independent of ordinary timing trials."""
+"""Optional Nsight Compute diagnostic; counters do not define Table 7 utilization.
+
+Table 7 derives utilization from issued MMA FLOPs, timing and the A100 hardware
+peak of 156 TFLOPS. This standalone diagnostic is not a required table input.
+"""
 import argparse
 import csv
 import hashlib

@@ -20,7 +20,7 @@ SPEC.loader.exec_module(assembly)
 measure = assembly.measure
 
 UUID = "GPU-01234567-89ab-cdef-0123-456789abcdef"
-GPU = ("gpu=Test GPU device=0 sm=8.0 sm_count=108 driver=12090 runtime=12090 cuda_compiler=12.9.86\n"
+GPU = ("gpu=NVIDIA A100 80GB PCIe device=0 sm=8.0 sm_count=108 driver=12090 runtime=12090 cuda_compiler=12.9.86\n"
        f"gpu_uuid={UUID}\n")
 
 
@@ -28,28 +28,11 @@ def fixture_rows(variant):
     return [dict(zip(measure.RAW_FIELDS, (variant, 64, 64, "tf32", 0, 128, 100, 228, 1, .001, .002, 0, 0, 1)))]
 
 
-def fixture_profile_log(variant):
-    result = GPU + f"variant={variant} N=64 precision=tf32 batch=64 R=32 trials=1 mode=profile\n"
-    for kind in ("bounded_complex_gaussian", "complex_tone"):
-        result += (f"validation_input={kind} validation_batch=64 R=1 reference=cpu_fp64_dft "
-                   "relative_l2=0.001 max_transform_relative_l2=0.002 nonfinite_outputs=0 "
-                   "output_guard_changed=0 threshold=0.005 passed=1\n")
-    return result + "profile_launch_complete=1 profile_R=32 profile_warmups=0 profile_timing_rows=0\n"
-
-
-def fixture_profile(part, variant, binary_hash="b" * 64):
-    kernel = "fft_kernel_radix64_batch16" + ("_branch" if variant == "register_branch" else "")
-    raw = ('"ID","Kernel Name","Metric Name","Metric Unit","Metric Value"\n'
-           f'"0","{kernel}","{assembly.profiler.DEFAULT_METRIC}","%","75.5"\n')
-    (part / f"{variant}.ncu.csv").write_text(raw)
-    (part / f"{variant}.profile.log").write_text(fixture_profile_log(variant))
-    record = {"variant": variant, "batch": 64, "R": 32, "exit_code": 0,
-              "clock_control": "none", "cache_control": "none", "profiler_version": "fixture",
-              "argv": ["ncu", "--launch-skip", "2", "--launch-count", "1", "--clock-control", "none", "--cache-control", "none", "binary", variant, "64", "32", "1", "--profile"],
-              "binary_sha256": binary_hash, "metric": assembly.profiler.DEFAULT_METRIC,
-              "measurement": assembly.profiler.parse_metric(raw, assembly.profiler.DEFAULT_METRIC)}
-    (part / f"{variant}.profile.json").write_text(json.dumps(record))
-    return record["measurement"]
+def fixture_profile(part, variant):
+    # Deliberately unusable legacy diagnostic sidecars. Table utilization must
+    # be recomputed from timing, without reading or requiring these files.
+    (part / f"{variant}.ncu.csv").write_text("diagnostic_counter,value\ncycles_active,75.5\n")
+    (part / f"{variant}.profile.json").write_text("not a Table 7 utilization input\n")
 
 
 def fixture_part(root, name, variant="register_uniform", phase="timing"):
@@ -97,26 +80,42 @@ class AssemblyChecks(unittest.TestCase):
                 self.assertEqual(row[key], "")
         self.assertFalse(result["full_paper_comparison"])
 
-    def test_separate_variants_and_profile_parts_merge_without_filling_missing(self):
+    def test_separate_timing_parts_automatically_calculate_utilization(self):
         parts = [fixture_part(self.root, "branch", "register_branch"),
-                 fixture_part(self.root, "uniform"),
-                 fixture_part(self.root, "uniform-utilization", phase="profile")]
+                 fixture_part(self.root, "uniform")]
         result = self.assemble(parts)
         self.assertEqual(result["status"], "partial")
-        self.assertEqual(len(result["missing"]), 5)
+        self.assertEqual(len(result["missing"]), 4)
         table = self.table()
         self.assertEqual(float(table["register_uniform"]["median_time_ms"]), .001)
-        self.assertEqual(float(table["register_uniform"]["utilization_pct"]), 75.5)
-        self.assertEqual(table["register_branch"]["utilization_pct"], "")
+        for variant in ("register_uniform", "register_branch"):
+            self.assertAlmostEqual(float(table[variant]["utilization_pct"]), .393216 / 156 * 100)
+            self.assertEqual(float(table[variant]["reference_peak_tflops"]), 156)
+            self.assertEqual(table[variant]["utilization_status"], "calculated")
+            self.assertEqual(int(table[variant]["tensor_flops_per_batch"]), 6144 * 64)
+        self.assertEqual(list(self.root.rglob("*.ncu.csv")), [])
         self.assertEqual(table["radix16"]["median_time_ms"], "")
         self.assertEqual(result["gpu"]["uuid"], UUID)
         self.assertTrue(result["parts"][0]["files"])
 
-    def test_profile_only_is_useful_without_timing(self):
+    def test_legacy_profile_only_cannot_supply_paper_utilization(self):
         result = self.assemble([fixture_part(self.root, "profile", phase="profile")])
-        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["status"], "pending")
         self.assertEqual(self.table()["register_uniform"]["median_time_ms"], "")
-        self.assertEqual(float(self.table()["register_uniform"]["utilization_pct"]), 75.5)
+        self.assertEqual(self.table()["register_uniform"]["utilization_pct"], "")
+        self.assertEqual(len(result["ignored_parts"]), 1)
+
+    def test_legacy_both_reuses_timing_and_ignores_profiler_values(self):
+        part = fixture_part(self.root, "both", phase="both")
+        result = self.assemble([part])
+        value = float(self.table()["register_uniform"]["utilization_pct"])
+        self.assertAlmostEqual(value, .393216 / 156 * 100)
+        self.assertNotEqual(value, 75.5)
+        self.assertTrue(result["parts"][0]["ignored_profile_counters"])
+        (part / "register_uniform.ncu.csv").unlink()
+        (part / "register_uniform.profile.json").unlink()
+        self.assemble([part])
+        self.assertEqual(float(self.table()["register_uniform"]["utilization_pct"]), value)
 
     def test_identical_duplicate_parts_are_harmless(self):
         first = fixture_part(self.root, "first", phase="both")
@@ -140,7 +139,7 @@ class AssemblyChecks(unittest.TestCase):
         for field in ("profile", "settings", "source_sha256", "binary_sha256"):
             with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                first, second = fixture_part(root, "first"), fixture_part(root, "second", phase="profile")
+                first, second = fixture_part(root, "first"), fixture_part(root, "second")
                 path = second / "metadata.json"
                 meta = json.loads(path.read_text())
                 if field == "settings":
@@ -174,21 +173,24 @@ class AssemblyChecks(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Raw and exported"):
             self.assemble([first])
 
-    def test_profile_requires_native_numerical_gates(self):
-        first = fixture_part(self.root, "first", phase="profile")
-        path = first / "register_uniform.profile.log"
-        path.write_text(path.read_text().replace("passed=1", "passed=0"))
-        with self.assertRaisesRegex(ValueError, "correctness"):
+    def test_utilization_requires_valid_numerical_timing_rows(self):
+        first = fixture_part(self.root, "first")
+        for filename in ("data.csv", "register_uniform.csv"):
+            path = first / filename
+            path.write_text(path.read_text().replace("0.002", "0.28"))
+        with self.assertRaisesRegex(ValueError, "accuracy"):
             self.assemble([first])
 
-    def test_profile_counter_provenance_cannot_be_swapped(self):
-        first = fixture_part(self.root, "first", phase="profile")
-        path = first / "register_uniform.profile.json"
-        record = json.loads(path.read_text())
-        record["binary_sha256"] = "c" * 64
-        path.write_text(json.dumps(record))
-        with self.assertRaisesRegex(ValueError, "provenance"):
-            self.assemble([first])
+    def test_non_a100_has_throughput_but_no_unconfirmed_reference(self):
+        first = fixture_part(self.root, "first")
+        path = first / "register_uniform.log"
+        path.write_text(path.read_text().replace("NVIDIA A100 80GB PCIe", "NVIDIA H100 PCIe"))
+        result = self.assemble([first])
+        row = self.table()["register_uniform"]
+        self.assertAlmostEqual(float(row["achieved_tflops"]), .393216)
+        self.assertEqual(row["utilization_pct"], "")
+        self.assertEqual(row["utilization_status"], "pending_reference")
+        self.assertTrue(any("reference" in item["reason"] for item in result["missing"]))
 
 
 class CollectionChecks(unittest.TestCase):
@@ -196,6 +198,8 @@ class CollectionChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env = dict(os.environ, CUDA_VISIBLE_DEVICES="", THUNDERFFT_COLLECTION="fixture")
             env.pop("THUNDERFFT_TABLE7_VARIANTS", None)
+            env.pop("THUNDERFFT_TABLE7_PHASE", None)
+            env.pop("THUNDERFFT_TABLE7_NCU", None)
             result = subprocess.run([sys.executable, str(HERE / "measure.py"), "--check-selection", "--output", directory], env=env,
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -203,42 +207,53 @@ class CollectionChecks(unittest.TestCase):
             self.assertEqual(coverage["requested"], "register_branch,register_uniform")
             self.assertEqual(len(coverage["source_missing"]), 2)
 
-    def test_phase_selection_keeps_legacy_ncu_flag(self):
+    def test_profiling_is_not_a_table_utilization_phase(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(measure.selected_phase(), "timing")
             os.environ["THUNDERFFT_TABLE7_NCU"] = "1"
-            self.assertEqual(measure.selected_phase(), "both")
-            os.environ["THUNDERFFT_TABLE7_PHASE"] = "profile"
-            self.assertEqual(measure.selected_phase(), "profile")
-            os.environ["THUNDERFFT_TABLE7_PHASE"] = "invalid"
             with self.assertRaises(ValueError):
                 measure.selected_phase()
+            os.environ.pop("THUNDERFFT_TABLE7_NCU")
+            for phase in ("profile", "both", "invalid"):
+                os.environ["THUNDERFFT_TABLE7_PHASE"] = phase
+                with self.subTest(phase=phase), self.assertRaises(ValueError):
+                    measure.selected_phase()
 
-    def test_profile_only_orchestration_does_not_run_timing(self):
+    def test_timing_orchestration_calculates_utilization_without_profiler(self):
         # All subprocesses are mocked; this checks orchestration only.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             binary, build, output = root / "fake-binary", root / "build", root / "output"
             binary.write_text("CPU test fixture")
             build.mkdir()
-            def collect(_binary, variant, batch, destination, _ncu, _metric):
-                self.assertEqual(batch, 64)
-                return fixture_profile(destination, variant)
+            calls = []
+            def run(command, **kwargs):
+                calls.append(command)
+                self.assertEqual(command, [str(binary), "register_uniform", "64", "128", "1"])
+                stream = io.StringIO()
+                writer = csv.DictWriter(stream, fieldnames=measure.RAW_FIELDS)
+                writer.writeheader()
+                writer.writerows(fixture_rows("register_uniform"))
+                kwargs["stdout"].write(stream.getvalue())
+                kwargs["stderr"].write(GPU)
+                return subprocess.CompletedProcess(command, 0)
             env = {"THUNDERFFT_COLLECTION": "fixture", "THUNDERFFT_TABLE7_VARIANTS": "register_uniform",
-                   "THUNDERFFT_TABLE7_PHASE": "profile", "THUNDERFFT_TABLE7_BATCH": "64",
+                   "THUNDERFFT_TABLE7_PHASE": "timing", "THUNDERFFT_TABLE7_BATCH": "64",
                    "THUNDERFFT_TABLE7_REPEATS": "128", "THUNDERFFT_TABLE7_TRIALS": "1"}
             argv = ["measure.py", "--output", str(output), "--binary", str(binary), "--build-dir", str(build)]
             with patch.dict(os.environ, env, clear=True), patch.object(sys, "argv", argv), \
                     patch.object(measure, "capture", return_value={}), \
-                    patch.dict(sys.modules, {"collect_profile": assembly.profiler}), \
-                    patch.object(assembly.profiler, "collect", side_effect=collect), \
-                    patch.object(measure.subprocess, "run", side_effect=AssertionError("Unexpected subprocess")), \
+                    patch.object(measure.subprocess, "run", side_effect=run), \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(measure.main(), 0)
             with (output / "data.csv").open() as stream:
-                self.assertEqual(list(csv.DictReader(stream)), [])
-            self.assertFalse((output / "register_uniform.csv").exists())
-            self.assertEqual(json.loads((output / "metadata.json").read_text())["phase"], "profile")
+                self.assertEqual(len(list(csv.DictReader(stream))), 1)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(list(output.glob("*.ncu.csv")), [])
+            with (output / "table.csv").open() as stream:
+                row = next(csv.DictReader(stream))
+            self.assertAlmostEqual(float(row["utilization_pct"]), .393216 / 156 * 100)
+            self.assertEqual(json.loads((output / "metadata.json").read_text())["phase"], "timing")
 
 
 if __name__ == "__main__":

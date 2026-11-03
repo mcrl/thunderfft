@@ -119,9 +119,9 @@ THUNDERFFT_TABLE3_PRECISIONS=tf32 \
   ./run.sh table3 --collection ae --part a100-tf32
 
 # Collect each available ablation candidate independently.
-THUNDERFFT_TABLE7_VARIANTS=register_branch THUNDERFFT_TABLE7_PHASE=timing \
+THUNDERFFT_TABLE7_VARIANTS=register_branch \
   ./run.sh table7 --collection ae --part ablation-branch-time
-THUNDERFFT_TABLE7_VARIANTS=register_uniform THUNDERFFT_TABLE7_PHASE=timing \
+THUNDERFFT_TABLE7_VARIANTS=register_uniform \
   ./run.sh table7 --collection ae --part ablation-uniform-time
 
 # Generate the tables/figures from whatever has been collected. No GPU work.
@@ -133,10 +133,16 @@ collection. Use a different collection for smoke and paper data or incompatible
 measurement settings. Table 3 supports `THUNDERFFT_TABLE3_N_LIST`,
 `THUNDERFFT_TABLE3_PRECISIONS`, and `THUNDERFFT_TABLE3_PLACEMENTS`. Table 5 supports
 `THUNDERFFT_TABLE5_N_LIST` and `THUNDERFFT_TABLE5_PHASES`; Table 7 supports
-`THUNDERFFT_TABLE7_VARIANTS` and `THUNDERFFT_TABLE7_PHASE=timing|profile|both`.
+`THUNDERFFT_TABLE7_VARIANTS` for separate timing collections.
 Their READMEs list the exact values and measurement commands. Collecting Table 7
 without an explicit variant list in collection mode selects its two available
 candidates and leaves the missing original stages pending.
+
+Table 7 utilization is derived from the operation count and collected timing,
+with A100 hardware peak **156 TFLOPS** as the denominator. Each recovered TF32
+candidate issues 6144 MMA FLOPs per FFT. No separate utilization collection or
+profiler CSV is needed; assembly calculates the values from valid timing rows.
+Other GPUs retain achieved throughput with the utilization reference pending.
 
 Existing successful runs can be imported without measuring again. Transfer the
 whole evaluation directory, including its metadata and raw evidence, when

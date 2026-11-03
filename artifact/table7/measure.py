@@ -3,19 +3,28 @@
 import argparse
 import csv
 import hashlib
+import importlib.util
 import io
 import json
 import math
 import os
 from pathlib import Path
+import re
 import shlex
 import statistics
 import subprocess
 import sys
 
 HERE = Path(__file__).resolve().parent
+_UTILIZATION_SPEC = importlib.util.spec_from_file_location("table7_utilization", HERE / "utilization.py")
+utilization = importlib.util.module_from_spec(_UTILIZATION_SPEC)
+_UTILIZATION_SPEC.loader.exec_module(utilization)
 RAW_FIELDS = ("variant", "N", "batch", "precision", "trial", "inside_repeats", "t_R_us", "t_2R_us",
               "compute_us", "relative_l2", "max_transform_relative_l2", "nonfinite_outputs", "output_guard_changed", "passed")
+TABLE_FIELDS = ("variant", "N", "batch", "precision", "median_time_ms", "min_time_ms", "max_time_ms",
+                "max_transform_relative_l2", "tensor_flops_per_fft", "tensor_flops_per_batch",
+                "achieved_tflops", "reference_peak_tflops", "utilization_pct", "utilization_metric",
+                "reference_source", "radix16_speedup", "timing_status", "utilization_status", "paper_identity")
 
 
 class MissingVariants(ValueError):
@@ -93,11 +102,20 @@ def requested_variants(manifest):
 
 def selected_phase():
     phase = os.environ.get("THUNDERFFT_TABLE7_PHASE")
-    if phase is None:
-        phase = "both" if os.environ.get("THUNDERFFT_TABLE7_NCU", "0") == "1" else "timing"
-    if phase not in ("timing", "profile", "both"):
-        raise ValueError("THUNDERFFT_TABLE7_PHASE must be timing, profile, or both")
-    return phase
+    if os.environ.get("THUNDERFFT_TABLE7_NCU", "0") != "0" or phase not in (None, "timing"):
+        raise ValueError("Table 7 utilization is calculated from operation count and timing against hardware peak; "
+                         "use THUNDERFFT_TABLE7_PHASE=timing and unset THUNDERFFT_TABLE7_NCU. "
+                         "Profiler collection is not a Table 7 utilization phase.")
+    return "timing"
+
+
+def native_identity(path):
+    text = path.read_text()
+    uuid = re.findall(r"^gpu_uuid=(GPU-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})$", text, re.M)
+    details = re.findall(r"^gpu=(.*?) device=0 sm=(\d+\.\d+) sm_count=(\d+) driver=(\d+) runtime=(\d+) cuda_compiler=(\S+)", text, re.M)
+    if len(uuid) != 1 or len(details) != 1:
+        raise ValueError(f"Missing or ambiguous native GPU identity: {path}")
+    return dict(zip(("uuid", "name", "sm", "sm_count", "driver", "runtime", "compiler"), (uuid[0], *details[0])))
 
 
 def setting(name, default):
@@ -153,42 +171,46 @@ def main():
                 "overrides": {k: v for k, v in os.environ.items() if k.startswith("THUNDERFFT_TABLE7_")},
                 "gpu_inventory": capture(["nvidia-smi", "--query-gpu=index,uuid,name,driver_version,clocks.sm,clocks.mem,power.limit", "--format=csv,noheader"]),
                 "commands": [], "full_paper_comparison": False,
-                "paper_settings_unconfirmed": ["GPU", "precision", "original intermediate variants", "utilization metric"],
+                "paper_settings_unconfirmed": ["original intermediate variants", "original repetition count",
+                                               "exact identity of the recovered implementations"],
+                "utilization": {"method": utilization.METHOD, "reference": utilization.REFERENCE,
+                                "calculation_sha256": hashlib.sha256((HERE / "utilization.py").read_bytes()).hexdigest(),
+                                "timing_basis": "median compute_us=(t_2R_us-t_R_us)/R; no second division by R"},
                 "correctness": "separate R1 Gaussian/tone CPU-FP64-DFT comparison, per-transform relL2<=0.005 and output guards",
                 "repeated_outputs_used_for_correctness": False}
     compilation = args.build_dir / "compile_commands.json"
     if compilation.is_file():
         metadata["compile_commands"] = json.loads(compilation.read_text())
-    rows, summaries = [], []
+    rows, summaries, identities = [], [], []
     try:
         for variant in variants:
             identifier = variant["id"]
-            summaries.append({"variant": identifier, "N": 64, "batch": batch, "precision": "tf32",
-                              "median_time_ms": "", "min_time_ms": "", "max_time_ms": "",
-                              "max_transform_relative_l2": "", "utilization_pct": "", "utilization_metric": "",
-                              "radix16_speedup": "", "paper_identity": "unconfirmed"})
-            if phase in ("timing", "both"):
-                command = [str(args.binary.resolve()), identifier, str(batch), str(repeats), str(trials)]
-                metadata["commands"].append(command)
-                (args.output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-                with (args.output / f"{identifier}.csv").open("w") as out, (args.output / f"{identifier}.log").open("w") as log:
-                    run = subprocess.run(command, stdout=out, stderr=log, timeout=180)
-                if run.returncode:
-                    raise ValueError(f"{identifier} failed with exit {run.returncode}; see its log")
-                measured = parse_raw((args.output / f"{identifier}.csv").read_text(), identifier, batch, repeats, trials)
-                rows.extend(measured)
-                times = [r["compute_us"] for r in measured]
-                summaries[-1].update(median_time_ms=statistics.median(times) / 1000,
-                                     min_time_ms=min(times) / 1000, max_time_ms=max(times) / 1000,
-                                     max_transform_relative_l2=max(r["max_transform_relative_l2"] for r in measured))
-            if phase in ("profile", "both"):
-                from collect_profile import collect, DEFAULT_METRIC
-                counter = collect(args.binary, identifier, batch, args.output,
-                                  os.environ.get("THUNDERFFT_NCU", "ncu"),
-                                  os.environ.get("THUNDERFFT_TABLE7_METRIC", DEFAULT_METRIC))
-                summaries[-1].update(utilization_pct=counter["value"], utilization_metric=counter["metric"])
+            summary = dict.fromkeys(TABLE_FIELDS, "")
+            summary.update(variant=identifier, N=64, batch=batch, precision="tf32", paper_identity="unconfirmed")
+            summaries.append(summary)
+            command = [str(args.binary.resolve()), identifier, str(batch), str(repeats), str(trials)]
+            metadata["commands"].append(command)
+            (args.output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+            with (args.output / f"{identifier}.csv").open("w") as out, (args.output / f"{identifier}.log").open("w") as log:
+                run = subprocess.run(command, stdout=out, stderr=log, timeout=180)
+            if run.returncode:
+                raise ValueError(f"{identifier} failed with exit {run.returncode}; see its log")
+            measured = parse_raw((args.output / f"{identifier}.csv").read_text(), identifier, batch, repeats, trials)
+            identity = native_identity(args.output / f"{identifier}.log")
+            if identities and identity != identities[0]:
+                raise ValueError("Native GPU, driver, runtime, or compiler changed between variants")
+            identities.append(identity)
+            metadata["gpu"] = identity
+            rows.extend(measured)
+            times = [r["compute_us"] for r in measured]
+            median_us = statistics.median(times)
+            summary.update(median_time_ms=median_us / 1000,
+                           min_time_ms=min(times) / 1000, max_time_ms=max(times) / 1000,
+                           max_transform_relative_l2=max(r["max_transform_relative_l2"] for r in measured),
+                           timing_status="collected")
+            summary.update(utilization.calculate(identifier, batch, median_us, identity["name"]))
         write_csv(args.output / "data.csv", [dict(r, passed=int(r["passed"])) for r in rows], RAW_FIELDS)
-        write_csv(args.output / "table.csv", summaries)
+        write_csv(args.output / "table.csv", summaries, TABLE_FIELDS)
         (args.output / "commands.txt").write_text("\n".join(shlex.join(c) for c in metadata["commands"]) + "\n")
         metadata["status"] = "completed_declared_subset"
         metadata["coverage"]["measured_variants"] = [v["id"] for v in variants]
@@ -198,7 +220,7 @@ def main():
         raise
     finally:
         (args.output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    print("Ablation candidate subset completed; missing original variants and profiler metrics remain explicit")
+    print("Ablation candidate subset completed; utilization calculated from timing where the hardware peak is confirmed")
     return 0
 
 

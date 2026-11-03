@@ -9,7 +9,7 @@ ablation/kernels/provenance.json      source commits, hashes and adaptations
 variants.json                        available and missing implementations
 build.sh                             compile without launching a GPU workload
 measure.py                           selection, execution and table export
-collect_profile.py                   optional Nsight Compute collection
+collect_profile.py                   optional Nsight Compute diagnostic
 assemble.py                          combine collected parts without GPU work
 run.sh                               root-runner adapter
 ```
@@ -61,7 +61,8 @@ protocol uses batch65536, R1000 and three trials. `THUNDERFFT_TABLE7_BATCH`,
 `THUNDERFFT_TABLE7_REPEATS` and `THUNDERFFT_TABLE7_TRIALS` permit explicit
 smoke overrides. Paper-sized mode requires batch65536 and R1000. These are
 artifact protocol choices: the supplied Table 7 does not specify its original
-GPU, precision, repetitions or exact utilization metric. The recovered code
+GPU, precision or repetitions. The utilization denominator is the A100 hardware
+peak of 156 TFLOPS, as confirmed for this experiment. The recovered code
 uses TF32 and requires compute capability 8.0 or newer. Choose a matching
 native architecture build and the root runner's logical `--device` selection.
 
@@ -81,47 +82,47 @@ the missing radix-16 baseline is left blank.
 
 ## Collect separate parts and assemble
 
-Timing and utilization can be collected in different executions. The following
-collection commands launch GPU work; the final assembly command reads files
-only. Keep the same compiled binary, source files, GPU and protocol settings for
-all parts of one table.
+Each variant can be timed in a separate execution. Utilization is calculated
+from those timing CSVs, so it requires no additional GPU execution or profiler
+CSV. The following collection commands launch GPU work; the final assembly
+command reads files only. Keep the same compiled binary, source files, GPU and
+protocol settings for all parts of one table.
 
 ```sh
-THUNDERFFT_TABLE7_VARIANTS=register_branch THUNDERFFT_TABLE7_PHASE=timing \
+THUNDERFFT_TABLE7_VARIANTS=register_branch \
   ./run.sh table7 --collection a100-ablation --profile paper --part branch-timing
-THUNDERFFT_TABLE7_VARIANTS=register_uniform THUNDERFFT_TABLE7_PHASE=timing \
+THUNDERFFT_TABLE7_VARIANTS=register_uniform \
   ./run.sh table7 --collection a100-ablation --profile paper --part uniform-timing
-
-# This can be collected later, after Nsight Compute is available.
-THUNDERFFT_TABLE7_PHASE=profile \
-  ./run.sh table7 --collection a100-ablation --profile paper --part utilization
 
 ./run.sh table7 --collection a100-ablation --profile paper --assemble
 ```
 
-`THUNDERFFT_TABLE7_PHASE=timing` collects ordinary timing trials; `profile`
-collects only the utilization counter and its independent correctness checks;
-`both` collects both kinds. The default is `timing`; the existing
-`THUNDERFFT_TABLE7_NCU=1` option selects `both` unless an explicit phase is set.
-Within a collection, `THUNDERFFT_TABLE7_VARIANTS` may be omitted to collect the
-two available implementations.
+The measurement phase is `timing`. The former `profile` and `both` phases and
+`THUNDERFFT_TABLE7_NCU=1` are rejected before launching GPU work. Within a
+collection, `THUNDERFFT_TABLE7_VARIANTS` may be omitted to collect the two
+available implementations.
 
 Collected parts are retained under
 `result/collections/a100-ablation/parts/table7/`. Assembly writes
 `result/collections/a100-ablation/assembled/table7/table.csv`, the combined
 timing `data.csv`, and metadata listing collected and missing measurements.
-Run assembly at any point: missing timing or utilization cells remain blank,
-and the result stays `partial` until all required cells are present. The two
+Run assembly at any point: missing timing cells remain blank, and utilization
+is derived for collected A100 timing rows. The result stays `partial` until
+all required cells are present. The two
 unrecovered implementations remain missing even after the available candidates
 have been measured. Paper identity remains unconfirmed.
 
-The assembler checks the numerical gates, raw CSVs, profiler logs and hashes.
+The assembler checks the numerical gates, raw timing CSVs and hashes.
 It rejects mixed smoke/paper protocols, settings, source/binary hashes, GPU
-identities, runtime/compiler versions, or utilization counters. Identical
+identities or runtime/compiler versions. Identical
 duplicates are harmless; overlapping measurements with different values require
 choosing one result, rather than silently overwriting or averaging them.
 Parts created before native GPU UUID logging was added cannot be combined
 through this strict assembly contract.
+
+Existing parts collected with the former `both` phase can contribute their
+validated timing rows; their profiling counters are ignored. A profiling-only
+part does not supply timing or Table 7 utilization.
 
 For direct offline use with existing successful result directories:
 
@@ -130,21 +131,41 @@ python3 artifact/table7/assemble.py path/to/branch-part path/to/uniform-part \
   --profile paper --output result/table7-assembled
 ```
 
-## Optional utilization counter
+## Utilization from operation count and time
 
-Set `THUNDERFFT_TABLE7_NCU=1` with the explicit subset command to collect
-`sm__pipe_tensor_cycles_active.avg.pct_of_peak_sustained_active` separately from
-ordinary timing. Set `THUNDERFFT_NCU` to the executable path when needed.
-The native `--profile` mode performs its two R=1 numerical gates, then exactly
-one R32 launch. Nsight Compute skips the two correctness launches and profiles
-that third matching kernel. Clocks and cache controls are left unchanged.
+For each recovered TF32 implementation, one FFT issues 6144 Tensor Core MMA
+FLOPs: three stages, 16 MMA instructions per warp per stage, 2048 FLOPs per
+`m16n8k8` instruction, and 16 FFTs per warp. The count includes the real MMA
+operations used to represent the complex FFT arithmetic.
 
-Profiler CSV/logs, tool version, metric name, unit, kernel identity and exact
-command are retained. The measured percentage is stored with its metric name;
-it is not claimed to be the same counter used for the paper's utilization.
-`THUNDERFFT_TABLE7_METRIC` may select another percentage metric explicitly.
-Without profiling, utilization remains blank. No profiler was run as part of
-the CPU-only preparation.
+The output uses the median of the valid per-trial compute times:
+
+```text
+mma_flops_per_fft = 3 * 16 * (2 * 16 * 8 * 8) / 16 = 6144
+achieved_tflops = 6144 * batch / (median_compute_us * 1e6)
+utilization_pct = 100 * achieved_tflops / 156
+```
+
+`compute_us = (time(2R) - time(R)) / R` already measures one batch iteration;
+the utilization calculation does not multiply or divide by R again. The
+denominator is the A100 hardware peak of **156 TFLOPS**, rather than the
+147.22 TFLOPS ideal-MMA measurement in Table 4. This is achieved MMA throughput
+as a percentage of hardware peak, not a hardware-counter percentage or the
+useful arithmetic count of a conventional FFT.
+
+The 156 TFLOPS denominator is applied only when the measured GPU is identified
+as an A100. For another GPU, achieved throughput is still calculated but the
+utilization reference remains pending. The 6144 FLOP count is established for
+the two recovered candidates only; the missing `radix16` and `radix4_compute`
+implementations require their own operation counts when recovered.
+
+`collect_profile.py` remains a standalone optional Nsight Compute diagnostic.
+Its counters are not inputs to Table 7 utilization or required collection
+artifacts. For diagnostics, it retains profiler CSV/logs, tool version, metric,
+unit, kernel identity and exact command. The native `--profile` mode runs two
+R=1 correctness launches followed by a dedicated R32 launch; Nsight Compute
+skips the correctness launches and profiles the R32 launch. No profiler was
+run as part of the CPU-only preparation.
 
 The complete paper table still requires the two missing implementations,
 confirmation of original experimental settings and validated measurements.
