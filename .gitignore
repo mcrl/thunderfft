@@ -9,3 +9,5 @@ __pycache__/
 /sample/conv1d/*.log
 /result/*
 !/result/.gitkeep
+/cloud_key/
+/.thunderfft-cloud-source.json

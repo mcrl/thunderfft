@@ -19,6 +19,9 @@ import importlib.util
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = Path(__file__).with_name("registry.json")
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from artifact.cloud import coordinator as cloud
 
 # Also works when CPU tests load this file by path rather than as a module.
 _spec = importlib.util.spec_from_file_location("artifact_collection", Path(__file__).with_name("collection.py"))
@@ -202,7 +205,20 @@ def main():
                         help="generate tables/figures and missing.csv from collected CSVs; no GPU execution")
     parser.add_argument("--import-result", action="append", default=[], metavar="EVALUATION=DIR",
                         help="import a completed result bundle with CSVs and metadata; no GPU execution")
+    cloud.add_arguments(parser)
     args = parser.parse_args()
+    if args.cloud_plan or args.cloud_recover:
+        args.backend = "vast"
+    if args.backend == "local" and (args.cloud_config or args.cloud_batch or args.cloud_allow_dirty):
+        parser.error("cloud options require --backend vast")
+    if args.cloud_recover:
+        if args.dry_run or args.cloud_plan or args.cloud_batch or args.evaluations or args.collection:
+            parser.error("--cloud-recover takes only a saved session directory")
+        try:
+            return cloud.recover(args.cloud_recover)
+        except (ValueError, OSError, RuntimeError) as error:
+            print(f"Cloud recovery error: {error}", file=sys.stderr)
+            return 1
     registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
     collection_dir = None
     if (args.part or args.assemble or args.import_result) and not args.collection:
@@ -229,6 +245,12 @@ def main():
     if args.collection and not args.assemble and not args.import_result and not args.list:
         # Derived figures are regenerated offline from the collection's sources.
         entries = [e for e in entries if e["id"] != "figure2"]
+    if args.backend == "vast" and not args.list:
+        try:
+            return cloud.run(args, entries, registry, ROOT, collection, select_tasks, parser)
+        except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as error:
+            print(f"Cloud error: {error}", file=sys.stderr)
+            return 1
     if args.list or args.dry_run:
         for entry in entries:
             dependencies = ",".join(entry.get("depends_on", [])) or "-"
@@ -310,6 +332,11 @@ def main():
                     if key.startswith(("THUNDERFFT_TABLE3_", "THUNDERFFT_TABLE5_", "THUNDERFFT_TABLE7_")) or key in
                     ("CUDA_VISIBLE_DEVICES", "CUDACXX", "NVCC", "CUDAToolkit_ROOT", "MATHDX_ROOT", "THUNDERFFT_ARCHS")},
                 "paper": registry["paper"], "scientific_validation": "not_assessed"}
+    cloud_source = ROOT / ".thunderfft-cloud-source.json"
+    if cloud_source.is_file():
+        # A source archive carries original revision + actual per-file hashes;
+        # it is deliberately not a synthetic Git repository or invented commit.
+        metadata["cloud_source"] = json.loads(cloud_source.read_text())
     atomic_json(batch_dir / "manifest.json", metadata)
     states, by_id = [], {}
     interrupted = False

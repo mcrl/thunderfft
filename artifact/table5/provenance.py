@@ -31,6 +31,11 @@ def main():
             cache[key] = value
     files = capture(["git", "ls-files", "--", "include", "sample/bench", "artifact/table5", "CMakeLists.txt"], cwd=source_dir)
     paths = set(files["stdout"].splitlines())
+    snapshot_path = source_dir / ".thunderfft-cloud-source.json"
+    snapshot = json.loads(snapshot_path.read_text()) if snapshot_path.is_file() else None
+    if snapshot:
+        paths.update(path for path in snapshot["files"]
+                     if path.startswith(("include/", "sample/bench/", "artifact/table5/")) or path == "CMakeLists.txt")
     # Include this adapter's new files before they have been committed, too.
     paths.update(str(path.relative_to(source_dir)) for path in (source_dir / "artifact/table5").glob("*") if path.is_file())
     hashes = {path: hashlib.sha256((source_dir / path).read_bytes()).hexdigest()
@@ -40,6 +45,8 @@ def main():
         "git_status": capture(["git", "status", "--short"], cwd=source_dir),
         "sha256": hashes,
     }
+    if snapshot:
+        metadata["source"]["cloud_snapshot"] = {"git": snapshot["git"], "manifest_sha256": hashlib.sha256(snapshot_path.read_bytes()).hexdigest()}
     metadata["build"] = {
         "cmake_cache": cache,
         "cmake_version": capture(["cmake", "--version"]),

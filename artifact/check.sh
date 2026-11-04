@@ -4,6 +4,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
 ARTIFACT_PYTHON="${THUNDERFFT_PYTHON:-${PYTHON:-python3}}"
 "${ARTIFACT_PYTHON}" -m unittest discover -s artifact/tests -v
+"${ARTIFACT_PYTHON}" -m unittest discover -s artifact/cloud -p 'test_*.py' -v
 for suite in artifact/validation/test_evaluate.py artifact/table2/test_model.py \
              artifact/table3/test_measure.py artifact/figure2/test_plot.py \
              artifact/table5/check_summary.py artifact/table7/test_contract.py \

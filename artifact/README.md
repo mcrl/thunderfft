@@ -31,6 +31,12 @@ those explicitly in the task README.
 
 ## Run from the repository root
 
+For GPU execution through Vast.ai, see [remote execution](cloud/README.md).
+`./run.sh --backend vast --gpu A100 ...` creates one bounded rental, runs the
+selected adapters, downloads their result bundles, and destroys the instance.
+Use `--cloud-batch` to collect multiple parts on the same GPU and build, then
+assemble the returned CSVs locally. Credentials stay outside this repository.
+
 Use Python 3.9 or newer, CMake 3.18 or newer, a C++17 compiler and the CUDA
 toolkit for the GPU being evaluated. The tested A100 setup uses CUDA 12.9 and
 `THUNDERFFT_ARCHS=80`. Only the selected CMake targets are built, so the
