@@ -202,8 +202,12 @@ def assemble(parts, output, profile):
         rows.extend(measured)
         sources.append(evidence)
     rows.sort(key=lambda row: (GPUS.index(row["gpu"]), row["N"], row["precision"], row["placement"], row["trial"]))
-    summaries = {(row["gpu"], row["N"], row["precision"], row["placement"]): row
-                 for row in MEASURE.summarize(rows, profile)}
+    # Assembly covers ThunderFFT parts; keep its table schema from the measurement summary.
+    table_rows, _, _ = MEASURE.summarize(rows, profile)
+    summaries = {(row["gpu"], row["N"], row["precision"], row["placement"]):
+                 {key: value for key, value in {**row, "paper_thunderfft_target_us": row["paper_target_us"]}.items()
+                  if key in TABLE_FIELDS}
+                 for row in table_rows if row["library"] == "ThunderFFT"}
     table, missing = [], []
     for gpu in GPUS:
         for n in MEASURE.SIZES:

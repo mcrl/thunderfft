@@ -213,6 +213,12 @@ for a single FFT. Timed repeated-FFT outputs may overflow and are not used as
 the correctness reference. This target measures ThunderFFT; it does not run
 the paper's cuFFTDx parameter sweep or establish its speedup claims.
 
+Configuring with `-DMATHDX_ROOT=/path/to/nvidia/mathdx/25.06` and a single
+`THUNDERFFT_ARCHS` value adds `thff_paper_fft_cufftdx`, the same source built
+with the cuFFTDx comparison (`--library cufftdx`). See
+[Table 3](../artifact/table3/README.md#cufftdx-comparison-implemented-not-yet-measured)
+for its CLI and candidate selection.
+
 ## Tiled 1D operation: `thff_conv1d`
 
 ```text

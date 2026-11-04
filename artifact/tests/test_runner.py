@@ -23,6 +23,13 @@ class RunnerChecks(unittest.TestCase):
         self.assertEqual([e["id"] for e in runner.select_tasks([], entries, parser)], ["data", "figure"])
         self.assertEqual(len(runner.select_tasks(["all"], entries, parser)), 3)
 
+    def test_optional_dependency_orders_only_when_selected(self):
+        entries = [{"id": "model", "available": True, "optional_depends_on": ["data"]},
+                   {"id": "data", "available": True}]
+        parser = argparse.ArgumentParser()
+        self.assertEqual([e["id"] for e in runner.select_tasks(["model"], entries, parser)], ["model"])
+        self.assertEqual([e["id"] for e in runner.select_tasks([], entries, parser)], ["data", "model"])
+
     def run_adapter(self, script, required=("data.csv",)):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

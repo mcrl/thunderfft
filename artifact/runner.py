@@ -82,6 +82,7 @@ def select_tasks(requested, entries, parser):
     if unknown:
         parser.error("unknown evaluation(s): " + ", ".join(sorted(unknown)))
     ordered, active, done = [], set(), set()
+    selected = set(requested)
 
     def visit(task_id):
         if task_id in done:
@@ -93,6 +94,10 @@ def select_tasks(requested, entries, parser):
         active.add(task_id)
         for dependency in by_id[task_id].get("depends_on", []):
             visit(dependency)
+        # Optional dependencies only order tasks that were selected anyway.
+        for dependency in by_id[task_id].get("optional_depends_on", []):
+            if dependency in selected:
+                visit(dependency)
         active.remove(task_id)
         done.add(task_id)
         ordered.append(by_id[task_id])
@@ -253,7 +258,8 @@ def main():
             return 1
     if args.list or args.dry_run:
         for entry in entries:
-            dependencies = ",".join(entry.get("depends_on", [])) or "-"
+            dependencies = ",".join(entry.get("depends_on", [])
+                                    + [f"{d}?" for d in entry.get("optional_depends_on", [])]) or "-"
             print(f'{entry["id"]:8} {entry["implementation"]:10} '
                   f'owner={entry.get("owner") or "unassigned"} '
                   f'depends={dependencies} | {entry["title"]}')
@@ -355,6 +361,9 @@ def main():
         else:
             print(f'[{entry["id"]}] running; log: {output / "run.log"}', flush=True)
             dependency_results = {d: by_id[d]["result_dir"] for d in entry.get("depends_on", [])}
+            # A selected optional dependency is passed on only when it completed.
+            dependency_results.update({d: by_id[d]["result_dir"] for d in entry.get("optional_depends_on", [])
+                                       if d in by_id and by_id[d]["status"] == "completed"})
             state = execute(entry, output, args, dependency_results)
             recover_checkpoint = (entry["id"] == "table3" and state["status"] in ("failed", "interrupted")
                                   and (output / "data.csv").is_file())

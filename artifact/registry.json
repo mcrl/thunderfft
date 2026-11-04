@@ -47,6 +47,9 @@
       "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
+      "optional_depends_on": [
+        "table3"
+      ],
       "required_outputs": {
         "smoke": [
           "data.csv"
@@ -58,7 +61,7 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "Calculated A100 model rows; measured cuFFTDx row excluded"
+      "coverage": "Calculated A100 model rows; measured cuFFTDx row when Table 3 runs in the same batch and measured cuFFTDx (MATHDX_ROOT)"
     },
     {
       "id": "table3",
@@ -78,7 +81,7 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "ThunderFFT only, 28 configurations per GPU; cuFFTDx sweep and speedups excluded"
+      "coverage": "ThunderFFT 28 configurations per GPU; with MATHDX_ROOT also 28 matched cuFFTDx configurations (tuned candidates), selection and speedups; one GPU per run"
     },
     {
       "id": "table4",
@@ -178,7 +181,7 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "A100 ThunderFFT FP16/TF32 register series derived from this run Table3; cuFFTDx series excluded"
+      "coverage": "A100 register series from this run Table3: ThunderFFT FP16/TF32, plus cuFFTDx FP16/FP32 when Table3 measured them"
     },
     {
       "id": "figure3",

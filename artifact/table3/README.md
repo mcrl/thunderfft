@@ -1,6 +1,6 @@
 # Table 3: FFT kernel latency matrix
 
-Status: operational ThunderFFT-only adapter; cuFFTDx sweep/comparison and complete multi-GPU reproduction pending
+Status: operational ThunderFFT adapter; cuFFTDx comparison implemented (requires a build configured with `MATHDX_ROOT`, not yet measured); complete multi-GPU reproduction pending
 
 Paper p. 8, Section 6.2: single A100 PCIe 80GB, H100 PCIe, and B200; FFT
 sizes 64/128/256/512/1024/2048/4096; batch 65,536. Measure register-input and
@@ -259,6 +259,57 @@ The separate single-FFT end-to-end metric did not show an improvement.
 Other Table 3 configurations were not retimed, and the cuFFTDx sweep remains
 pending. This follow-up does not establish full paper reproduction.
 
+## cuFFTDx comparison (implemented, not yet measured)
+
+When the build directory is configured with `MATHDX_ROOT`, `run.sh` also builds
+`thff_paper_fft_cufftdx`, the same `paper_fft.cu` compiled with cuFFTDx (MathDX
+25.06.1 was used for development), and `measure.py --cufftdx-binary` times the
+28 matched cuFFTDx configurations: FP16 and FP32, register and shared, all seven
+sizes. Otherwise the adapter stays ThunderFFT-only, as before.
+
+MathDX is header-only and needed only to configure and build: CMake keeps
+`MATHDX_ROOT` in the build directory's cache and records whether the target was
+configured (`THFF_CUFFTDX_ENABLED`), and `run.sh` decides from that cache, not
+from the environment. Pass it once per build directory; later runs need not:
+
+```sh
+MATHDX_ROOT=/path/to/mathdx/25.06 THUNDERFFT_ARCHS=80 ./run.sh table3 --profile paper  # configure once
+THUNDERFFT_ARCHS=80 ./run.sh table3 --profile paper   # still measures cuFFTDx
+MATHDX_ROOT= ./run.sh table3                           # empty value clears it: ThunderFFT only
+```
+
+cuFFTDx is configured at compile time for one SM, so `THUNDERFFT_ARCHS` must
+name one architecture (80, 90 or 100) and the binary refuses another device.
+If `MATHDX_ROOT` is set but several architectures are named, the target is not
+configured and the adapter returns 78 (pending) instead of silently skipping
+cuFFTDx. The Table 3 manifest records the cached `MATHDX_ROOT` and
+`THFF_CUFFTDX_ENABLED` values.
+
+- **Candidates.** [`cufftdx_bench.h`](../../sample/bench/baseline/cufftdx_bench.h)
+  holds the tuned FFTsPerBlock/ElementsPerThread candidates for A100, H100 and
+  B200, so the exhaustive sweep is not repeated here. All 166 tuned candidates
+  (52/58/56) are timed, together with the cuFFTDx default Block configuration
+  for every configuration. Thread FFT candidates appear for N=64 register.
+- **Same work.** Each candidate goes through `paper_fft.cu`'s shared
+  `measure()`: the same input, the same FP64 cuFFT gate (`relL2 <= 5e-3`; the
+  validation batch grows to one launch block for thread FFTs), the same three
+  warmups, R/2R differential timing and e2e definition as ThunderFFT. A failing
+  candidate fails the run; it is never skipped.
+- **Selection.** Per GPU/N/precision/placement, the candidate with the smallest
+  median `compute_us` is selected. `cufftdx_candidates.csv` keeps every
+  candidate with `selected=true|false`.
+- **Speedup.** `speedup.csv` pairs ThunderFFT FP16 with cuFFTDx FP16 and
+  ThunderFFT TF32 with cuFFTDx FP32 and reports `cuFFTDx_time / ThunderFFT_time`
+  per size plus a geometric mean per GPU/placement/precision pair. Paper
+  speedups from `paper-table3-all-targets.csv` appear only for paper-sized runs.
+- **Native CLI.** `thff_paper_fft_cufftdx --library cufftdx [--candidate LABEL] N fp16|fp32 register|shared [R] [trials] [batch]`.
+  Labels are `block_default`, `block_f<FPB>_e<EPT>` or `thread_t<threads>`. The CSV
+  appends `library,candidate,ffts_per_block,elements_per_thread,threads_per_block`.
+- **Batch.** With cuFFTDx, batch must be a multiple of 512, because FP16 thread
+  FFTs launch 512 FFTs per block. `THUNDERFFT_TABLE3_CUFFTDX_TIMEOUT` (default
+  1800 s) bounds one cuFFTDx invocation, which times all of its candidates.
+
+
 ## Timing and correctness definitions
 
 The driver reports CUDA-event times in microseconds. For `R=1000`, it records
@@ -301,8 +352,7 @@ N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_o
 
 ## Remaining comparison requirements
 
-- Implement cuFFTDx device-level register/shared paths and an exhaustive legal
-  launch-parameter sweep. Retain every candidate and the winner-selection rule.
+- Run the cuFFTDx comparison (implemented above) on each target GPU.
 - Confirm the paper's cuFFTDx/MathDX version, swept parameter ranges, direction,
   timing statistic and other missing experimental settings. R=1000 comes from
   the existing repository helper; the PDF does not explicitly specify it or the
@@ -319,14 +369,19 @@ N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_o
 The adapter writes these outputs under `THUNDERFFT_RESULT_DIR`:
 
 - `data.csv`: every validated timing trial, with canonical columns
-  `gpu,N,batch,placement,library,precision,trial,time_us,e2e_out_of_place_us,rel_l2,passed,inside_repeats,t_R_us,t_2R_us,shared_bytes,raw_csv`.
-  `library=ThunderFFT`; `time_us` is the differential compute latency.
+  `gpu,N,batch,placement,library,precision,trial,time_us,e2e_out_of_place_us,rel_l2,passed,inside_repeats,t_R_us,t_2R_us,shared_bytes,raw_csv,candidate,ffts_per_block,elements_per_thread,threads_per_block`.
+  `library` is `ThunderFFT` or `cuFFTDx`, and cuFFTDx rows include every candidate
+  and trial. `time_us` is the differential compute latency.
 - `table.csv`: per-configuration median/min/max latency, separate median e2e
-  latency and maximum validation error. Paper targets/deviations appear only
+  latency and maximum validation error, with one row per ThunderFFT
+  configuration and one per selected cuFFTDx candidate. Paper targets/deviations appear only
   for paper-sized measurements on a recognized GPU. These targets are
   transcribed references, never replacement measurements.
-- `metadata.json`: expected/completed coverage, explicit missing cuFFTDx
-  comparison, exact executable argv, timeout/exit status, GPU/software metadata,
+- `cufftdx_candidates.csv` and `speedup.csv` (cuFFTDx runs only): every
+  cuFFTDx candidate's summary with the selected one marked, and matched speedups
+  with geometric means.
+- `metadata.json`: expected/completed coverage, cuFFTDx scope or its explicit
+  absence, exact executable argv, timeout/exit status, GPU/software metadata,
   source/binary SHA256, Git revision/dirty state and CMake build flags.
 - `raw/*.csv`, `raw/*.log`, `commands.txt`, `configure.log`, `build.log`:
   auditable raw measurements, native metadata and build output.
@@ -335,10 +390,10 @@ The adapter writes these outputs under `THUNDERFFT_RESULT_DIR`:
 Table 3 dependency, retaining its A100/register subset. A smoke-derived figure
 is a smoke result; it is not relabeled as paper-sized data.
 
-Complete paper Table 3 comparison still requires matched cuFFTDx tuning
-candidates and winner selection across all three GPUs. Until supplied, the
-metadata records `full_paper_comparison_complete=false` and the summary's
-`cufftdx_comparison=not_measured`. See the [runner contract](../README.md).
+Complete paper Table 3 comparison still requires cuFFTDx measurements on all
+three GPUs. One run measures one GPU, so the metadata always records
+`full_paper_comparison_complete=false`. Without a cuFFTDx-configured build it also records
+`cufftdx="not measured"`. See the [runner contract](../README.md).
 
 Parser/validation contract checks run without a GPU:
 

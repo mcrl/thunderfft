@@ -68,7 +68,7 @@ def read_assembled(directory, profile):
     rows = [row for row in actual if row["gpu"] == "A100" and row["placement"] == "register"]
     groups = {}
     for row in rows:
-        key = int(row["N"]), row["precision"].upper()
+        key = "ThunderFFT", int(row["N"]), row["precision"].upper()
         groups.setdefault(key, {})[int(row["trial"])] = float(row["time_us"])
     provenance = {"source_result_dir": str(directory), "source_run": directory.name,
                   "source_data_sha256": PLOT.sha256(data_path), "source_metadata_sha256": PLOT.sha256(metadata_path)}
@@ -86,7 +86,7 @@ def assemble(parts, output, profile):
         # The runner atomically renames its assembly staging directory afterward.
         provenance["source_result_dir"] = os.path.relpath(parts[0], output)
     missing = [{"item": f"A100/N={size}/{precision.lower()}/register", "reason": "Table 3 measurement CSV not collected"}
-               for size in PLOT.SIZES for precision in PLOT.PRECISIONS if (size, precision) not in groups]
+               for size in PLOT.SIZES for precision in PLOT.PRECISIONS if ("ThunderFFT", size, precision) not in groups]
     missing.append({"item": "cuFFTDx FP16/FP32 series", "reason": "tuned baseline measurements are not supplied"})
     status = "partial" if groups else "pending"
     result = {"status": status, "missing": missing, "full_paper_comparison": False,
@@ -96,7 +96,7 @@ def assemble(parts, output, profile):
     summaries = []
     for size in PLOT.SIZES:
         for precision in PLOT.PRECISIONS:
-            values = list(groups.get((size, precision), {}).values())
+            values = list(groups.get(("ThunderFFT", size, precision), {}).values())
             row = {"gpu": "A100", "N": size, "placement": "register", "library": "ThunderFFT",
                    "precision": precision, "status": "collected" if values else "pending"}
             if values:
@@ -111,13 +111,13 @@ def assemble(parts, output, profile):
     TABLE3.MEASURE.write_csv(output / "summary.csv", summaries, SUMMARY_FIELDS)
     names = ["data.csv", "summary.csv"]
     if groups:
-        PLOT.make_plot(groups, output / "figure.pdf", profile, int(rows[0]["batch"]),
-                       int(rows[0]["inside_repeats"]), allow_partial=True)
+        PLOT.make_plot(groups, output / "figure.pdf", False, allow_partial=True)
         names.append("figure.pdf")
     metadata = {"schema_version": 1, "evaluation": "figure2", "profile": profile, **result,
                 "scope": "ThunderFFT-only A100/register Figure 2 subset", "source": provenance,
                 "operation": "offline plot assembly; no new GPU measurement",
-                "precision_colors": PLOT.COLORS, "missing_points": "gaps, without zero fill or connecting across gaps",
+                "series_colors": {f"ThunderFFT {precision}": PLOT.COLORS[("ThunderFFT", precision)]
+                                  for precision in PLOT.PRECISIONS}, "missing_points": "gaps, without zero fill or connecting across gaps",
                 "timing_metric": "(t_2R_us - t_R_us) / R", "unit_conversion": "time_ms = time_us / 1000",
                 "central_statistic": "median of trial compute_us", "error_bars": "trial minimum and maximum",
                 "outputs": {name: PLOT.sha256(output / name) for name in names}}

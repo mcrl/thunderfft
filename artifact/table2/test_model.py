@@ -99,5 +99,99 @@ class ModelTests(unittest.TestCase):
             self.assertEqual(len(metadata["assumptions"]["paper_pdf_sha256"]), 64)
 
 
+def write_table3(directory, rows, profile="paper", selected=None):
+    """Minimal completed Table 3 result directory."""
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "status.json").write_text(json.dumps(
+        {"evaluation": "table3", "status": "completed", "exit_code": 0, "profile": profile}))
+    fields = ["gpu", "N", "batch", "placement", "library", "precision", "trial", "time_us",
+              "rel_l2", "passed", "inside_repeats", "candidate"]
+    with (directory / "data.csv").open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    if selected is not None:
+        with (directory / "cufftdx_candidates.csv").open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=["gpu", "N", "precision", "placement", "candidate", "selected"])
+            writer.writeheader()
+            writer.writerow({"gpu": "A100", "N": 64, "precision": "fp16", "placement": "register",
+                             "candidate": selected, "selected": "true"})
+
+
+def dx_rows(candidate, times, **overrides):
+    return [{"gpu": "A100", "N": 64, "batch": 65536, "placement": "register", "library": "cuFFTDx",
+             "precision": "fp16", "trial": trial, "time_us": value, "rel_l2": 1e-3, "passed": "true",
+             "inside_repeats": 1000, "candidate": candidate, **overrides}
+            for trial, value in enumerate(times)]
+
+
+class MeasuredRowTests(unittest.TestCase):
+    def setUp(self):
+        self.config = json.loads((HERE / "assumptions.json").read_text())
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def run_model(self, source, profile="paper"):
+        output = self.root / "out"
+        result = subprocess.run([sys.executable, str(HERE / "model.py"), "--output", str(output),
+                                 "--profile", profile, "--source-dir", str(source)],
+                                text=True, capture_output=True)
+        return result, output
+
+    def test_paper_value_gives_paper_row(self):
+        row = MODEL.measured_row(self.config, 2.89, 65536, "x")
+        self.assertAlmostEqual(row["ideal_time_us"], 5 * 64 * 6 * 65536 / 78e12 * 1e6)
+        self.assertEqual(round(row["relative_time"], 2), 1.79)
+        self.assertEqual(round(100 * row["utilization_ceiling"], 1), 55.8)
+        self.assertEqual(row["origin"], "measured")
+
+    def test_fastest_candidate_is_used_and_inserted_after_ideal(self):
+        source = self.root / "t3"
+        rows = (dx_rows("block_default", [3.5, 3.4, 3.6]) + dx_rows("thread_t32", [2.9, 2.88, 2.95])
+                + dx_rows("block_f1_e8", [2.5, 2.5, 2.5], N=128))
+        write_table3(source, rows, selected="thread_t32")
+        result, output = self.run_model(source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with (output / "table.csv").open(newline="") as stream:
+            table = list(csv.DictReader(stream))
+        self.assertEqual([row["design"] for row in table],
+                         ["Ideal FFT", "cuFFTDx", "Radix-4", "Radix-8", "Radix-16"])
+        self.assertEqual(table[1]["candidate"], "thread_t32")
+        self.assertAlmostEqual(float(table[1]["measured_time_us"]), 2.9)
+        metadata = json.loads((output / "metadata.json").read_text())
+        self.assertTrue(metadata["full_paper_comparison"])
+        self.assertEqual(metadata["excluded"], [])
+        self.assertEqual(metadata["measured_source"]["candidates_compared"], 2)
+
+    def test_source_without_cufftdx_keeps_calculated_rows(self):
+        source = self.root / "t3"
+        write_table3(source, [dict(row, library="ThunderFFT", candidate="") for row in dx_rows("", [2.2])])
+        result, output = self.run_model(source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        metadata = json.loads((output / "metadata.json").read_text())
+        self.assertEqual(metadata["excluded"], ["measured cuFFTDx row"])
+        self.assertIn("no cuFFTDx", metadata["excluded_reason"])
+
+    def test_invalid_sources_are_rejected(self):
+        cases = {"failed_gate": dx_rows("a", [2.9], passed="false"),
+                 "relL2": dx_rows("a", [2.9], rel_l2=0.01),
+                 "smoke_batch": dx_rows("a", [2.9], batch=1024)}
+        for name, rows in cases.items():
+            with self.subTest(name=name):
+                source = self.root / name
+                write_table3(source, rows)
+                result, _ = self.run_model(source)
+                self.assertEqual(result.returncode, 65, result.stdout)
+        source = self.root / "profile"
+        write_table3(source, dx_rows("a", [2.9]), profile="smoke")
+        self.assertEqual(self.run_model(source)[0].returncode, 65)
+        source = self.root / "selection"
+        write_table3(source, dx_rows("a", [2.9]) + dx_rows("b", [3.0]), selected="b")
+        self.assertEqual(self.run_model(source)[0].returncode, 65)
+
+
 if __name__ == "__main__":
     unittest.main()

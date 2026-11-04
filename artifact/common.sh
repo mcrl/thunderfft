@@ -31,7 +31,9 @@ artifact_configure() {
   if [[ -n "${CUDAToolkit_ROOT:-}" ]]; then
     args+=("-DCUDAToolkit_ROOT=${CUDAToolkit_ROOT}")
   fi
-  if [[ -n "${MATHDX_ROOT:-}" ]]; then
+  # MATHDX_ROOT is a build-time input stored in the CMake cache; an explicitly
+  # empty value clears it.
+  if [[ -n "${MATHDX_ROOT+x}" ]]; then
     args+=("-DMATHDX_ROOT=${MATHDX_ROOT}")
   fi
   cmake "${args[@]}" "$@"

@@ -5,7 +5,7 @@ import csv
 import io
 import unittest
 
-from measure import RAW_FIELDS, gpu_name, parse_raw, summarize
+from measure import CUFFTDX_RAW_FIELDS, RAW_FIELDS, gpu_name, native_identity, parse_raw, summarize
 
 
 class NativeOutputContract(unittest.TestCase):
@@ -29,7 +29,9 @@ class NativeOutputContract(unittest.TestCase):
         rows = self.parse(self.raw())
         self.assertEqual(rows[0]["time_us"], 1)
         self.assertEqual(rows[0]["passed"], "true")
-        self.assertEqual(summarize(rows, "smoke")[0]["paper_thunderfft_target_us"], "")
+        table, candidates, speedups = summarize(rows, "smoke")
+        self.assertEqual(table[0]["paper_target_us"], "")
+        self.assertEqual((candidates, speedups), ([], []))
 
     def test_failure_gates(self):
         for changes in ({"single_fft_relL2": "nan"}, {"single_fft_relL2": 0.006},
@@ -53,6 +55,78 @@ class NativeOutputContract(unittest.TestCase):
         self.assertEqual(gpu_name("GPU=Tesla V100 compute=7.0 batch=1024 R=256\n")[0], "Tesla V100")
         with self.assertRaises(ValueError):
             gpu_name("missing metadata")
+
+
+class CufftdxContract(unittest.TestCase):
+    """cuFFTDx output: every candidate gated, fastest median selected, matched speedups."""
+
+    def raw(self, rows, fields=CUFFTDX_RAW_FIELDS):
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fields)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+        return output.getvalue()
+
+    def row(self, candidate="block_f2_e16", trial=0, compute=2.0, precision="fp16", shared=8192, n=64):
+        t_r = 100.0
+        return dict(zip(CUFFTDX_RAW_FIELDS, (n, precision, "register", 1024, 256, trial, t_r,
+                                             t_r + 256 * compute, compute, 4, 0.002, shared,
+                                             "cufftdx", candidate, 2, 16, 64)))
+
+    def parse(self, text, **options):
+        args = dict(n=64, precision="fp16", placement="register", batch=1024, repeats=256,
+                    trials=2, gpu="A100", raw_csv="raw/dx.csv", library="cuFFTDx")
+        args.update(options)
+        return parse_raw(text, **args)
+
+    def thunder(self, compute, precision="fp16", n=64):
+        row = dict(zip(RAW_FIELDS, (n, precision, "register", 1024, 256, 0, 100, 100 + 256 * compute,
+                                    compute, 4, 0.0002, 1024)))
+        return parse_raw(NativeOutputContract.raw(NativeOutputContract(), **row), n=n, precision=precision,
+                         placement="register", batch=1024, repeats=256, trials=1, gpu="A100",
+                         raw_csv="raw/t.csv")
+
+    def test_candidates_selection_and_speedup(self):
+        rows = self.parse(self.raw([self.row("block_default", 0, 3.0), self.row("block_default", 1, 3.0),
+                                    self.row("thread_t64", 0, 1.0, shared=0), self.row("thread_t64", 1, 1.5, shared=0)]))
+        self.assertEqual({row["library"] for row in rows}, {"cuFFTDx"})
+        table, candidates, speedups = summarize(self.thunder(0.5) + rows, "smoke")
+        self.assertEqual(len(candidates), 2)
+        winner = [row for row in table if row["library"] == "cuFFTDx"]
+        self.assertEqual((len(winner), winner[0]["candidate"], winner[0]["cufftdx_candidates"]),
+                         (1, "thread_t64", 2))
+        self.assertEqual([c["selected"] for c in candidates if c["candidate"] == "thread_t64"], ["true"])
+        self.assertAlmostEqual(speedups[0]["speedup"], 1.25 / 0.5)
+        self.assertEqual(speedups[-1]["N"], "geomean(1 sizes)")
+        self.assertEqual(speedups[0]["paper_speedup"], "")
+
+    def test_tf32_pairs_with_cufftdx_fp32(self):
+        dx = self.parse(self.raw([self.row(precision="fp32", trial=t, compute=4.0) for t in (0, 1)]),
+                        precision="fp32")
+        _, _, speedups = summarize(self.thunder(1.0, "tf32") + self.thunder(1.0, "fp16") + dx, "smoke")
+        self.assertEqual([(s["thunderfft_precision"], s["cufftdx_precision"], s["speedup"])
+                          for s in speedups if not str(s["N"]).startswith("geomean")], [("tf32", "fp32", 4.0)])
+
+    def test_cufftdx_failure_gates(self):
+        good = [self.row(trial=0), self.row(trial=1)]
+        cases = ([self.row(trial=0)],                                   # incomplete candidate
+                 [self.row(trial=0), self.row(trial=0)],                # duplicate trial
+                 [self.row(trial=0, shared=0), self.row(trial=1, shared=0)],  # block without shared
+                 [dict(r, candidate="best") for r in good],             # unknown label
+                 [dict(r, library="thunderfft") for r in good],
+                 [dict(r, single_fft_relL2=0.01) for r in good],
+                 [dict(r, threads_per_block=0) for r in good], [])
+        for rows in cases:
+            with self.subTest(rows=rows), self.assertRaises(ValueError):
+                self.parse(self.raw(rows))
+        with self.assertRaises(ValueError):  # ThunderFFT header is not a cuFFTDx contract
+            self.parse(NativeOutputContract.raw(NativeOutputContract()))
+
+    def test_native_cufftdx_identity(self):
+        self.assertEqual(native_identity("GPU=x\nlibrary=cufftdx cuFFTDx=10501 target_SM=800\n"),
+                         {"cufftdx_version": 10501, "cufftdx_target_sm": 800})
+        self.assertEqual(native_identity("GPU=x\n"), {})
 
 
 if __name__ == "__main__":

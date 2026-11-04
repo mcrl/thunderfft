@@ -13,12 +13,12 @@ and Table 1 is a literature survey, so neither has a GPU evaluation task.
 | Task | Paper page | Deliverable | Starting point / dependency |
 | --- | ---: | --- | --- |
 | [validation](validation/README.md) | — | FFT correctness and memory guards | Ready: 88 smoke / 500 full cases plus 18 host API checks |
-| [figure2](figure2/README.md) | 9 | A100 FFT kernel time plot | Ready: ThunderFFT-only subset derived from this run's Table 3 |
+| [figure2](figure2/README.md) | 9 | A100 FFT kernel time plot | Ready: ThunderFFT series, plus cuFFTDx when this run's Table 3 measured it |
 | [figure3](figure3/README.md) | 10 | End-to-end FFT normalized performance | `sample/bench/`; communication-only and baseline work pending |
 | [figure4](figure4/README.md) | 10 | A100 1D convolution plot | Native correctness gate available; paper workload and comparable semantics pending |
 | [figure5](figure5/README.md) | 10 | H100 2D convolution plot | `sample/conv2d/`; full benchmark pending |
-| [table2](table2/README.md) | 3 | A100 performance model and measured reference | Ready: calculated rows; measured cuFFTDx row excluded |
-| [table3](table3/README.md) | 8 | FFT kernel latency matrix | Ready: ThunderFFT 28 configurations/GPU; cuFFTDx comparison excluded |
+| [table2](table2/README.md) | 3 | A100 performance model and measured reference | Ready: calculated rows + measured cuFFTDx row from Table 3 (needs `MATHDX_ROOT`) |
+| [table3](table3/README.md) | 8 | FFT kernel latency matrix | Ready: ThunderFFT 28 configurations/GPU; cuFFTDx comparison with `MATHDX_ROOT` (unmeasured) |
 | [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | MMA microbenchmark pending |
 | [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Ready: measurements and tables; FP32 is cuFFT; published provenance unconfirmed |
 | [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | External baseline integration pending |
@@ -78,7 +78,27 @@ documented paper settings. Adapters must record effective arguments, including
 overrides, and must not label a small smoke run as a paper reproduction.
 CUDA/CMake and their development libraries must be available for implemented GPU
 tasks. Set `CUDACXX=/path/to/cuda/bin/nvcc` and
-`CUDAToolkit_ROOT=/path/to/cuda` when the toolkit is not discoverable. Table 5's
+`CUDAToolkit_ROOT=/path/to/cuda` when the toolkit is not discoverable.
+
+The cuFFTDx comparison (Table 3, and through it Table 2's measured row and
+Figure 2's cuFFTDx series) is optional and needs NVIDIA MathDX (25.06.1 was
+used for development). Set `MATHDX_ROOT` to the MathDX directory that contains
+`include/cufftdx.hpp` and `external/cutlass/include`, and set
+`THUNDERFFT_ARCHS` to exactly the evaluated GPU's architecture — `80` (A100),
+`90` (H100) or `100` (B200) — because cuFFTDx is compiled for a single SM and
+the binary refuses a device of another SM. The default is `80`, so H100/B200
+runs must set it:
+
+```bash
+MATHDX_ROOT=/path/to/nvidia/mathdx/25.06 THUNDERFFT_ARCHS=90 ./run.sh table3 --profile paper  # H100
+```
+
+MathDX is needed only to configure and build. The runner forwards the variable
+to CMake as `-DMATHDX_ROOT`, which keeps it in the build directory's cache;
+configuration fails if the path lacks `include/cufftdx.hpp`. Later runs with
+the same `--build-dir` keep measuring cuFFTDx without the variable, and
+`MATHDX_ROOT=` (empty) clears it. A build directory never configured with
+MathDX measures ThunderFFT only, and the dependent cuFFTDx outputs are omitted. Table 5's
 paper profile uses the retained evaluator's operational batch 65536 and seed
 1234, whose exact published provenance is unconfirmed. For a bounded full-size
 and exponent scan use
@@ -236,6 +256,10 @@ complete, Figure 2 is recorded as blocked. Its implementation can find the same
 batch's Table 3 directory in `THUNDERFFT_DEPENDENCY_RESULTS["table3"]` after
 decoding the environment variable as JSON; it should verify the data and record
 the source file and hash. Selecting Figure 2 alone does not make old CSVs new data.
+
+Table 2 lists Table 3 in `optional_depends_on`: it runs after Table 3 and
+receives its result only when both are selected and Table 3 completed;
+selected alone it stays CPU-only.
 
 `completed` describes successful execution and the output contract. The runner
 records `scientific_validation: not_assessed`; the adapter's own validation

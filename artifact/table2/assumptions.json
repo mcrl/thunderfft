@@ -8,7 +8,22 @@
   "issue_model": "2048 ops/SM/cycle is the paper-model anchor: one m16n8k8 MMA per SM cycle; it is not measured instruction throughput",
   "mma_m": 16,
   "component_bytes": 2,
-  "radices": [4, 8, 16],
+  "radices": [
+    4,
+    8,
+    16
+  ],
   "source": "Supplied PPoPP27 draft, Table 2 and Section 3.2, page 3; model assumptions, not a hardware measurement",
-  "paper_pdf_sha256": "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50"
+  "paper_pdf_sha256": "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50",
+  "measured_reference": {
+    "library": "cuFFTDx",
+    "gpu": "A100",
+    "N": 64,
+    "precision": "fp16",
+    "placement": "register",
+    "batch": 65536,
+    "selection": "fastest validated Table 3 cuFFTDx candidate (smallest median compute_us)",
+    "paper_relative_time": 1.79,
+    "paper_utilization": 0.558
+  }
 }

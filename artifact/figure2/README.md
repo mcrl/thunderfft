@@ -1,14 +1,16 @@
 # Figure 2: FFT kernel execution time
 
-Status: ready for the **ThunderFFT-only A100/register subset**. The cuFFTDx
-FP16/FP32 series remain assigned separately; this adapter does not fabricate
-them or claim to reproduce the complete comparison.
+Status: ready. Plots ThunderFFT FP16/TF32 always, and cuFFTDx FP16/FP32 when
+the source Table 3 run measured cuFFTDx (`MATHDX_ROOT` set). Without cuFFTDx
+data it produces the explicitly labeled ThunderFFT-only subset; it never
+fabricates the cuFFTDx series. No cuFFTDx Figure 2 has been generated from a
+real measurement yet.
 
 Paper p. 9, Section 6.2: A100 inputs in registers; FFT sizes
 64/128/256/512/1024/2048/4096; batch 65,536. The original figure compares
 cuFFTDx FP16 against ThunderFFT FP16, and cuFFTDx FP32 against ThunderFFT TF32.
-This subset plots the two ThunderFFT series using exactly the fresh
-[Table 3](../table3/README.md) measurements, without another GPU timing sweep.
+All series come from exactly the fresh [Table 3](../table3/README.md)
+measurements of the same run, without another GPU timing sweep.
 
 ## Run
 
@@ -73,32 +75,50 @@ retains the cuFFTDx series even when every ThunderFFT point is present.
 ## Data and plotting contract
 
 The adapter requires every one of the 7 sizes × 2 precisions and the same set
-of trial IDs in every configuration. It selects `gpu=A100`,
-`placement=register`, `library=ThunderFFT`; other Table 3 placements are not
-plotted. Every selected row must carry a passed numerical gate and finite,
+of trial IDs in every configuration. It selects `gpu=A100` and
+`placement=register`; other Table 3 placements are not plotted.
+
+If the source contains `library=cuFFTDx` rows, cuFFTDx must also cover all
+7 sizes × FP16/FP32. Partial cuFFTDx data is an error and is never dropped
+silently. Every candidate must pass the same row checks, with the same trials as
+ThunderFFT. For each size and precision the plotted candidate is chosen by
+Table 3's rule, the smallest median compute time. When Table 3's
+`cufftdx_candidates.csv` exists, its A100/register selection must agree.
+Pairing follows the paper: cuFFTDx FP16 vs ThunderFFT FP16, and cuFFTDx FP32
+vs ThunderFFT TF32. Every selected row must carry a passed numerical gate and finite,
 positive compute/end-to-end timings and a finite, nonnegative relative L2.
 The Table 3 gate defines the error tolerance; the figure preserves that result
 rather than introducing a different accuracy test.
 
-`data.csv` preserves all selected raw Table 3 columns, then adds `source_run`,
+`data.csv` preserves the plotted raw Table 3 rows (for cuFFTDx, the selected
+candidate's trials only; Table 3 keeps every candidate) and all their columns, then adds `source_run`,
 `source_result_dir`, `source_file`, source data/status SHA-256 hashes, and
 `time_ms`. `summary.csv` contains the median, minimum, and maximum of the
-individual trial compute times for each of the 14 configurations. It uses
+individual trial compute times for each of the 14 configurations (28 with
+cuFFTDx). It also records the selected `candidate` and, on ThunderFFT rows,
+`speedup_vs_cufftdx = cuFFTDx median / ThunderFFT median`. It uses
 `time_us = (t_2R_us - t_R_us) / R` from Table 3, not end-to-end timing.
 The explicit unit conversion is `time_ms = time_us / 1000`.
 The source metadata path/hash are also retained when present. Source precision
 labels are retained in raw data; `fp16`/`tf32` are normalized for the summary.
 
-The PDF uses a logarithmic millisecond axis, median points, and min–max trial
-bars. TF32 is blue and FP16 is green; the legend sits above the data area at
-the upper right. These statistics are an explicit artifact convention because
+The PDF uses a logarithmic millisecond axis (fixed 0.002–2.048 ms with labels and
+horizontal grid lines every factor of 4, i.e. 0.002/0.008/0.032/0.128/0.512/2.048,
+when every plotted value fits, otherwise automatic), median points, and min–max trial
+bars. ThunderFFT is orange (`#ff4d00`) and cuFFTDx is green (`#186b24`).
+TF32/FP32 use solid lines with circles and FP16 dashed lines with squares,
+all with filled markers. The legend sits above the data area at the
+upper right. These statistics are an explicit artifact convention because
 the draft does not specify the original trial aggregation or error bars.
-Its caption identifies the profile and the missing cuFFTDx series.
+The PDF has no title or caption; the profile, batch, repeats, cuFFTDx selection
+rule and statistics are recorded in `metadata.json`, and a ThunderFFT-only
+subset is marked by its `scope` and the PDF's document title.
 
-`metadata.json` records scope, source paths/hashes/run ID, plotting command,
+`metadata.json` records scope, the selected cuFFTDx candidate per size (or
+the missing series), source paths/hashes/run ID, plotting command,
 script hash, output hashes, statistics, units, and colors. The runner's
 `status.json` reports whether this adapter completed; it is not evidence of
-the missing cuFFTDx comparison or a complete Figure 2 reproduction.
+a complete Figure 2 reproduction.
 
 CPU contract checks, including deliberate invalid source data, can be run with:
 
