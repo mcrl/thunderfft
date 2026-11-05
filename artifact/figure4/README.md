@@ -1,43 +1,61 @@
 # Figure 4 — 1D convolution
 
-**Owner:** unassigned. **Status:** native correctness gate implemented; paper-workload validation and equivalent baseline semantics remain pending.
+Status: ready subset. Measures ThunderFFT and cuDNN after a correctness gate;
+FlashFFTConv is joined from a separately produced CSV. Not yet supported:
+offline collection assembly.
 
-The supplied PDF's Figure 4 compares 1D convolution at `L=4096`, `B=64`, and `D=768`. The existing implementation is depthwise. The plot suggests small-to-large filters around `K=3…53`, but the text does not specify every sampled filter length or fully define the operation; confirm those settings with the author. The retained driver uses a provisional odd-length `3…53` sweep. This directory was previously named `figure5`; its number now follows the supplied paper.
+Paper p. 10, Section 6.7: A100, `L=4096`, batch `64 x 768`, one full forward
+FFT, element-wise multiplication and one full inverse FFT. The plot spans filter
+sizes 3…51; the earlier A100 evaluation used odd lengths, so the paper profile
+sweeps `K=3,5,…,53`.
 
-## Run contract
-
-From the repository root:
-
-```bash
-./run.sh figure4
-```
-
-`run.sh` currently returns **78 (pending)** with a concrete reason. It creates no measured performance claims. The legacy driver is retained only as an implementation starting point:
-
-- `benchmark_figure4_1dfft.py`: ThunderFFT, FlashFFTConv, flash_conv1d, and cuDNN timing driver.
-- `compare_fft4096_realflash_vs_ours_complex_B64_D768_K3_63_step2.csv`: unchanged historical data. Its `K=3…63` sweep does not match the paper; these bytes are preserved for provenance and are never treated as fresh results.
-
-The legacy driver defaults to `result/figure4/legacy_timings.csv`, or `$THUNDERFFT_RESULT_DIR/legacy_timings.csv` when set. New evaluation outputs belong in the runner-provided `$THUNDERFFT_RESULT_DIR`, never in this source directory.
-
-## Work to assign
-
-The 4096-point filter-frequency transpose has been corrected. Targeted A100 / CUDA 12.9 real-input checks with seed 42 reduced the `N=4096, K=9, B=D=1` output/`N` circular-convolution relative L2 error from `0.281035` to approximately `0.000964`, with the same FP16 arithmetic and an independent double direct reference. See the [sample validation notes](../../sample/README.md#full-length-1d-diagnostics-thff_conv1d_fullfft4096) for the checked filter lengths and remaining limits. This does not validate the paper workload or make the legacy driver correctness-gated.
-
-1. Keep the native numerical gate enabled and validate the corrected 4096 FFT-convolution path on the paper workload before collecting comparison timings. With `validate=1`, the native diagnostic now requires finite output/`N` circular-convolution relative L2 error at most `5e-3` and returns nonzero on failure. The 2026-11-02 Vast.ai A100 and H100 checks each passed eight small convolution cases, including `N=4096, K=1,3,9,17,53, B=D=1` and `K=9, B=2, D=3`. These checks do not cover the paper's `B=64, D=768` workload; the legacy adapter still disables native validation.
-2. Define the paper's operation precisely: linear versus circular convolution, padding/cropping, normalization, input/filter dtype, and filter reversal. The legacy cuDNN path currently performs cross-correlation with left circular padding, and the legacy paths do not compare shared outputs.
-3. Generate identical seeded inputs and filters for every implementation. Require a numerical pass/fail gate with documented tolerances for each dtype before timing each setting. Export actual output tensors or use a common reference so the native executable can participate.
-4. Pin CUDA, PyTorch, cuDNN, and external FlashFFTConv revisions; document installation. FlashFFTConv remains external (`--flash-root /path/to/flashfftconv`). Record setup and hardware in the output metadata.
-5. Confirm the exact paper filter samples, then implement bounded `smoke` and paper profiles in `run.sh`. The retained driver's provisional `K=3…53`, step 2 setting is not proof of the original sampling. Use the shared runner environment for build, device, Python, and output directories.
-6. Save `correctness.csv`, `timings.csv`, exact commands, environment metadata, and a plotting script/figure under `$THUNDERFFT_RESULT_DIR`. Record warmups, repetitions, whether filter FFT and transfers are included, and summary statistics.
-
-Completion requires fresh correctness evidence for every compared path, matched timing boundaries, the paper's exact sweep, and a reproducible Figure 4 plot. A successful legacy subprocess or old CSV is insufficient.
-
-## Legacy driver inspection
-
-After the owner resolves the issues above, the existing CLI can be used to develop the adapter:
+## Run
 
 ```bash
-python3 artifact/figure4/benchmark_figure4_1dfft.py --flash-root /path/to/flashfftconv --ours-bin build/sample/conv1d/thff_conv1d_fullfft4096 --L 4096 --B 64 --D 768 --k-start 3 --k-end 53 --k-step 2 --csv result/figure4/legacy_timings.csv
+./run.sh figure4 --profile smoke     # B=4, D=64, K=3,9,53
+./run.sh figure4 --profile paper     # B=64, D=768, K=3..53 odd, 3 trials
 ```
 
-This command still skips native correctness checks and is **not** an AE reproduction command. The runner intentionally does not invoke it.
+cuDNN is measured when CMake finds it (`thff_conv1d_compare`). Overrides:
+`THUNDERFFT_FIGURE4_FILTERS` (comma list), `_TRIALS`, `_VALIDATE_CHANNELS`
+(default 1024) and `_BACKENDS` (comma list of backend CSVs).
+
+## Operation (identical for every library)
+
+Depthwise circular convolution `y[b][d][n] = sum_k x[b][d][(n-k) mod L] h[d][k]`
+over all `L` outputs, filter not flipped, real FP16 input/filter/output. Inputs
+come from `srand(42)` in the same order in both drivers: `x ~ U[0,1]`, then
+`h ~ U[0,1]`.
+
+| Library | Native | Notes |
+| --- | --- | --- |
+| ThunderFFT | `thff_conv1d_fullfft4096 4096 K 0 64 768 5 30 1 1 1 1 1024` | stores `h/L` to absorb the unnormalized inverse; filter FFT included in every timed iteration |
+| cuDNN | `thff_conv1d_compare --figure4 4096 K 64 768 5 30 1024` | C++ cuDNN API, groups=D, reversed filter with `CUDNN_CROSS_CORRELATION` (the mode PyTorch `F.conv1d` uses), fastest `cudnnFind` algorithm; the circularly wrapped input (`L+K-1`) is built once before timing |
+
+Both drivers check finite relative L2 ≤ 5e-3 against a direct double-precision
+reference on 1025 `(b, d)` sequences spread over `b` and `d` (plus the last one)
+before timing; the full reference would take minutes per K. Timing is the mean
+of 30 launches after 5 warmups; the median of 3 trials is plotted.
+
+## Backend CSVs (FlashFFTConv)
+
+Columns `gpu,shape,filter,library,repeat,time_ms,rel_l2,passed,operation`, with
+`shape=L=4096,B=64,D=768` and `operation` equal to the string in `measure.py`
+`FIGURE4["operation"]`. Rows with another operation, GPU, shape, a failed gate
+or a library measured here are rejected.
+
+## Reference results (A100 80GB PCIe, CUDA 12.9, cuDNN 9.12, 2026-11-05)
+
+ThunderFFT averages 1.810 ms over K=3…53 (paper: 1.86 ms, −2.7%; earlier
+evaluation: 1.834–1.867 ms).
+
+The earlier evaluation measured cuDNN through PyTorch `F.conv1d` (fp16,
+`cudnn.benchmark=True`), which runs cuDNN's `conv2d_grouped_direct_kernel` in
+cross-correlation mode; rerunning that script here reproduced its values
+(K=3/25/53: 2.128/5.401/9.742 ms). With `CUDNN_CONVOLUTION` cuDNN selects a slower
+variant of the same kernel (+30% at K=53), so this driver reverses the filter
+and uses cross-correlation; it then measures 2.119/5.396/9.648 ms.
+
+The legacy `benchmark_figure4_1dfft.py` (validation disabled) and its historical
+`compare_fft4096_..._K3_63_step2.csv` are retained unchanged for provenance and
+are not used by `run.sh`.

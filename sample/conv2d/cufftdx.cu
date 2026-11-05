@@ -2,6 +2,12 @@
 #include <cute/tensor.hpp>
 #include "../utils.h"
 #include "cute/tensor_impl.hpp"
+#include <functional>
+#include <vector>
+
+#ifndef THFF_CONV_SM
+#define THFF_CONV_SM 800
+#endif
 
 using namespace cufftdx;
 using namespace cute;
@@ -117,17 +123,17 @@ __global__ void conv_kernel_thread(cufftdx::complex<real_type> *d_input,
     }
 }
 
+// Returns the mean time per run (filter FFT + tiled kernel), or -1 if gate rejects
+// the output of an untimed first run.
 template <int f>
-void cufftdx_convolution(const float2* h_input, const float2* h_filter, 
-    float2* h_output, int N) {
+float cufftdx_convolution(const float2* h_input, const float2* h_filter, int N,
+                          const std::function<bool(const float2*)>& gate, int warmup_runs, int runs) {
     using complex_type = cufftdx::complex<float>;
-    using fft_c2c = decltype(Thread() + Precision<float>() + SM<800>() + Size<64>() + Type<fft_type::c2c>());
+    using fft_c2c = decltype(Thread() + Precision<float>() + SM<THFF_CONV_SM>() + Size<64>() + Type<fft_type::c2c>());
     using fft_c2c_forward = decltype(fft_c2c() + Direction<fft_direction::forward>());
     using fft_c2c_inverse = decltype(fft_c2c() + Direction<fft_direction::inverse>());
-    static constexpr int warmup_runs = 5;
-    static constexpr int runs = 100;
-    
     cufftdx::complex<float>* d_input = nullptr;
+    cufftdx::complex<float>* d_filter_spatial = nullptr;
     cufftdx::complex<float>* d_filter = nullptr;
     cufftdx::complex<float>* d_output = nullptr;
     static constexpr unsigned int tile_size = 64;
@@ -136,6 +142,7 @@ void cufftdx_convolution(const float2* h_input, const float2* h_filter,
     CHECK_CUDA(cudaMalloc(&d_input, sizeof(cufftdx::complex<float>) * N * N));
     // Filter needs to be padded to tile_size x tile_size for FFT-based convolution
     CHECK_CUDA(cudaMalloc(&d_filter, sizeof(cufftdx::complex<float>) * tile_size * tile_size));
+    CHECK_CUDA(cudaMalloc(&d_filter_spatial, sizeof(cufftdx::complex<float>) * tile_size * tile_size));
     CHECK_CUDA(cudaMalloc(&d_output, sizeof(cufftdx::complex<float>) * output_size * output_size));
 
     CHECK_CUDA(cudaMemcpy(d_input, h_input, sizeof(float2) * N * N, cudaMemcpyHostToDevice));
@@ -151,13 +158,12 @@ void cufftdx_convolution(const float2* h_input, const float2* h_filter,
             h_filter_padded[idx_i * tile_size + idx_j].y = h_filter[j * f + i].y / tile_size / tile_size;
         }
     }
-    CHECK_CUDA(cudaMemcpy(d_filter, h_filter_padded, sizeof(cufftdx::complex<float>) * tile_size * tile_size, cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_filter_spatial, h_filter_padded, sizeof(cufftdx::complex<float>) * tile_size * tile_size, cudaMemcpyHostToDevice));
     std::free(h_filter_padded);
 
-    // FFT filter
+    // The filter FFT runs inside every timed iteration (Figure 5 timing scope).
     cufftHandle plan_forward;
     CHECK_CUFFT(cufftPlan2d(&plan_forward, tile_size, tile_size, CUFFT_C2C));
-    CHECK_CUFFT(cufftExecC2C(plan_forward, reinterpret_cast<cufftComplex*>(d_filter), reinterpret_cast<cufftComplex*>(d_filter), CUFFT_FORWARD));
 
     dim3 blockSize(tile_size);
     dim3 gridSize((output_size + valid_tile_size*loop_y - 1) / valid_tile_size / loop_y,
@@ -210,47 +216,53 @@ void cufftdx_convolution(const float2* h_input, const float2* h_filter,
     CHECK_CUDA(cudaFuncSetAttribute(conv_kernel_thread<float, tile_size, f, fft_c2c_forward, fft_c2c_inverse, decltype(input_gmem_layout), decltype(filter_gmem_layout), decltype(output_gmem_layout), decltype(smem_layout), decltype(input_cta_tiler), decltype(output_cta_tiler)>, cudaFuncAttributeMaxDynamicSharedMemorySize, static_cast<int>(shared_memory_size_config)));
     CHECK_CUDA(cudaGetLastError());
     
-    auto kernel = [&]() { 
+    auto kernel = [&]() {
+        CHECK_CUFFT(cufftExecC2C(plan_forward, reinterpret_cast<cufftComplex*>(d_filter_spatial),
+                                 reinterpret_cast<cufftComplex*>(d_filter), CUFFT_FORWARD));
         conv_kernel_thread<float, tile_size, f, fft_c2c_forward, fft_c2c_inverse><<<gridSize, blockSize, shared_memory_size>>>
         (d_input, d_filter, d_output, N, input_gmem_layout, filter_gmem_layout, output_gmem_layout, smem_layout, input_cta_tiler, output_cta_tiler); 
     };
-    float ms = measure_execution_ms(kernel, warmup_runs, runs);
-    std::cout << "[cuFFTDx] Complex 2D convolution: " << ms << " ms" << std::endl;
+    kernel();
+    CHECK_CUDA(cudaGetLastError());
+    std::vector<float2> h_output(size_t(output_size) * output_size);
+    CHECK_CUDA(cudaMemcpy(h_output.data(), d_output, sizeof(float2) * h_output.size(), cudaMemcpyDeviceToHost));
+    const float ms = gate(h_output.data()) ? measure_execution_ms(kernel, warmup_runs, runs) : -1.0f;
 
-    CHECK_CUDA(cudaMemcpy(h_output, d_output, sizeof(cufftdx::complex<float>) * output_size * output_size, cudaMemcpyDeviceToHost));
     CHECK_CUDA(cudaFree(d_input));
+    CHECK_CUDA(cudaFree(d_filter_spatial));
     CHECK_CUDA(cudaFree(d_filter));
     CHECK_CUDA(cudaFree(d_output));
     CHECK_CUFFT(cufftDestroy(plan_forward));
+    return ms;
 }
 
-// Template instantiations for odd filter sizes 3 to 33
-template void cufftdx_convolution<3>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<5>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<7>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<9>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<11>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<13>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<15>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<17>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<19>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<21>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<23>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<25>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<27>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<29>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<31>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<33>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<35>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<37>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<39>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<41>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<43>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<45>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<47>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<49>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<51>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<53>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<55>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<57>(const float2*, const float2*, float2*, int);
-template void cufftdx_convolution<59>(const float2*, const float2*, float2*, int);
+// Template instantiations for odd filter sizes 3 to 59
+template float cufftdx_convolution<3>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<5>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<7>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<9>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<11>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<13>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<15>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<17>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<19>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<21>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<23>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<25>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<27>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<29>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<31>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<33>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<35>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<37>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<39>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<41>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<43>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<45>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<47>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<49>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<51>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<53>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<55>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<57>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template float cufftdx_convolution<59>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);

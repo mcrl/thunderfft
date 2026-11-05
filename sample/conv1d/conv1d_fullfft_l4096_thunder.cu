@@ -360,7 +360,8 @@ float run_case(int K,
                int include_filter_fft,
                int validate,
                int real_input,
-               int real_filter) {
+               int real_filter,
+               int validate_channels) {
     constexpr int BPB = thunderfft::batch_per_block<N>;
     constexpr int WPB = thunderfft::warp_per_block<N>;
 
@@ -496,7 +497,15 @@ float run_case(int K,
         double num_raw = 0.0, num_scaled = 0.0, den = 0.0;
         double max_abs_scaled_corr = 0.0;
         double num_scaled_corr = 0.0, den_corr = 0.0;
-        for (int bd = 0; bd < batch_count; ++bd) {
+        // validate_channels=0 checks every (b, d) sequence. Otherwise check that many
+        // sequences spread over b and d plus the last one; the direct reference costs
+        // B*D*N*K multiply-adds, which is minutes per K at B=64, D=768.
+        const int checked = (validate_channels <= 0 || validate_channels >= batch_count) ? batch_count
+                                                                                        : validate_channels + 1;
+        for (int c = 0; c < checked; ++c) {
+            const int bd = checked == batch_count ? c
+                         : c == checked - 1 ? batch_count - 1
+                         : int((int64_t(c) * (batch_count / validate_channels) + c) % batch_count);
             const int d = bd % D;
             for (int n = 0; n < N; ++n) {
                 float ref_re = 0.0f, ref_im = 0.0f;
@@ -550,6 +559,7 @@ float run_case(int K,
                   << " max_abs=" << max_abs_scaled << "\n"
                   << "Validation N=" << N << " vs direct circular corr (raw/N): L2_rel=" << l2_scaled_corr
                   << " max_abs=" << max_abs_scaled_corr << "\n"
+                  << "Validation sequences: " << checked << " of " << batch_count << "\n"
                   << "Circular convolution validation: " << (validation_passed ? "PASS" : "FAIL")
                   << " (raw/N relative L2 limit=" << relative_l2_limit << ")\n";
     }
@@ -583,6 +593,7 @@ int main(int argc, char** argv) {
     int validate = 1;
     int real_input = 1;
     int real_filter = 1;
+    int validate_channels = 0;
 
     if (argc >= 2) N = std::atoi(argv[1]);
     if (argc >= 3) K = std::atoi(argv[2]);
@@ -595,6 +606,7 @@ int main(int argc, char** argv) {
     if (argc >= 10) validate = std::atoi(argv[9]);
     if (argc >= 11) real_input = std::atoi(argv[10]);
     if (argc >= 12) real_filter = std::atoi(argv[11]);
+    if (argc >= 13) validate_channels = std::atoi(argv[12]);
 
     if (!(N == 256 || N == 1024 || N == 4096)) {
         std::cerr << "N must be one of {256, 1024, 4096}\n";
@@ -604,7 +616,7 @@ int main(int argc, char** argv) {
         std::cerr << "K must be in [1, " << N << "]\n";
         return EXIT_FAILURE;
     }
-    if (argc > 12 || device < 0 || B <= 0 || D <= 0 || warmup < 0 || runs <= 0 ||
+    if (argc > 13 || validate_channels < 0 || device < 0 || B <= 0 || D <= 0 || warmup < 0 || runs <= 0 ||
         (include_filter_fft != 0 && include_filter_fft != 1) ||
         (validate != 0 && validate != 1) || real_input != 1 || real_filter != 1) {
         std::cerr << "Require a valid device, positive B/D/runs, nonnegative warmup, "
@@ -613,15 +625,22 @@ int main(int argc, char** argv) {
     }
 
     CHECK_CUDA(cudaSetDevice(device));
+    cudaDeviceProp prop;
+    CHECK_CUDA(cudaGetDeviceProperties(&prop, device));
+    std::cerr << "GPU=" << prop.name << " compute=" << prop.major << "." << prop.minor
+              << " batch=" << B * D << " seed=42\n";
     std::srand(42);
 
     float ms = -1.0f;
     if (N == 256) {
-        ms = run_case<256>(K, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter);
+        ms = run_case<256>(K, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter,
+                                validate_channels);
     } else if (N == 1024) {
-        ms = run_case<1024>(K, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter);
+        ms = run_case<1024>(K, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter,
+                                validate_channels);
     } else {
-        ms = run_case<4096>(K, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter);
+        ms = run_case<4096>(K, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter,
+                                validate_channels);
     }
     if (ms < 0.0f) return EXIT_FAILURE;
 

@@ -14,9 +14,9 @@ and Table 1 is a literature survey, so neither has a GPU evaluation task.
 | --- | ---: | --- | --- |
 | [validation](validation/README.md) | — | FFT correctness and memory guards | Ready: 88 smoke / 500 full cases plus 18 host API checks |
 | [figure2](figure2/README.md) | 9 | A100 FFT kernel time plot | Ready: ThunderFFT series, plus cuFFTDx when this run's Table 3 measured it |
-| [figure3](figure3/README.md) | 10 | End-to-end FFT normalized performance | `sample/bench/`; communication-only and baseline work pending |
-| [figure4](figure4/README.md) | 10 | A100 1D convolution plot | Native correctness gate available; paper workload and comparable semantics pending |
-| [figure5](figure5/README.md) | 10 | H100 2D convolution plot | `sample/conv2d/`; full benchmark pending |
+| [figure3](figure3/README.md) | 10 | End-to-end FFT normalized performance | Ready subset: communication-only, ThunderFFT, cuFFT; cuFFTDx with `MATHDX_ROOT` |
+| [figure4](figure4/README.md) | 10 | A100 1D convolution plot | Ready subset: ThunderFFT and cuDNN gated on the paper workload; FlashFFTConv via backend CSV |
+| [figure5](figure5/README.md) | 10 | H100 2D convolution plot | Ready subset (`MATHDX_ROOT`): cuDNN, cuFFT, tiled cuFFTDx; tiled ThunderFFT via backend CSV |
 | [table2](table2/README.md) | 3 | A100 performance model and measured reference | Ready: calculated rows + measured cuFFTDx row from Table 3 (needs `MATHDX_ROOT`) |
 | [table3](table3/README.md) | 8 | FFT kernel latency matrix | Ready: ThunderFFT 28 configurations/GPU; cuFFTDx comparison with `MATHDX_ROOT` (unmeasured) |
 | [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | MMA microbenchmark pending |

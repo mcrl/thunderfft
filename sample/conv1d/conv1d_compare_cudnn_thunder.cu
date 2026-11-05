@@ -2,6 +2,9 @@
 #include <cuda_runtime.h>
 #include <cudnn.h>
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -161,9 +164,136 @@ float run_thunder_ms(const std::string& thff_bin, int L, int K, int device, int 
     return std::stof(m[1].str());
 }
 
+// Figure 4 cuDNN path. Same inputs as thff_conv1d_fullfft4096 (seed 42, same
+// rand() order): x[b][d][n] ~ U[0,1], w[d][k] ~ U[0,1]. Computes the same depthwise
+// circular convolution y[n] = sum_k x[(n-k) mod L] w[k] over all L outputs (that
+// driver stores w/L to absorb its unnormalized inverse FFT). cuDNN has no
+// circular padding, so the wrapped input is materialized once before timing. The
+// filter is stored reversed and applied with CUDNN_CROSS_CORRELATION (the mode
+// PyTorch's F.conv1d uses; cuDNN's grouped direct kernel is faster in this mode
+// than with CUDNN_CONVOLUTION), using the fastest found algorithm.
+int run_figure4(int argc, char** argv) {
+    if (argc < 9) {
+        std::cerr << "usage: " << argv[0] << " --figure4 L K B D warmup runs validate_channels [device=0]\n";
+        return EXIT_FAILURE;
+    }
+    const int L = std::atoi(argv[2]), K = std::atoi(argv[3]), B = std::atoi(argv[4]), D = std::atoi(argv[5]);
+    const int warmup = std::atoi(argv[6]), runs = std::atoi(argv[7]), validate_channels = std::atoi(argv[8]);
+    const int device = argc >= 10 ? std::atoi(argv[9]) : 0;
+    if (L <= 0 || K < 1 || K > L || B <= 0 || D <= 0 || warmup < 0 || runs <= 0 || validate_channels < 0) {
+        std::cerr << "invalid arguments\n";
+        return EXIT_FAILURE;
+    }
+    if (cudnnGetVersion() != CUDNN_VERSION) {
+        std::cerr << "cuDNN runtime " << cudnnGetVersion() << " differs from headers " << CUDNN_VERSION
+                  << "; set CUDNN_LIB and LD_LIBRARY_PATH to one installation\n";
+        return EXIT_FAILURE;
+    }
+    CHECK_CUDA(cudaSetDevice(device));
+    cudaDeviceProp prop;
+    CHECK_CUDA(cudaGetDeviceProperties(&prop, device));
+    std::cerr << "GPU=" << prop.name << " compute=" << prop.major << "." << prop.minor
+              << " batch=" << B * D << " seed=42 cuDNN=" << cudnnGetVersion() << "\n";
+
+    const int batch_count = B * D, Lp = L + K - 1;
+    std::srand(42);
+    std::vector<half> h_x(size_t(batch_count) * L), h_xp(size_t(batch_count) * Lp), h_w(size_t(D) * K);
+    std::vector<float> x(h_x.size()), w(h_w.size());
+    for (size_t i = 0; i < x.size(); ++i) { h_x[i] = __float2half(std::rand() / float(RAND_MAX)); x[i] = __half2float(h_x[i]); }
+    for (size_t i = 0; i < w.size(); ++i) { h_w[i] = __float2half(std::rand() / float(RAND_MAX)); w[i] = __half2float(h_w[i]); }
+    for (int bd = 0; bd < batch_count; ++bd)
+        for (int j = 0; j < Lp; ++j)
+            h_xp[size_t(bd) * Lp + j] = h_x[size_t(bd) * L + (j - (K - 1) + L) % L];
+
+    half *d_x = nullptr, *d_w = nullptr, *d_y = nullptr;
+    CHECK_CUDA(cudaMalloc(&d_x, h_xp.size() * sizeof(half)));
+    CHECK_CUDA(cudaMalloc(&d_w, h_w.size() * sizeof(half)));
+    CHECK_CUDA(cudaMalloc(&d_y, h_x.size() * sizeof(half)));
+    CHECK_CUDA(cudaMemcpy(d_x, h_xp.data(), h_xp.size() * sizeof(half), cudaMemcpyHostToDevice));
+    std::vector<half> h_w_reversed(h_w.size());
+    for (int d = 0; d < D; ++d)
+        for (int k = 0; k < K; ++k) h_w_reversed[size_t(d) * K + k] = h_w[size_t(d) * K + K - 1 - k];
+    CHECK_CUDA(cudaMemcpy(d_w, h_w_reversed.data(), h_w.size() * sizeof(half), cudaMemcpyHostToDevice));
+
+    CudnnCtx c{};
+    CHECK_CUDNN(cudnnCreate(&c.h));
+    c.x = d_x; c.w = d_w; c.y = d_y;
+    CHECK_CUDNN(cudnnCreateTensorDescriptor(&c.xDesc));
+    CHECK_CUDNN(cudnnCreateTensorDescriptor(&c.yDesc));
+    CHECK_CUDNN(cudnnCreateFilterDescriptor(&c.wDesc));
+    CHECK_CUDNN(cudnnCreateConvolutionDescriptor(&c.convDesc));
+    CHECK_CUDNN(cudnnSetTensor4dDescriptor(c.xDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_HALF, B, D, 1, Lp));
+    CHECK_CUDNN(cudnnSetFilter4dDescriptor(c.wDesc, CUDNN_DATA_HALF, CUDNN_TENSOR_NCHW, D, 1, 1, K));
+    CHECK_CUDNN(cudnnSetConvolution2dDescriptor(c.convDesc, 0, 0, 1, 1, 1, 1, CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
+    CHECK_CUDNN(cudnnSetConvolutionGroupCount(c.convDesc, D));
+    CHECK_CUDNN(cudnnSetConvolutionMathType(c.convDesc, CUDNN_TENSOR_OP_MATH));
+    CHECK_CUDNN(cudnnSetTensor4dDescriptor(c.yDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_HALF, B, D, 1, L));
+    int found = 0;
+    cudnnConvolutionFwdAlgoPerf_t perf[8];
+    CHECK_CUDNN(cudnnFindConvolutionForwardAlgorithm(c.h, c.xDesc, c.wDesc, c.convDesc, c.yDesc, 8, &found, perf));
+    int best = -1;
+    for (int i = 0; i < found && best < 0; ++i)
+        if (perf[i].status == CUDNN_STATUS_SUCCESS) best = i;
+    if (best < 0) { std::cerr << "no cuDNN algorithm succeeded\n"; return EXIT_FAILURE; }
+    c.algo = perf[best].algo;
+    CHECK_CUDNN(cudnnGetConvolutionForwardWorkspaceSize(c.h, c.xDesc, c.wDesc, c.convDesc, c.yDesc, c.algo, &c.ws_bytes));
+    if (c.ws_bytes > 0) CHECK_CUDA(cudaMalloc(&c.ws, c.ws_bytes));
+    auto forward = [](void* p) {
+        auto* ctx = reinterpret_cast<CudnnCtx*>(p);
+        constexpr float alpha = 1.0f, beta = 0.0f;
+        CHECK_CUDNN(cudnnConvolutionForward(ctx->h, &alpha, ctx->xDesc, ctx->x, ctx->wDesc, ctx->w, ctx->convDesc,
+                                            ctx->algo, ctx->ws, ctx->ws_bytes, &beta, ctx->yDesc, ctx->y));
+    };
+
+    // Correctness gate before timing: sampled sequences, as in the ThunderFFT driver.
+    forward(&c);
+    CHECK_CUDA(cudaDeviceSynchronize());
+    std::vector<half> h_y(h_x.size());
+    CHECK_CUDA(cudaMemcpy(h_y.data(), d_y, h_y.size() * sizeof(half), cudaMemcpyDeviceToHost));
+    const int checked = (validate_channels <= 0 || validate_channels >= batch_count) ? batch_count : validate_channels + 1;
+    double num = 0.0, den = 0.0;
+    bool finite = true;
+    for (int i = 0; i < checked; ++i) {
+        const int bd = checked == batch_count ? i
+                     : i == checked - 1 ? batch_count - 1
+                     : int((int64_t(i) * (batch_count / validate_channels) + i) % batch_count);
+        const int d = bd % D;
+        for (int n = 0; n < L; ++n) {
+            double ref = 0.0;
+            for (int k = 0; k < K; ++k) ref += double(x[size_t(bd) * L + (n - k + L) % L]) * w[size_t(d) * K + k];
+            const double out = __half2float(h_y[size_t(bd) * L + n]);
+            finite = finite && std::isfinite(out);
+            num += (out - ref) * (out - ref);
+            den += ref * ref;
+        }
+    }
+    const double rel = std::sqrt(num / den);
+    const bool passed = finite && std::isfinite(rel) && rel <= 5e-3;
+    std::cout << "Validation N=" << L << " vs direct circular conv (cuDNN): L2_rel=" << rel << "\n"
+              << "Validation sequences: " << checked << " of " << batch_count << "\n"
+              << "Circular convolution validation: " << (passed ? "PASS" : "FAIL") << " (relative L2 limit=0.005)\n";
+    if (!passed) return EXIT_FAILURE;
+
+    const float ms = measure_cuda_ms(forward, &c, warmup, runs);
+    std::cout << "cuDNN algorithm: " << int(c.algo) << " workspace_bytes=" << c.ws_bytes << "\n"
+              << "cuDNN depthwise circular conv1d (N=" << L << ") time: " << ms << " ms\n";
+
+    if (c.ws) CHECK_CUDA(cudaFree(c.ws));
+    CHECK_CUDNN(cudnnDestroyConvolutionDescriptor(c.convDesc));
+    CHECK_CUDNN(cudnnDestroyFilterDescriptor(c.wDesc));
+    CHECK_CUDNN(cudnnDestroyTensorDescriptor(c.yDesc));
+    CHECK_CUDNN(cudnnDestroyTensorDescriptor(c.xDesc));
+    CHECK_CUDNN(cudnnDestroy(c.h));
+    CHECK_CUDA(cudaFree(d_x));
+    CHECK_CUDA(cudaFree(d_w));
+    CHECK_CUDA(cudaFree(d_y));
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (argc >= 2 && std::string(argv[1]) == "--figure4") return run_figure4(argc, argv);
     int L = 16384 * 16384;
     int Kb = 3;
     int Ke = 63;

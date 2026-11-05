@@ -3,6 +3,10 @@
 // the out-of-place, single-FFT end-to-end time is reported separately.
 // With --library cufftdx (built as thff_paper_fft_cufftdx), cuFFTDx block FFTs
 // run through the same input, FP64 correctness gate and R/2R timing.
+// With --library copy|copy-scalar, a communication-only kernel (Figure 3) moves
+// the same bytes out of place and is checked for an exact copy before timing.
+// With --library cufft, out-of-place cufftExecC2C (FP32) runs through the same
+// gate and timing; plan creation is outside every timed interval.
 #include "thunderfft_bench.h"
 #ifdef THFF_WITH_CUFFTDX
 #include "cufftdx_bench.h"
@@ -12,6 +16,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -79,7 +84,7 @@ template<class Launch> double elapsed_us(Launch launch, int runs) {
 // launch(input, output, count, inside_repeats, e2e) enqueues one forward FFT kernel.
 template<class T,int N,class Launch>
 void measure(int batch,int repeats,int trials,int granularity,size_t smem,const char* precision,
-             const char* placement,const std::string& suffix,Launch launch) {
+             const char* placement,const std::string& suffix,Launch launch,bool copy_gate=false) {
   using V=vec2_t<T>;
   if (batch<=0 || batch%granularity) throw std::runtime_error("batch must be a positive FFTs-per-block multiple");
   // A separately allocated, unmutated validation input. Both precisions are
@@ -95,20 +100,32 @@ void measure(int batch,int repeats,int trials,int granularity,size_t smem,const 
   initialize<T><<<128,256>>>(vi,vr,validation_count,N); CUDA_OK(cudaGetLastError());
   cufftHandle plan; FFT_OK(cufftPlan1d(&plan,N,CUFFT_Z2Z,validation_batch));
   FFT_OK(cufftExecZ2Z(plan,reinterpret_cast<cufftDoubleComplex*>(vr),reinterpret_cast<cufftDoubleComplex*>(vr),CUFFT_FORWARD));
-  launch(vi,vo,validation_batch,1,false); CUDA_OK(cudaDeviceSynchronize());
-  std::vector<V> actual(validation_count); std::vector<double2> reference(validation_count);
-  CUDA_OK(cudaMemcpy(actual.data(),vo,validation_count*sizeof(V),cudaMemcpyDeviceToHost));
-  CUDA_OK(cudaMemcpy(reference.data(),vr,validation_count*sizeof(double2),cudaMemcpyDeviceToHost));
-  double se=0,sr=0; bool finite=true;
-  for(size_t i=0;i<validation_count;++i) {
-    double x,y;
-    if constexpr(std::is_same_v<T,half>) {x=__half2float(actual[i].x);y=__half2float(actual[i].y);}
-    else {x=actual[i].x;y=actual[i].y;}
-    finite=finite && std::isfinite(x) && std::isfinite(y);
-    se+=(x-reference[i].x)*(x-reference[i].x)+(y-reference[i].y)*(y-reference[i].y);
-    sr+=reference[i].x*reference[i].x+reference[i].y*reference[i].y;
+  // Gate both the repeated kernel and the separately timed single-pass e2e kernel.
+  double rel=0; bool finite=true;
+  for(bool e2e : {false,true}) {
+    CUDA_OK(cudaMemset(vo,0xff,validation_count*sizeof(V)));
+    launch(vi,vo,validation_batch,1,e2e); CUDA_OK(cudaDeviceSynchronize());
+    std::vector<V> actual(validation_count),input(validation_count); std::vector<double2> reference(validation_count);
+    CUDA_OK(cudaMemcpy(actual.data(),vo,validation_count*sizeof(V),cudaMemcpyDeviceToHost));
+    CUDA_OK(cudaMemcpy(input.data(),vi,validation_count*sizeof(V),cudaMemcpyDeviceToHost));
+    CUDA_OK(cudaMemcpy(reference.data(),vr,validation_count*sizeof(double2),cudaMemcpyDeviceToHost));
+    if(copy_gate) {
+      // Communication-only kernels must reproduce every input byte exactly.
+      if(std::memcmp(actual.data(),input.data(),validation_count*sizeof(V)))
+        throw std::runtime_error("communication-only copy is not exact");
+      continue;
+    }
+    double se=0,sr=0;
+    for(size_t i=0;i<validation_count;++i) {
+      double x,y;
+      if constexpr(std::is_same_v<T,half>) {x=__half2float(actual[i].x);y=__half2float(actual[i].y);}
+      else {x=actual[i].x;y=actual[i].y;}
+      finite=finite && std::isfinite(x) && std::isfinite(y);
+      se+=(x-reference[i].x)*(x-reference[i].x)+(y-reference[i].y)*(y-reference[i].y);
+      sr+=reference[i].x*reference[i].x+reference[i].y*reference[i].y;
+    }
+    rel=std::max(rel,std::sqrt(se/sr));
   }
-  double rel=std::sqrt(se/sr);
   FFT_OK(cufftDestroy(plan)); CUDA_OK(cudaFree(vi)); CUDA_OK(cudaFree(vo)); CUDA_OK(cudaFree(vr));
   if(!finite || !std::isfinite(rel) || rel>5e-3) throw std::runtime_error("single-FFT correctness gate failed relL2="+std::to_string(rel));
   V *input=nullptr,*output=nullptr; size_t bytes=size_t(N)*batch*sizeof(V);
@@ -167,6 +184,48 @@ template<class T,int N,bool Shared> void run(int batch,int repeats,int trials) {
   thunderfft::ThunderFFTFinalize<T>();
 }
 
+// Figure 3 communication-only baseline: global load/store without FFT arithmetic.
+// The vector kernel moves 16-byte words; the scalar kernel moves one vec2_t<T>.
+// No __restrict__: it would let the compiler collapse the idempotent R repeats.
+template<class W> __global__ void copy_kernel(const W* input,W* output,
+                                              size_t count,unsigned inside_repeats) {
+  for(unsigned r=0;r<inside_repeats;++r)
+    for(size_t i=blockIdx.x*size_t(blockDim.x)+threadIdx.x;i<count;i+=size_t(gridDim.x)*blockDim.x)
+      output[i]=input[i];
+}
+
+template<class T,int N,bool Vector> void run_copy(int batch,int repeats,int trials) {
+  using V=vec2_t<T>;
+  using W=std::conditional_t<Vector,int4,V>;
+  static_assert(size_t(N)*sizeof(V)%sizeof(W)==0,"one FFT must be a whole number of copy words");
+  auto launch=[&](V* input,V* output,int count,int r,bool e2e) {
+    // One copy word per thread over a full grid; the grid-stride loop only covers r repeats.
+    size_t words=size_t(N)*count*sizeof(V)/sizeof(W);
+    unsigned blocks=unsigned((words+255)/256);
+    copy_kernel<W><<<blocks,256>>>(reinterpret_cast<const W*>(input),reinterpret_cast<W*>(output),
+                                   words,e2e?1u:unsigned(r));
+    CUDA_OK(cudaGetLastError());
+  };
+  const char* precision=std::is_same_v<T,half> ? "fp16" : "tf32";
+  measure<T,N>(batch,repeats,trials,1,0,precision,"global",Vector?",copy":",copy-scalar",launch,true);
+}
+
+template<int N> void run_cufft(int batch,int repeats,int trials) {
+  std::vector<std::pair<int,cufftHandle>> plans;  // one plan per batch size
+  auto plan=[&](int count) {
+    for(auto& p : plans) if(p.first==count) return p.second;
+    cufftHandle h; FFT_OK(cufftPlan1d(&h,N,CUFFT_C2C,count)); plans.push_back({count,h}); return h;
+  };
+  plan(64); plan(batch);
+  auto launch=[&](float2* input,float2* output,int count,int r,bool e2e) {
+    cufftHandle h=plan(count);
+    for(int i=0;i<(e2e?1:r);++i)
+      FFT_OK(cufftExecC2C(h,reinterpret_cast<cufftComplex*>(input),reinterpret_cast<cufftComplex*>(output),CUFFT_FORWARD));
+  };
+  measure<float,N>(batch,repeats,trials,1,0,"fp32","global",",cufft",launch);
+  for(auto& p : plans) FFT_OK(cufftDestroy(p.second));
+}
+
 struct Options { std::string library="thunderfft",candidate; };
 
 #ifdef THFF_WITH_CUFFTDX
@@ -197,6 +256,13 @@ template<class T,int N,bool Shared> void run_cufftdx(int batch,int repeats,int t
 
 template<int N> void choose(const std::string& precision,const std::string& placement,int b,int r,int t,
                             const Options& o) {
+  if(o.library=="cufft") {run_cufft<N>(b,r,t); return;}
+  if(o.library=="copy"||o.library=="copy-scalar") {
+    const bool v=o.library=="copy";
+    if(precision=="fp16") {if(v) run_copy<half,N,true>(b,r,t); else run_copy<half,N,false>(b,r,t);}
+    else {if(v) run_copy<float,N,true>(b,r,t); else run_copy<float,N,false>(b,r,t);}
+    return;
+  }
   if(o.library=="cufftdx") {
 #ifdef THFF_WITH_CUFFTDX
     if(precision=="fp16") {
@@ -225,14 +291,17 @@ int main(int argc,char**argv) {
         if(a=="--library") o.library=v; else o.candidate=v;
       } else args.push_back(a);
     }
-    if(args.size()<3 || args.size()>6) {std::fprintf(stderr,"usage: %s [--library thunderfft|cufftdx] [--candidate LABEL] N fp16|tf32|fp32 register|shared [repeats=1000] [trials=3] [batch=65536]\n"
+    if(args.size()<3 || args.size()>6) {std::fprintf(stderr,"usage: %s [--library thunderfft|cufftdx|cufft|copy|copy-scalar] [--candidate LABEL] N fp16|tf32|fp32 register|shared|global [repeats=1000] [trials=3] [batch=65536]\n"
       "  thunderfft: fp16|tf32; cufftdx: fp16|fp32 (FP32 CUDA-core cuFFTDx)\n"
+      "  copy|copy-scalar: fp16|tf32 storage, global; communication-only baseline\n"
+      "  cufft: fp32, global; out-of-place cufftExecC2C\n"
       "  LABEL: block_default, block_f<FPB>_e<EPT> or thread_t<threads> (default: all)\n",argv[0]);return 2;}
     int n=std::stoi(args[0]),r=args.size()>3?std::stoi(args[3]):1000,t=args.size()>4?std::stoi(args[4]):3,b=args.size()>5?std::stoi(args[5]):65536;
     std::string precision=args[1],placement=args[2];
-    const bool dx=o.library=="cufftdx";
-    if((o.library!="thunderfft"&&!dx)||(precision!="fp16"&&precision!=(dx?"fp32":"tf32"))||
-       (placement!="register"&&placement!="shared")||r<=0||t<=0||(!dx&&!o.candidate.empty()))
+    const bool dx=o.library=="cufftdx",cufft=o.library=="cufft",
+               copy=o.library=="copy"||o.library=="copy-scalar"||cufft;
+    if((o.library!="thunderfft"&&!dx&&!copy)||(cufft?precision!="fp32":precision!="fp16"&&precision!=(dx?"fp32":"tf32"))||
+       (copy?placement!="global":placement!="register"&&placement!="shared")||r<=0||t<=0||(!dx&&!o.candidate.empty()))
       throw std::runtime_error("invalid arguments");
 #ifndef THFF_WITH_CUFFTDX
     if(dx) throw std::runtime_error("built without cuFFTDx; use thff_paper_fft_cufftdx (configure with MATHDX_ROOT)");
@@ -258,7 +327,7 @@ int main(int argc,char**argv) {
     }
 #endif
     std::printf("N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_out_of_place_us,single_fft_relL2,shared_bytes%s\n",
-                dx?",library,candidate,ffts_per_block,elements_per_thread,threads_per_block":"");
+                dx?",library,candidate,ffts_per_block,elements_per_thread,threads_per_block":copy?",library":"");
     switch(n) {
       case 64:choose<64>(precision,placement,b,r,t,o);break;
       case 128:choose<128>(precision,placement,b,r,t,o);break;

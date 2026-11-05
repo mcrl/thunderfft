@@ -32,7 +32,7 @@ Use explicit targets when those optional dependencies are unavailable.
 | `thff_conv1d` | [conv1d/main.cu](conv1d/main.cu) | Tiled, valid 1D operation using 64-point FFTs |
 | `thff_conv1d_fullfft4096` | [conv1d/conv1d_fullfft_l4096_thunder.cu](conv1d/conv1d_fullfft_l4096_thunder.cu) | Full-length FFT convolution with an optional correctness gate |
 | `thff_conv1d_compare` | [conv1d/conv1d_compare_cudnn_thunder.cu](conv1d/conv1d_compare_cudnn_thunder.cu) | Optional timing driver for CUDA, cuDNN, and ThunderFFT paths |
-| `thff_conv` | [conv2d/main.cu](conv2d/main.cu) | Experimental 2D convolution |
+| `thff_conv` | [conv2d/main.cu](conv2d/main.cu) | Correctness-gated 2D convolution (cuDNN, cuFFT, tiled cuFFTDx) for Figure 5 |
 
 ## Basic FFT: thff_fft
 
@@ -271,7 +271,7 @@ rebuild; it is not another command-line argument.
 The executable retains its historical name but accepts three FFT lengths:
 
 ```text
-thff_conv1d_fullfft4096 [N=4096] [K=9] [device=0] [B=1] [D=1] [warmup=5] [runs=30] [include_filter_fft=1] [validate=1] [real_input=1] [real_filter=1]
+thff_conv1d_fullfft4096 [N=4096] [K=9] [device=0] [B=1] [D=1] [warmup=5] [runs=30] [include_filter_fft=1] [validate=1] [real_input=1] [real_filter=1] [validate_channels=0]
 ```
 
 For a small diagnostic run:
@@ -291,6 +291,7 @@ For a small diagnostic run:
 | `validate` | 1 enables direct-reference diagnostics and the correctness gate; 0 skips them |
 | `real_input` | Must be 1; the complex-input path is unavailable |
 | `real_filter` | Must be 1; complex filters are rejected because output is real-only |
+| `validate_channels` | 0 validates every `(b, d)` sequence; a positive value validates that many sequences spread over `b` and `d`, plus the last one |
 
 Input and output have contiguous real-half shape `[B][D][N]`, with one filter
 per channel shared across batches. Filter storage has padded complex shape
@@ -362,27 +363,23 @@ cross-implementation output comparison. The inputs, arithmetic, and batch/channe
 coverage differ across paths; this output alone cannot establish equivalent
 operations or a matched speedup.
 
-## Optional 2D experiment: `thff_conv`
+## 2D convolution driver: `thff_conv`
 
 Configure MathDX, including its cuFFTDx and bundled CUTLASS/CuTe headers:
 
 ```bash
 cmake -S . -B build -DTHUNDERFFT_ARCHS=80 -DMATHDX_ROOT=/path/to/nvidia/mathdx/25.06
 cmake --build build --target thff_conv -j
-./build/sample/conv2d/thff_conv 1024 3 0 8
+./build/sample/conv2d/thff_conv 2048 33 cufftdx
 ```
 
-The arguments are `[N=1024] [filter_size=3] [device=0] [warp_count=8]`. The filter
-size is fixed at 3; accepted input sizes other than 1024 are forced to 1024.
-Use a positive warp count dividing 32. It generates complex float input
-`[1024][1024]`, filter `[3][3]`, and valid output `[1022][1022]`; the ThunderFFT
-implementation converts data to half precision internally.
-
-The output includes timings, L2/Linf errors against a cuFFT reference, and sample
-values. It has no numerical pass/fail gate. The cuFFTDx invocation is currently
-commented out even though its source is compiled and its heading/columns are
-printed; those cuFFTDx output columns contain uninitialized values and must be
-ignored. This is an experimental source example, not a validated comparison.
+The arguments are `N f cufft|cufftdx|cudnn [warmup=5] [runs=20] [device=0]`; `f`
+is odd from 3 to 59 for `cufftdx`. One library runs per invocation on seeded
+input, passes a sampled direct-reference relL2 ≤ 5e-3 gate (including tile
+boundaries), and then prints its mean time. cuDNN is available when CMake finds
+it. cuDNN uses the real parts only (real FP32), the FFT paths complex FP32; see
+[Figure 5](../artifact/figure5/README.md) for the exact operation. `thunder.cu`
+and the tile kernels remain experimental sources and are not called by this driver.
 
 ## Kernel composition
 

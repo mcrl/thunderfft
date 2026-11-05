@@ -18,6 +18,8 @@ import importlib.util
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if sys.version_info < (3, 9):
+    sys.exit(f"Python 3.9 or newer is required; found {platform.python_version()}. Set PYTHON=/path/to/python3.9+.")
 REGISTRY = Path(__file__).with_name("registry.json")
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))

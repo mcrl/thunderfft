@@ -187,7 +187,7 @@
       "id": "figure3",
       "title": "FFT performance normalized by communication-only baseline",
       "paper_page": 10,
-      "implementation": "pending",
+      "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -200,13 +200,14 @@
         ]
       },
       "available": false,
-      "full_paper_comparison": false
+      "full_paper_comparison": false,
+      "coverage": "A100 communication-only (vector/scalar copy) and ThunderFFT, cuFFT (FP32) and cuFFTDx (with MATHDX_ROOT) end-to-end, N=64/256/1024/4096"
     },
     {
       "id": "figure4",
       "title": "A100 1D convolution comparison",
       "paper_page": 10,
-      "implementation": "blocked",
+      "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -219,13 +220,14 @@
         ]
       },
       "available": false,
-      "full_paper_comparison": false
+      "full_paper_comparison": false,
+      "coverage": "A100 L=4096,B=64,D=768 depthwise circular conv: ThunderFFT and cuDNN measured after a sampled direct-reference gate; FlashFFTConv joined from THUNDERFFT_FIGURE4_BACKENDS CSVs"
     },
     {
       "id": "figure5",
       "title": "H100 2D convolution comparison",
       "paper_page": 10,
-      "implementation": "pending",
+      "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -238,7 +240,8 @@
         ]
       },
       "available": false,
-      "full_paper_comparison": false
+      "full_paper_comparison": false,
+      "coverage": "N=16384 complex FP32 valid 2D correlation, f=3..53: cuDNN (real FP32, as the earlier evaluation), cuFFT full image and tiled cuFFTDx measured after a sampled direct-reference gate; tiled ThunderFFT joined from THUNDERFFT_FIGURE5_BACKENDS CSVs"
     }
   ]
 }

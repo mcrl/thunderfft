@@ -37,10 +37,19 @@ target_compile_options(thff_conv1d_fullfft4096 PRIVATE
 
 find_library(CUDNN_LIB cudnn)
 if(CUDNN_LIB)
+  # Headers next to the selected library, so -DCUDNN_LIB=... pins one cuDNN version.
+  get_filename_component(thff_cudnn_dir "${CUDNN_LIB}" DIRECTORY)
+  find_path(CUDNN_INCLUDE_DIR cudnn.h HINTS "${thff_cudnn_dir}/../include" NO_DEFAULT_PATH)
+  find_path(CUDNN_INCLUDE_DIR cudnn.h)
+endif()
+if(CUDNN_LIB)
   add_executable(thff_conv1d_compare
     ${CMAKE_CURRENT_SOURCE_DIR}/conv1d_compare_cudnn_thunder.cu
   )
   target_link_libraries(thff_conv1d_compare PRIVATE CUDA::cudart ${CUDNN_LIB})
+  target_include_directories(thff_conv1d_compare BEFORE PRIVATE ${CUDNN_INCLUDE_DIR})
+  # cuDNN's directory may also hold another CUDA's cudart/cuFFT: search this toolkit first.
+  set_target_properties(thff_conv1d_compare PROPERTIES BUILD_RPATH "${CUDAToolkit_LIBRARY_DIR}")
   target_compile_options(thff_conv1d_compare PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:-O3 -lineinfo>
     $<$<COMPILE_LANGUAGE:CXX>:-O3>

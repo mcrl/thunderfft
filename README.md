@@ -191,6 +191,7 @@ New outputs go to `result/<evaluation>/<run_id>/`; batch manifests and summaries
 go to `result/runs/<run_id>/`. Task folders include owner placeholders, required
 work and completion criteria. The default batch uses CUDA Toolkit and Python;
 install the plotting dependency with `python3 -m pip install -r artifact/requirements.txt`.
+The scripts require Python 3.9 or newer; set `PYTHON=/path/to/python3` if `python3` is older.
 It produces correctness results, Table 2's calculated rows, all 28 ThunderFFT
 Table 3 configurations, the corresponding A100 Figure 2 subset, and Table 5
 accuracy/range measurements. The excluded cuFFTDx comparisons and external FFT
