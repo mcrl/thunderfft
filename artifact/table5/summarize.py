@@ -7,16 +7,43 @@ import json
 import math
 from pathlib import Path
 
-PHASES = ("accuracy_reduced", "accuracy_fp32_cufft", "range_fp16", "range_tf32", "range_fp32_cufft")
-PRECISIONS = ("fp16", "tf32", "fp32")
-RANGE_PHASE = dict(zip(PRECISIONS, PHASES[2:]))
-ACCURACY_PHASE = {"fp16": "accuracy_reduced", "tf32": "accuracy_reduced", "fp32": "accuracy_fp32_cufft"}
+# The first five phases need only CUDA Toolkit; accuracy_fp16_cufftdx needs a
+# MathDX build. A legacy bundle without selected_phases selected the first five.
+DEFAULT_PHASES = ("accuracy_reduced", "accuracy_fp32_cufft", "range_fp16", "range_tf32", "range_fp32_cufft")
+CUFFTDX_PHASES = ("accuracy_fp16_cufftdx",)
+PHASES = DEFAULT_PHASES + CUFFTDX_PHASES
+RANGE_PRECISIONS = ("fp16", "tf32", "fp32")
+PRECISIONS = RANGE_PRECISIONS + ("fp16_cufftdx",)
+RANGE_PHASE = {"fp16": "range_fp16", "tf32": "range_tf32", "fp32": "range_fp32_cufft"}
+ACCURACY_PRECISIONS = {"accuracy_reduced": {"fp16", "tf32"}, "accuracy_fp32_cufft": {"fp32"},
+                       "accuracy_fp16_cufftdx": {"fp16_cufftdx"}}
+ACCURACY_PHASE = {p: name for name, precisions in ACCURACY_PRECISIONS.items() for p in precisions}
+IMPLEMENTATIONS = {"fp16": "ThunderFFT", "tf32": "ThunderFFT", "fp32": "cuFFT C2C",
+                   "fp16_cufftdx": "cuFFTDx (ElementsPerThread 8, FFTsPerBlock 2)"}
 RAW_FIELDS = ["N", "batch", "mode", "alpha", "precision", "rel_l2", "max_abs", "rel_linf", "all_finite"]
-DATA_FIELDS = ["phase", "source_csv", "implementation", "reference", *RAW_FIELDS]
-TABLE_FIELDS = ["N", "batch", "precision", "implementation", "reference", "rel_l2_alpha1",
+REFERENCE = "cuFFT Z2Z FP64 of the FP32-generated input"
+NO_REFERENCE = "none (finite-output check)"
+IMPLEMENTATION_INPUT = {
+    "fp16": "FP32-generated input rounded to FP16 (round-to-nearest)",
+    "tf32": "FP32-generated input (float2 storage)",
+    "fp32": "FP32-generated input",
+    "fp16_cufftdx": "FP32-generated input rounded to FP16 (round-to-nearest) inside the kernel",
+}
+DATA_FIELDS = ["phase", "source_csv", "implementation", "implementation_input", "reference", *RAW_FIELDS]
+TABLE_FIELDS = ["N", "batch", "precision", "implementation", "implementation_input", "reference", "rel_l2_alpha1",
                 "largest_finite_exponent_observed", "largest_finite_alpha_observed",
-                "scan_exponent_min", "scan_exponent_max", "overflow_observed", "left_censored",
-                "right_censored", "finite_boundary_monotone", "accuracy_status", "range_status"]
+                "first_nonfinite_exponent_observed", "scan_exponent_min", "scan_exponent_max",
+                "overflow_observed", "left_censored", "right_censored", "finite_boundary_monotone",
+                "boundary_status", "accuracy_status", "range_status"]
+
+
+def data_row(phase_name, source_csv, metadata, row):
+    """Label one raw measurement with its implementation, input and reference."""
+    accuracy = phase_name.startswith("accuracy_")
+    return {"phase": "accuracy" if accuracy else "finite_scan", "source_csv": source_csv,
+            "implementation": metadata["implementations"].get(row["precision"], "unknown"),
+            "implementation_input": IMPLEMENTATION_INPUT.get(row["precision"], "unknown"),
+            "reference": REFERENCE if accuracy else NO_REFERENCE, **row}
 
 
 def load_rows(path):
@@ -28,7 +55,7 @@ def load_rows(path):
 
 
 def selected_phases(metadata):
-    phases = metadata.get("selected_phases", list(PHASES))
+    phases = metadata.get("selected_phases", list(DEFAULT_PHASES))
     if not isinstance(phases, list) or not phases or len(phases) != len(set(phases)) or set(phases) - set(PHASES):
         raise ValueError("selected_phases must contain unique supported Table 5 phase names")
     return phases
@@ -56,14 +83,11 @@ def validate_bundle(root, metadata):
             errors.append(str(error))
             continue
         phase = "accuracy" if name.startswith("accuracy_") else "finite_scan"
-        reference = "cuFFT FP64" if phase == "accuracy" else "none (finite-output check)"
         for row in rows:
-            raw_data.append({"phase": phase, "source_csv": f"{name}.csv",
-                             "implementation": metadata["implementations"].get(row["precision"], "unknown"),
-                             "reference": reference, **row})
+            raw_data.append(data_row(name, f"{name}.csv", metadata, row))
         phase_errors_before = len(errors)
         if phase == "accuracy":
-            precisions = {"fp16", "tf32"} if name == "accuracy_reduced" else {"fp32"}
+            precisions = ACCURACY_PRECISIONS[name]
             expected = {(n, p) for n in sizes for p in precisions}
             seen = set()
             if len(rows) != len(expected):
@@ -123,13 +147,16 @@ def validate_bundle(root, metadata):
                     errors.append(f"{name}: N={n} has a nonmonotonic finite-output boundary")
                 # An interrupted/incomplete scan must never become a boundary observation.
                 if complete and monotone:
+                    status = ("observed" if finite and nonfinite else
+                              "left_censored" if nonfinite else "right_censored")
                     ranges[n, precision] = {
                         "largest_finite_exponent_observed": max(finite) if finite else "",
                         "largest_finite_alpha_observed": math.ldexp(1.0, max(finite)) if finite else "",
+                        "first_nonfinite_exponent_observed": min(nonfinite) if nonfinite else "",
                         "scan_exponent_min": lower, "scan_exponent_max": upper,
-                        "overflow_observed": bool(nonfinite), "left_censored": bool(nonfinite) and not finite,
-                        "right_censored": bool(finite) and max(finite) == upper,
-                        "finite_boundary_monotone": monotone,
+                        "overflow_observed": bool(nonfinite), "left_censored": status == "left_censored",
+                        "right_censored": status == "right_censored",
+                        "finite_boundary_monotone": monotone, "boundary_status": status,
                     }
         if len(errors) == phase_errors_before:
             for n in sizes:
@@ -146,17 +173,22 @@ def summary_rows(sizes, metadata, accuracy, ranges):
         for precision in PRECISIONS:
             row = {key: "" for key in TABLE_FIELDS}
             row.update(N=n, batch=metadata.get("batch", ""), precision=precision,
-                       implementation=metadata.get("implementations", {}).get(precision, ""), reference="cuFFT FP64",
+                       implementation=metadata.get("implementations", {}).get(precision, ""),
+                       implementation_input=IMPLEMENTATION_INPUT[precision], reference=REFERENCE,
                        rel_l2_alpha1=accuracy.get((n, precision), {}).get("rel_l2", ""),
+                       boundary_status="pending" if precision in RANGE_PHASE else "not_measured",
                        accuracy_status="complete" if (n, precision) in accuracy else "pending",
-                       range_status="complete" if (n, precision) in ranges else "pending")
+                       range_status="complete" if (n, precision) in ranges else
+                                    "pending" if precision in RANGE_PHASE else "not_measured")
             row.update(ranges.get((n, precision), {}))
             summary.append(row)
     return summary
 
 
 def missing_components(sizes, components):
-    return [{"item": f"{name}:N={n}", "reason": "validated phase CSV has not been collected"}
+    return [{"item": f"{name}:N={n}",
+             "reason": ("validated cuFFTDx phase CSV has not been collected (requires a MATHDX_ROOT build)"
+                        if name in CUFFTDX_PHASES else "validated phase CSV has not been collected")}
             for n in sizes for name in PHASES if (name, n) not in components]
 
 
@@ -171,45 +203,60 @@ def write_outputs(root, metadata, raw_data, summary):
     write_csv(root / "data.csv", DATA_FIELDS, raw_data)
     for filename in ("table5_summary.csv", "table.csv"):
         write_csv(root / filename, TABLE_FIELDS, summary)
-    reference_path = Path(__file__).with_name("table5_accuracy_range_summary_with_fp32.csv")
-    with reference_path.open(newline="") as stream:
+    here = Path(__file__).parent
+    with (here / "table5_accuracy_range_summary_with_fp32.csv").open(newline="") as stream:
         references = {int(row["N"]): row for row in csv.DictReader(stream)}
+    retained_batches = {}
+    for name in ("alpha1_rel_l2_N64_256_1024_4096.csv", "alpha1_rel_l2_fp32_N64_256_1024_4096.csv"):
+        with (here / name).open(newline="") as stream:
+            retained_batches.update({(int(row["N"]), row["precision"]): row["batch"] for row in csv.DictReader(stream)})
     comparisons = []
     for row in summary:
         reference = references.get(row["N"], {})
         precision = row["precision"]
         expected_error = reference.get(f"rel_l2_{precision}_alpha1", "")
         expected_exponent = reference.get(f"largest_finite_exp_{precision}", "")
+        observed = row["boundary_status"] == "observed"
         comparisons.append({
             "N": row["N"], "precision": precision, "implementation": row["implementation"],
+            "measured_batch": row["batch"], "retained_reference_batch": retained_batches.get((row["N"], precision), ""),
             "measured_rel_l2_alpha1": row["rel_l2_alpha1"], "retained_reference_rel_l2_alpha1": expected_error,
             "relative_error_ratio_to_reference": float(row["rel_l2_alpha1"]) / float(expected_error)
                 if row["rel_l2_alpha1"] != "" and expected_error else "",
             "measured_largest_finite_exponent": row["largest_finite_exponent_observed"],
+            "measured_boundary_status": row["boundary_status"],
             "retained_reference_finite_exponent": expected_exponent,
             "finite_exponent_delta": row["largest_finite_exponent_observed"] - int(expected_exponent)
-                if row["largest_finite_exponent_observed"] != "" and expected_exponent else "",
-            "boundary_fully_observed": row["range_status"] == "complete" and not row["left_censored"] and not row["right_censored"],
-            "comparison_status": "informational; paper population/provenance unestablished",
+                if observed and expected_exponent else "",
+            "boundary_fully_observed": observed,
+            "comparison_status": "informational; Table 5 seed and input details are not stated in the paper",
         })
     if comparisons:
         write_csv(root / "comparison.csv", list(comparisons[0]), comparisons)
     lines = ["# Measured Table 5 quantities", "",
              f"Profile: `{metadata['profile']}`; batch: {metadata.get('batch', 'pending')}; seed: {metadata.get('seed', 'pending')}.", "",
-             "Accuracy reference: cuFFT FP64 over the generated FP32 input. FP32 measures cuFFT C2C.", "",
+             "Accuracy reference: cuFFT Z2Z FP64 of the FP32-generated input. "
+             "FP16 receives that input rounded to half, so its error includes input rounding. "
+             "FP16/TF32 measure ThunderFFT; FP32 measures cuFFT C2C; fp16_cufftdx measures cuFFTDx FP16 "
+             "(ElementsPerThread 8, FFTsPerBlock 2) with the same input and reference.", "",
              "| N | Precision / implementation | Relative L2 at alpha=1 | Largest finite exponent observed | Boundary |",
              "|---:|---|---:|---:|---|"]
     for row in summary:
-        boundary = ("pending" if row["range_status"] != "complete" else
-                    "below scan" if row["left_censored"] else
-                    "at/above scan maximum" if row["right_censored"] else "observed")
+        status = row["boundary_status"]
+        boundary = {"pending": "pending", "not_measured": "not measured",
+                    "left_censored": f"non-finite at scan minimum 2^{row['scan_exponent_min']}",
+                    "right_censored": f"no overflow up to scan maximum 2^{row['scan_exponent_max']}",
+                    "observed": f"first non-finite at 2^{row['first_nonfinite_exponent_observed']}"}[status]
         error_text = f"{float(row['rel_l2_alpha1']):.6e}" if row["rel_l2_alpha1"] != "" else "pending"
-        exponent = row["largest_finite_exponent_observed"] if row["range_status"] == "complete" else "pending"
+        exponent = {"pending": "pending", "not_measured": "not measured", "left_censored": f"< {row['scan_exponent_min']}",
+                    "right_censored": f">= {row['scan_exponent_max']}"}.get(
+                        status, row["largest_finite_exponent_observed"])
         lines.append(f"| {row['N']} | {row['precision']} / {row['implementation']} | {error_text} | {exponent} | {boundary} |")
     lines += ["", "Finite exponents refer to alpha=2^k; finite-only scan errors are intentionally not measured.", "",
-              "Uncollected phases remain pending. Only a complete validated scan contributes a range observation.", "",
+              "Uncollected phases remain pending. Only a complete validated scan contributes a range observation; "
+              "a censored scan reports a bound, not an overflow boundary.", "",
               "`comparison.csv` compares retained source reference values for context. "
-              "The paper's population and FP32 provenance are not established, so this is not an exact-paper acceptance test.", ""]
+              "The paper does not state Table 5's seed or several input details, so this is not an exact-paper acceptance test.", ""]
     (root / "table.md").write_text("\n".join(lines))
 
 
@@ -228,8 +275,8 @@ def main():
     errors = result["errors"]
     validation = {
         "numerical_sanity": "failed" if errors else "passed",
-        "scope": "Completeness of each selected phase, finite alpha=1 outputs, broad relative-L2 limits, and scanned finite-boundary consistency; this does not validate paper provenance or exact published numbers.",
-        "limits": {"fp16": 1e-2, "tf32": 1e-2, "fp32_cufft": 1e-5},
+        "scope": "Completeness of each selected phase, finite alpha=1 outputs, broad relative-L2 limits, and scanned finite-boundary consistency; this does not validate unstated paper conditions or exact published numbers.",
+        "limits": {"fp16": 1e-2, "tf32": 1e-2, "fp32_cufft": 1e-5, "fp16_cufftdx": 1e-2},
         "scientific_validation": "not_assessed", "selected_phases": selected_phases(metadata),
         "measured_rows": len(result["raw_data"]), "summary_rows": len(summary),
         "paper_size_set_complete": set(metadata["N"]) == {64, 256, 1024, 4096},

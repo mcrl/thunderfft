@@ -74,8 +74,8 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     expected_sizes = [64] if profile == "smoke" else [64, 256, 1024, 4096]
     expected_ranges = ({"fp16": [8, 13], "tf32": [120, 127], "fp32": [120, 127]}
-                       if profile == "smoke" else {precision: [0, 127] for precision in _summary.PRECISIONS})
-    base, identity = None, None
+                       if profile == "smoke" else {precision: [0, 127] for precision in _summary.RANGE_PRECISIONS})
+    base, identity, cufftdx_build = None, None, None
     components, accuracy, ranges, raw_data, sources = {}, {}, {}, [], []
     seen_parts = set()
     for part in parts:
@@ -113,6 +113,16 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
         elif identity != part_identity:
             differing = [key for key in identity if identity[key] != part_identity[key]]
             raise ValueError(f"{part}: incompatible Table 5 measurement conditions: {', '.join(differing)}")
+        if "accuracy_fp16_cufftdx" in _summary.selected_phases(metadata):
+            build = metadata["build"].get("cufftdx")
+            if not isinstance(build, dict) or not isinstance(build.get("binary_sha256"), str) or \
+                    re.fullmatch(r"[0-9a-f]{64}", build["binary_sha256"]) is None:
+                raise ValueError(f"{part}: cuFFTDx phase requires the cuFFTDx binary hash")
+            build = {key: build.get(key) for key in ("binary_sha256", "target_files")}
+            if cufftdx_build is None:
+                cufftdx_build = build
+            elif cufftdx_build != build:
+                raise ValueError(f"{part}: incompatible cuFFTDx binary or build flags")
         files = {name: _hash(part / name) for name in ("status.json", "metadata.json")}
         for phase in _summary.selected_phases(metadata):
             for suffix in ("csv", "environment.json"):
@@ -130,28 +140,26 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
             for row in rows:
                 precision = row["precision"]
                 is_accuracy = phase.startswith("accuracy_")
-                raw_data.append({"phase": "accuracy" if is_accuracy else "finite_scan",
-                                 "source_csv": str(part / f"{phase}.csv"),
-                                 "implementation": metadata["implementations"][precision],
-                                 "reference": "cuFFT FP64" if is_accuracy else "none (finite-output check)", **row})
+                raw_data.append(_summary.data_row(phase, str(part / f"{phase}.csv"), metadata, row))
                 if is_accuracy:
                     accuracy[n, precision] = checked["accuracy"][n, precision]
                 else:
                     ranges[n, precision] = checked["ranges"][n, precision]
-    missing = _summary.missing_components(expected_sizes, components)
+    # Sizes collected beyond the profile list must be as complete as the profile sizes.
+    sizes = sorted(set(expected_sizes) | {n for _, n in components})
+    missing = _summary.missing_components(sizes, components)
     state = "complete" if not missing else "partial" if components else "pending"
     metadata = dict(base) if base else {
         "evaluation": "table5", "profile": profile,
-        "implementations": {"fp16": "ThunderFFT", "tf32": "ThunderFFT", "fp32": "cuFFT C2C"},
+        "implementations": dict(_summary.IMPLEMENTATIONS),
     }
-    sizes = sorted(set(expected_sizes) | {n for _, n in components})
     metadata.update(N=sizes, expected_profile_sizes=expected_sizes, assembly_status=state,
                     selected_phases=list(_summary.PHASES), missing_components=missing,
                     full_paper_comparison=False, scientific_validation="not_assessed",
-                    assembled_from=sources, compatibility=identity,
+                    assembled_from=sources, compatibility=identity, cufftdx_build=cufftdx_build,
                     device_identity_scope=("CUDA device UUID" if identity and _valid_gpu_uuid(identity["measured_environment"].get("gpu_uuid"))
                                            else "single legacy bundle without GPU UUID" if identity else "pending"),
-                    assembly_scope="Completeness of the requested profile CSV grid; paper population/provenance remains unestablished.")
+                    assembly_scope="Completeness of the CSV grid over the profile sizes and every additionally collected size; Table 5 conditions the paper does not state remain unestablished.")
     _summary.write_outputs(output, metadata, raw_data, _summary.summary_rows(sizes, metadata, accuracy, ranges))
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     (output / "validation.json").write_text(json.dumps({

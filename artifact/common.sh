@@ -20,6 +20,36 @@ artifact_init() {
   mkdir -p -- "${THUNDERFFT_RESULT_DIR}"
 }
 
+# The project needs CMake >= 3.18. Use THUNDERFFT_CMAKE if given, otherwise the
+# CMake that configured the build directory, otherwise cmake on PATH.
+artifact_select_cmake() {
+  local candidates=() candidate version
+  if [[ -n "${THUNDERFFT_CMAKE:-}" ]]; then
+    candidates=("${THUNDERFFT_CMAKE}")
+  else
+    candidate="$(sed -n 's/^CMAKE_COMMAND:INTERNAL=//p' "${THUNDERFFT_BUILD_DIR}/CMakeCache.txt" 2>/dev/null || true)"
+    [[ -n "${candidate}" ]] && candidates+=("${candidate}")
+    candidates+=(cmake)
+  fi
+  for candidate in "${candidates[@]}"; do
+    version="$(command "${candidate}" --version 2>/dev/null | sed -n '1s/^cmake version \([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')" || continue
+    if [[ -n "${version}" ]] && printf '3.18\n%s\n' "${version}" | sort -C -V; then
+      THUNDERFFT_CMAKE="$(type -P -- "${candidate}")"
+      export THUNDERFFT_CMAKE THUNDERFFT_CMAKE_CHECKED="${THUNDERFFT_CMAKE}"
+      return 0
+    fi
+  done
+  echo "CMake 3.18 or newer is required; tried: ${candidates[*]}. Set THUNDERFFT_CMAKE to a newer cmake." >&2
+  exit 2
+}
+
+cmake() {
+  if [[ -z "${THUNDERFFT_CMAKE:-}" || "${THUNDERFFT_CMAKE_CHECKED:-}" != "${THUNDERFFT_CMAKE}" ]]; then
+    artifact_select_cmake
+  fi
+  "${THUNDERFFT_CMAKE}" "$@"
+}
+
 artifact_configure() {
   local args=(-S "${THUNDERFFT_ROOT}" -B "${THUNDERFFT_BUILD_DIR}"
               "-DTHUNDERFFT_ARCHS=${THUNDERFFT_ARCHS:-80}")

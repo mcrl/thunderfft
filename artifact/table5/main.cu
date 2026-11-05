@@ -16,6 +16,10 @@
 
 #include "thunderfft_bench.h"
 
+#ifdef THFF_WITH_CUFFTDX
+#include <cufftdx.hpp>
+#endif
+
 namespace {
 
 #define CHECK_CUFFT(call)                                                         \
@@ -39,6 +43,7 @@ enum class PrecisionMode {
     TF32,
     FP16,
     FP32,
+    CufftdxFP16,
 };
 
 enum class ReferenceMode {
@@ -120,6 +125,10 @@ static bool parse_precision(const std::string& s, PrecisionMode& p) {
         p = PrecisionMode::FP32;
         return true;
     }
+    if (s == "cufftdx_fp16") {
+        p = PrecisionMode::CufftdxFP16;
+        return true;
+    }
     return false;
 }
 
@@ -152,7 +161,8 @@ static void print_usage(const char* prog) {
         << "  --N-list <comma-separated list>   (default: 64,128,256,512,1024,2048,4096)\n"
         << "  --batch <int>                     (default: 65536)\n"
         << "  --mode <gaussian|all_ones|impulse> (default: gaussian)\n"
-        << "  --precision <both|tf32|fp16|fp32> (default: both)\n"
+        << "  --precision <both|tf32|fp16|fp32|cufftdx_fp16> (default: both)\n"
+        << "                                    (cufftdx_fp16 requires a THFF_WITH_CUFFTDX build)\n"
         << "  --alpha <float>                   (default: 1.0)\n"
         << "  --alpha-sweep                     (run alpha = 2^k sweep)\n"
         << "  --alpha-exp-min <int>             (default: -20)\n"
@@ -226,6 +236,12 @@ static Options parse_args(int argc, char** argv) {
             std::exit(EXIT_FAILURE);
         }
     }
+#ifndef THFF_WITH_CUFFTDX
+    if (opt.precision == PrecisionMode::CufftdxFP16) {
+        std::cerr << "--precision cufftdx_fp16 requires a build with THFF_WITH_CUFFTDX (configure with MATHDX_ROOT)\n";
+        std::exit(EXIT_FAILURE);
+    }
+#endif
     if (opt.alpha_sweep && opt.alpha_exp_min > opt.alpha_exp_max) {
         std::swap(opt.alpha_exp_min, opt.alpha_exp_max);
     }
@@ -452,6 +468,68 @@ static void run_thunderfft_reg_e2e(const std::vector<vec2_t<T>>& h_input,
     CHECK_CUDA(cudaFree(d_data));
 }
 
+#ifdef THFF_WITH_CUFFTDX
+// Two FFTs share half2 lanes; the FP32-generated input is rounded to FP16 here,
+// as in the ThunderFFT FP16 path.
+template <class FFT>
+__global__ __launch_bounds__(FFT::max_threads_per_block)
+void cufftdx_fp16_kernel(float2* data, int batch) {
+    constexpr int N = cufftdx::size_of<FFT>::value;
+    const size_t first = static_cast<size_t>(blockIdx.x) * FFT::ffts_per_block
+                       + threadIdx.y * FFT::implicit_type_batching;
+    extern __shared__ __align__(16) unsigned char shared_mem[];
+    typename FFT::value_type values[FFT::storage_size] = {};
+
+    #pragma unroll
+    for (int i = 0; i < FFT::elements_per_thread; ++i) {
+        const int j = threadIdx.x + i * FFT::stride;
+        if (j < N) {
+            const float2 a = first < batch ? data[first * N + j] : make_float2(0, 0);
+            const float2 b = first + 1 < batch ? data[(first + 1) * N + j] : make_float2(0, 0);
+            values[i].x = __floats2half2_rn(a.x, b.x);
+            values[i].y = __floats2half2_rn(a.y, b.y);
+        }
+    }
+    // All threads participate, including a zero-padded final batch lane.
+    FFT().execute(values, shared_mem);
+    #pragma unroll
+    for (int i = 0; i < FFT::elements_per_thread; ++i) {
+        const int j = threadIdx.x + i * FFT::stride;
+        if (j < N) {
+            if (first < batch)
+                data[first * N + j] = make_float2(__low2float(values[i].x), __low2float(values[i].y));
+            if (first + 1 < batch)
+                data[(first + 1) * N + j] = make_float2(__high2float(values[i].x), __high2float(values[i].y));
+        }
+    }
+}
+
+template <int N>
+static void run_cufftdx_fp16(const std::vector<float2>& input, int batch, std::vector<float2>& output) {
+    using FFT = decltype(cufftdx::Size<N>() + cufftdx::Precision<__half>()
+                       + cufftdx::Type<cufftdx::fft_type::c2c>()
+                       + cufftdx::Direction<cufftdx::fft_direction::forward>()
+                       + cufftdx::ElementsPerThread<8>() + cufftdx::FFTsPerBlock<2>()
+                       + cufftdx::SM<THFF_CUFFTDX_SM>() + cufftdx::Block());
+    static_assert(!FFT::requires_workspace, "Selected cuFFTDx FFT requires a workspace");
+    float2* data = nullptr;
+    const size_t bytes = input.size() * sizeof(float2);
+    CHECK_CUDA(cudaMalloc(&data, bytes));
+    CHECK_CUDA(cudaMemcpy(data, input.data(), bytes, cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaFuncSetAttribute(cufftdx_fp16_kernel<FFT>,
+                                   cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                   FFT::shared_memory_size));
+    const unsigned blocks = static_cast<unsigned>(
+        (static_cast<size_t>(batch) + FFT::ffts_per_block - 1) / FFT::ffts_per_block);
+    cufftdx_fp16_kernel<FFT><<<blocks, FFT::block_dim, FFT::shared_memory_size>>>(data, batch);
+    CHECK_CUDA(cudaGetLastError());
+    CHECK_CUDA(cudaDeviceSynchronize());
+    output.resize(input.size());
+    CHECK_CUDA(cudaMemcpy(output.data(), data, bytes, cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaFree(data));
+}
+#endif
+
 static Metrics compute_metrics(const std::vector<float2>& y,
                                const std::vector<cufftDoubleComplex>& y_ref) {
     Metrics m;
@@ -591,6 +669,7 @@ static void run_for_n(const Options& opt,
         const bool run_tf32 = (opt.precision == PrecisionMode::Both || opt.precision == PrecisionMode::TF32);
         const bool run_fp16 = (opt.precision == PrecisionMode::Both || opt.precision == PrecisionMode::FP16);
         const bool run_fp32 = (opt.precision == PrecisionMode::FP32);
+        const bool run_cufftdx_fp16_path = (opt.precision == PrecisionMode::CufftdxFP16);
 
         if (run_fp16) {
             pack_half2(h_input_f32, h_input_half);
@@ -688,6 +767,36 @@ static void run_for_n(const Options& opt,
             rows.push_back(r_fp32);
             print_row(r_fp32);
         }
+
+#ifdef THFF_WITH_CUFFTDX
+        if (run_cufftdx_fp16_path) {
+            std::vector<float2> y_dx;
+            run_cufftdx_fp16<N>(h_input_f32, batch, y_dx);
+
+            Row r_dx;
+            r_dx.N = N;
+            r_dx.batch = batch;
+            r_dx.mode = mode_s;
+            r_dx.alpha = alpha;
+            r_dx.precision = "fp16_cufftdx";
+            if (need_ref) {
+                if (opt.reference == ReferenceMode::FP64) {
+                    r_dx.m = compute_metrics(y_dx, h_ref);
+                } else {
+                    r_dx.m = compute_metrics(y_dx, h_ref_f32);
+                }
+            } else {
+                r_dx.m.rel_l2 = std::numeric_limits<double>::quiet_NaN();
+                r_dx.m.max_abs = std::numeric_limits<double>::quiet_NaN();
+                r_dx.m.rel_linf = std::numeric_limits<double>::quiet_NaN();
+                r_dx.m.all_finite = all_finite_only(y_dx);
+            }
+            rows.push_back(r_dx);
+            print_row(r_dx);
+        }
+#else
+        (void)run_cufftdx_fp16_path;
+#endif
     }
 }
 

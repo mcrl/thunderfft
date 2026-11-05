@@ -16,15 +16,18 @@ def capture(arguments, cwd=None):
 
 
 def main():
-    result_dir, source_dir, build_dir, binary = map(Path, sys.argv[1:])
+    result_dir, source_dir, build_dir, binary = map(Path, sys.argv[1:5])
+    cufftdx_binary = Path(sys.argv[5]) if len(sys.argv) > 5 else None
     metadata_path = result_dir / "metadata.json"
     metadata = json.loads(metadata_path.read_text())
-    cache = {}
+    cache, mathdx_root = {}, ""
     for line in (build_dir / "CMakeCache.txt").read_text().splitlines():
         if line.startswith(("#", "//")) or ":" not in line or "=" not in line:
             continue
         key, value = line.split("=", 1)
         key = key.split(":", 1)[0]
+        if key == "MATHDX_ROOT":
+            mathdx_root = value
         if key in {"CMAKE_BUILD_TYPE", "CMAKE_CUDA_COMPILER", "CMAKE_CXX_COMPILER",
                    "CMAKE_CUDA_FLAGS", "CMAKE_CUDA_FLAGS_RELEASE", "CMAKE_CUDA_ARCHITECTURES",
                    "THUNDERFFT_ARCHS", "CUDAToolkit_ROOT", "CMAKE_GENERATOR"}:
@@ -49,7 +52,7 @@ def main():
         metadata["source"]["cloud_snapshot"] = {"git": snapshot["git"], "manifest_sha256": hashlib.sha256(snapshot_path.read_bytes()).hexdigest()}
     metadata["build"] = {
         "cmake_cache": cache,
-        "cmake_version": capture(["cmake", "--version"]),
+        "cmake_version": capture([os.environ.get("THUNDERFFT_CMAKE", "cmake"), "--version"]),
         "cuda_compiler_version": capture([cache["CMAKE_CUDA_COMPILER"], "--version"]),
         "binary": str(binary.resolve()),
         "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
@@ -65,6 +68,17 @@ def main():
     metadata["build"]["target_files"] = {
         name: (target_dir / name).read_text() for name in ("flags.make", "link.txt")
         if (target_dir / name).is_file()}
+    if cufftdx_binary is not None:
+        # Kept outside cmake_cache/binary_sha256 so ThunderFFT/cuFFT parts from a
+        # build without MathDX remain combinable with cuFFTDx parts.
+        cufftdx_dir = build_dir / "sample/bench/CMakeFiles/benchmark_table5_precision_cufftdx.dir"
+        metadata["build"]["cufftdx"] = {
+            "mathdx_root": mathdx_root,
+            "binary": str(cufftdx_binary.resolve()),
+            "binary_sha256": hashlib.sha256(cufftdx_binary.read_bytes()).hexdigest(),
+            "target_files": {name: (cufftdx_dir / name).read_text() for name in ("flags.make", "link.txt")
+                             if (cufftdx_dir / name).is_file()},
+        }
     metadata["execution"] = {
         "timeout_seconds_per_invocation": int(os.environ["THUNDERFFT_TABLE5_TIMEOUT"])
             if "THUNDERFFT_TABLE5_TIMEOUT" in os.environ else 600,

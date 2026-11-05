@@ -5,6 +5,7 @@ import copy
 import csv
 import importlib.util
 import json
+import math
 from pathlib import Path
 import subprocess
 import sys
@@ -27,33 +28,36 @@ def make_part(path, phases=None, sizes=None, profile="smoke", batch=64, seed=123
     phases, sizes = list(summary.PHASES if phases is None else phases), sizes or [64]
     path.mkdir()
     ranges = ({"fp16": [8, 13], "tf32": [120, 127], "fp32": [120, 127]} if profile == "smoke"
-              else {p: [0, 127] for p in summary.PRECISIONS})
+              else {p: [0, 127] for p in summary.RANGE_PRECISIONS})
     metadata = {
         "evaluation": "table5", "profile": profile, "N": sizes, "batch": batch, "seed": seed,
         "selected_phases": phases, "range_exponents": ranges,
         "input": "complex Gaussian; per-FFT L2 norm / sqrt(N) = alpha",
         "reference": "cuFFT Z2Z (FP64) applied to the generated FP32 input",
-        "implementations": {"fp16": "ThunderFFT", "tf32": "ThunderFFT", "fp32": "cuFFT C2C"},
+        "implementations": dict(summary.IMPLEMENTATIONS),
         "source": {"sha256": {"main.cu": "a" * 64}},
         "build": {"binary_sha256": "b" * 64, "cmake_cache": {"CMAKE_CUDA_ARCHITECTURES": "80"},
                   "cuda_compiler_version": {"exit_code": 0, "stdout": "synthetic compiler"}},
         "measured_environment": copy.deepcopy(ENVIRONMENT),
     }
+    if "accuracy_fp16_cufftdx" in phases:
+        metadata["build"]["cufftdx"] = {"binary_sha256": "d" * 64, "target_files": {"flags.make": "-O3"}}
     (path / "metadata.json").write_text(json.dumps(metadata))
     (path / "status.json").write_text(json.dumps({"evaluation": "table5", "profile": profile,
                                                   "status": "completed", "exit_code": 0}))
     for phase in phases:
         rows = []
-        precisions = ["fp16", "tf32"] if phase == "accuracy_reduced" else ["fp32"] if phase == "accuracy_fp32_cufft" else [next(p for p, name in summary.RANGE_PHASE.items() if name == phase)]
+        precisions = (sorted(summary.ACCURACY_PRECISIONS[phase]) if phase in summary.ACCURACY_PRECISIONS
+                      else [next(p for p, name in summary.RANGE_PHASE.items() if name == phase)])
         for n in sizes:
             for precision in precisions:
                 accuracy = phase.startswith("accuracy_")
                 alphas = [1.0] if accuracy else [2.0**exponent for exponent in range(ranges[precision][0], ranges[precision][1] + 1)]
                 for alpha in alphas:
-                    error = 1e-7 if precision == "fp32" else 1e-4
+                    error = 1e-7 if precision == "fp32" else 1e-3 if precision == "fp16_cufftdx" else 1e-4
                     values = [n, batch, "gaussian", alpha, precision,
                               error if accuracy else "nan", error if accuracy else "nan", error if accuracy else "nan",
-                              int(alpha <= 2.0**(11 if precision == "fp16" else 123))]
+                              int(accuracy or alpha <= 2.0**(11 if precision == "fp16" else 123))]
                     rows.append(dict(zip(summary.RAW_FIELDS, values)))
         summary.write_csv(path / f"{phase}.csv", summary.RAW_FIELDS, rows)
         (path / f"{phase}.environment.json").write_text(json.dumps(ENVIRONMENT))
@@ -82,9 +86,11 @@ class AssembleChecks(unittest.TestCase):
     def test_empty_collection_is_pending(self):
         result = assemble([], self.output, "paper")
         self.assertEqual(result["status"], "pending")
-        self.assertEqual(len(result["missing"]), 20)
-        self.assertEqual(len(self.read_table()), 12)
-        self.assertTrue(all(row["largest_finite_exponent_observed"] == "" and row["range_status"] == "pending" for row in self.read_table()))
+        self.assertEqual(len(result["missing"]), 24)
+        self.assertEqual(len(self.read_table()), 16)
+        self.assertTrue(all(row["largest_finite_exponent_observed"] == "" and
+                            row["range_status"] == ("not_measured" if row["precision"] == "fp16_cufftdx" else "pending")
+                            for row in self.read_table()))
 
     def test_selected_accuracy_collects_successfully_with_pending_ranges(self):
         part = make_part(self.root / "accuracy", ["accuracy_reduced"])
@@ -93,35 +99,47 @@ class AssembleChecks(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         result = assemble([part], self.output, "smoke")
         self.assertEqual(result["status"], "partial")
-        self.assertEqual(len(result["missing"]), 4)
-        self.assertEqual([row["accuracy_status"] for row in self.read_table()], ["complete", "complete", "pending"])
+        self.assertEqual(len(result["missing"]), 5)
+        self.assertEqual([row["accuracy_status"] for row in self.read_table()], ["complete", "complete", "pending", "pending"])
         self.assertTrue(all(row["largest_finite_exponent_observed"] == "" for row in self.read_table()))
 
-    def test_five_independent_phases_complete_without_changing_parts(self):
+    def test_six_independent_phases_complete_without_changing_parts(self):
         parts = [make_part(self.root / phase, [phase]) for phase in summary.PHASES]
         original = {str(path): path.read_bytes() for part in parts for path in part.iterdir()}
         result = assemble(parts, self.output, "smoke")
         self.assertEqual(result, {"status": "complete", "missing": [], "full_paper_comparison": False})
-        self.assertEqual([row["largest_finite_exponent_observed"] for row in self.read_table()], ["11", "123", "123"])
+        self.assertEqual([row["largest_finite_exponent_observed"] for row in self.read_table()], ["11", "123", "123", ""])
+        self.assertEqual(self.read_table()[3]["range_status"], "not_measured")
         self.assertEqual(original, {str(path): path.read_bytes() for part in parts for path in part.iterdir()})
 
     def test_split_paper_sizes_complete(self):
         parts = [make_part(self.root / f"n{n}", sizes=[n], profile="paper") for n in [64, 256, 1024, 4096]]
         self.assertEqual(assemble(parts, self.output, "paper")["status"], "complete")
-        self.assertEqual(len(self.read_table()), 12)
+        self.assertEqual(len(self.read_table()), 16)
 
     def test_one_paper_size_leaves_other_sizes_pending(self):
         part = make_part(self.root / "one", profile="paper")
         result = assemble([part], self.output, "paper")
         self.assertEqual(result["status"], "partial")
-        self.assertEqual(len(result["missing"]), 15)
+        self.assertEqual(len(result["missing"]), 18)
+
+    def test_extra_sizes_must_be_complete(self):
+        base = make_part(self.root / "base")
+        extra = make_part(self.root / "extra", ["accuracy_reduced"], sizes=[64, 2048])
+        result = assemble([base, extra], self.output, "smoke")
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(sorted(item["item"] for item in result["missing"]),
+                         sorted(f"{phase}:N=2048" for phase in summary.PHASES if phase != "accuracy_reduced"))
+        full = make_part(self.root / "full", sizes=[64, 2048])
+        self.assertEqual(assemble([base, full], self.output, "smoke")["status"], "complete")
+        self.assertEqual(len(self.read_table()), 8)
 
     def test_identical_duplicate_is_deduplicated(self):
         parts = [make_part(self.root / name) for name in ["first", "second"]]
         result = assemble(parts, self.output, "smoke")
         self.assertEqual(result["status"], "complete")
         with (self.output / "data.csv").open(newline="") as stream:
-            self.assertEqual(len(list(csv.DictReader(stream))), 25)
+            self.assertEqual(len(list(csv.DictReader(stream))), 26)
 
     def test_conflicting_duplicate_rejected(self):
         parts = [make_part(self.root / name) for name in ["first", "second"]]
@@ -148,6 +166,46 @@ class AssembleChecks(unittest.TestCase):
         checked = summary.validate_bundle(part, metadata)
         self.assertTrue(checked["errors"])
         self.assertEqual(checked["ranges"], {})
+
+    def set_finite(self, part, phase, finite):
+        path = part / f"{phase}.csv"
+        rows = summary.load_rows(path)
+        for row in rows:
+            row["all_finite"] = str(int(finite(round(math.log2(float(row["alpha"]))))))
+        summary.write_csv(path, summary.RAW_FIELDS, rows)
+
+    def read_csv(self, name):
+        with (self.output / name).open(newline="") as stream:
+            return list(csv.DictReader(stream))
+
+    def test_scan_boundary_status(self):
+        for name, finite, expected in (("observed", None, ("observed", "11", "12")),
+                                       ("right", lambda k: True, ("right_censored", "13", "")),
+                                       ("left", lambda k: False, ("left_censored", "", "8"))):
+            with self.subTest(name):
+                part = make_part(self.root / name, ["range_fp16"])
+                if finite:
+                    self.set_finite(part, "range_fp16", finite)
+                assemble([part], self.output, "smoke")
+                fp16 = next(row for row in self.read_table() if row["precision"] == "fp16")
+                self.assertEqual((fp16["boundary_status"], fp16["largest_finite_exponent_observed"],
+                                  fp16["first_nonfinite_exponent_observed"]), expected)
+                comparison = next(row for row in self.read_csv("comparison.csv") if row["precision"] == "fp16")
+                self.assertEqual(comparison["finite_exponent_delta"] != "", name == "observed")
+
+    def test_cufftdx_part_combines_with_build_without_mathdx(self):
+        parts = [make_part(self.root / "core", list(summary.DEFAULT_PHASES)),
+                 make_part(self.root / "dx", ["accuracy_fp16_cufftdx"])]
+        self.assertEqual([item["item"] for item in assemble(parts[:1], self.output, "smoke")["missing"]],
+                         ["accuracy_fp16_cufftdx:N=64"])
+        self.assertEqual(assemble(parts, self.output, "smoke")["status"], "complete")
+
+    def test_different_cufftdx_builds_rejected(self):
+        parts = [make_part(self.root / name, ["accuracy_fp16_cufftdx"], sizes=[n], profile="paper")
+                 for name, n in (("first", 64), ("second", 256))]
+        mutate_json(parts[1] / "metadata.json", lambda m: m["build"]["cufftdx"].update(binary_sha256="e" * 64))
+        with self.assertRaisesRegex(ValueError, "incompatible cuFFTDx"):
+            assemble(parts, self.output, "paper")
 
     def test_missing_selected_phase_rejected(self):
         part = make_part(self.root / "part")

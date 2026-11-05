@@ -91,3 +91,26 @@ target_compile_options(benchmark_table5_precision PRIVATE
   $<$<COMPILE_LANGUAGE:CUDA>:-O3 --use_fast_math -lineinfo>
   $<$<COMPILE_LANGUAGE:CXX>:-O3>
 )
+
+# Table 5 cuFFTDx FP16 accuracy (--precision cufftdx_fp16); no fast-math.
+if(THFF_CUFFTDX_ENABLED)
+  add_executable(benchmark_table5_precision_cufftdx
+    ${PROJECT_SOURCE_DIR}/artifact/table5/main.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/baseline/baseline_cufft.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/util/stat.cu
+  )
+  target_include_directories(benchmark_table5_precision_cufftdx PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/util
+    ${CMAKE_CURRENT_SOURCE_DIR}/baseline
+    ${MATHDX_ROOT}/include
+    ${MATHDX_ROOT}/external/cutlass/include
+  )
+  target_compile_definitions(benchmark_table5_precision_cufftdx PRIVATE
+    THFF_WITH_CUFFTDX=1 THFF_CUFFTDX_SM=${thff_cufftdx_arch}0)
+  target_link_libraries(benchmark_table5_precision_cufftdx PRIVATE thunderfft CUDA::cudart CUDA::cufft)
+  target_compile_options(benchmark_table5_precision_cufftdx PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-O3 -lineinfo>
+    $<$<COMPILE_LANGUAGE:CXX>:-O3>
+  )
+endif()

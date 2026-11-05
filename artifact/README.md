@@ -20,7 +20,7 @@ and Table 1 is a literature survey, so neither has a GPU evaluation task.
 | [table2](table2/README.md) | 3 | A100 performance model and measured reference | Ready: calculated rows + measured cuFFTDx row from Table 3 (needs `MATHDX_ROOT`) |
 | [table3](table3/README.md) | 8 | FFT kernel latency matrix | Ready: ThunderFFT 28 configurations/GPU; cuFFTDx comparison with `MATHDX_ROOT` (unmeasured) |
 | [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | MMA microbenchmark pending |
-| [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Ready: measurements and tables; FP32 is cuFFT; published provenance unconfirmed |
+| [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Ready: measurements and tables; FP16/TF32 ThunderFFT, FP32 cuFFT, optional cuFFTDx FP16 accuracy; seed and input details not stated in the paper |
 | [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | External baseline integration pending |
 | [table7](table7/README.md) | 9 | Optimization ablation | Two recovered candidates can be collected separately; first two variants remain unavailable |
 
@@ -79,6 +79,9 @@ overrides, and must not label a small smoke run as a paper reproduction.
 CUDA/CMake and their development libraries must be available for implemented GPU
 tasks. Set `CUDACXX=/path/to/cuda/bin/nvcc` and
 `CUDAToolkit_ROOT=/path/to/cuda` when the toolkit is not discoverable.
+If the `cmake` on `PATH` is older than 3.18, set `THUNDERFFT_CMAKE=/path/to/cmake`;
+otherwise the CMake that configured the build directory is reused when it is new
+enough, and the run stops with an error before configuring if none is.
 
 The cuFFTDx comparison (Table 3, and through it Table 2's measured row and
 Figure 2's cuFFTDx series) is optional and needs NVIDIA MathDX (25.06.1 was
@@ -99,8 +102,8 @@ configuration fails if the path lacks `include/cufftdx.hpp`. Later runs with
 the same `--build-dir` keep measuring cuFFTDx without the variable, and
 `MATHDX_ROOT=` (empty) clears it. A build directory never configured with
 MathDX measures ThunderFFT only, and the dependent cuFFTDx outputs are omitted. Table 5's
-paper profile uses the retained evaluator's operational batch 65536 and seed
-1234, whose exact published provenance is unconfirmed. For a bounded full-size
+paper profile uses batch 65536 (the paper's stated evaluation batch) and seed
+1234; the paper does not state Table 5's seed. For a bounded full-size
 and exponent scan use
 `THUNDERFFT_TABLE5_BATCH=64 ./run.sh table5 --profile paper`; the override is
 recorded and does not establish the original population.
