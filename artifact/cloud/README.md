@@ -123,6 +123,15 @@ archive records the original Git revision and hashes of the actual uploaded
 files. It excludes Git history, credential folders, build directories and
 previous results.
 
+## cuFFTDx (MathDx)
+
+`"mathdx": true` (the default) measures cuFFTDx (Table 3, and Table 5's
+`accuracy_fp16_cufftdx`); set it to `false` to skip them. Bootstrap downloads NVIDIA MathDx
+25.06.1 for the image's CUDA major version (12 or 13) from NVIDIA's download
+server, verifies its pinned SHA-256, and the worker sets `MATHDX_ROOT`. A hash
+mismatch or unsupported CUDA version stops the run before any job. The archive
+is about 36 MB; it is not uploaded from the coordinator.
+
 ## Collect several parts on the same GPU
 
 Use `--cloud-batch` to run multiple collections inside one rental with one source

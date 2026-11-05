@@ -94,6 +94,22 @@ class WorkerTests(unittest.TestCase):
         states = json.loads((self.root / "result/cloud-worker/jobs.json").read_text())
         self.assertEqual(states[0]["status"], "completed")
 
+    def test_requested_mathdx_sets_root_or_fails_before_jobs(self):
+        script = self.root / "run.sh"
+        script.write_text('#!/bin/bash\nset -eu\nmkdir -p result/fixture\nprintf "%s" "$MATHDX_ROOT" > result/fixture/data.csv\n')
+        manifest = json.loads((self.root / ".thunderfft-cloud-source.json").read_text())
+        manifest["files"]["run.sh"]["sha256"] = hashlib.sha256(script.read_bytes()).hexdigest()
+        (self.root / ".thunderfft-cloud-source.json").write_text(json.dumps(manifest))
+        self.request["mathdx"] = True
+        self.write_request()
+        self.assertEqual(self.run_fixture(), 1)
+        self.assertFalse((self.root / "result/fixture").exists())
+        header = self.parent / "mathdx/nvidia/mathdx/25.06/include/cufftdx.hpp"
+        header.parent.mkdir(parents=True)
+        header.write_text("")
+        self.assertEqual(self.run_fixture(), 0)
+        self.assertEqual((self.root / "result/fixture/data.csv").read_text(), str(self.parent / "mathdx/nvidia/mathdx/25.06"))
+
     def test_source_tampering_prevents_any_job_and_preserves_error(self):
         (self.root / "run.sh").write_text("changed\n")
         self.assertEqual(self.run_fixture(), 1)

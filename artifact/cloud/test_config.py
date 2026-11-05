@@ -47,6 +47,8 @@ class ConfigurationTests(unittest.TestCase):
             self.load({"api_key": "must never be accepted"})
         with self.assertRaises(ValueError):
             self.load({"environment": {"THUNDERFFT_TABLE3_PRECISIONS": "fp16\nsecret"}})
+        with self.assertRaises(ValueError):
+            self.load({"mathdx": "yes"})
 
     def test_cloud_preview_requires_no_credentials_and_creates_no_results(self):
         with tempfile.TemporaryDirectory() as folder:

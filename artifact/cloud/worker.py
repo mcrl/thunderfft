@@ -129,6 +129,11 @@ def run_jobs(root, request, output, deadline):
     environment.update({"THUNDERFFT_ARCHS": request["arch"], "PYTHON": sys.executable,
                         "THUNDERFFT_PYTHON": sys.executable, "MPLBACKEND": "Agg",
                         "PYTHONUNBUFFERED": "1"})
+    if request.get("mathdx"):
+        mathdx_root = root.parent / "mathdx/nvidia/mathdx/25.06"
+        if not (mathdx_root / "include/cufftdx.hpp").is_file():
+            raise ValueError("requested MathDx was not installed by bootstrap")
+        environment["MATHDX_ROOT"] = str(mathdx_root)
     states = []
     atomic_json(output / "jobs.json", states)
     with (output / "jobs.log").open("w") as log:

@@ -10,7 +10,7 @@ import sys
 import time
 import uuid
 
-from .config import ARCHS, inherited_environment, load_config, measurement_environment
+from .config import ARCHS, MATHDX_ARCHIVES, inherited_environment, load_config, measurement_environment
 from .provider import VastClient, ProviderError, CreateRejected, plan_cost
 from .transport import SSH, build_source_bundle, safe_extract_result, validate_private_key
 from .watchdog import destroy_owned, write_json
@@ -151,7 +151,19 @@ def wait_ssh(client, state, config, folder, root, deadline):
     raise TimeoutError("Instance startup/SSH deadline exceeded")
 
 
-def bootstrap(ssh, remote, deadline):
+def mathdx_script():
+    """Download the pinned MathDx archive for the image's CUDA major version and verify it."""
+    cases = " ".join(f"{major}) url={shlex.quote(url)}; sha={sha};;" for major, (url, sha) in MATHDX_ARCHIVES.items())
+    return [
+        "cuda_major=\"$(nvcc --version | sed -n 's/.*release \\([0-9][0-9]*\\)\\..*/\\1/p')\"",
+        f'case "$cuda_major" in {cases} *) echo "no pinned MathDx archive for CUDA $cuda_major" >&2; exit 1;; esac',
+        'curl -fsSL --retry 3 -o mathdx.tar.gz "$url"',
+        'echo "$sha  mathdx.tar.gz" | sha256sum -c -',
+        "mkdir -p mathdx && tar -xzf mathdx.tar.gz -C mathdx --strip-components=1 && rm mathdx.tar.gz",
+    ]
+
+
+def bootstrap(ssh, remote, deadline, mathdx=False):
     # Python>=3.9, CMake>=3.18: stock CUDA22.04/24.04 images meet these after apt.
     script = "\n".join([
         "set -euo pipefail", "unset CONTAINER_API_KEY VAST_API_KEY",
@@ -160,9 +172,10 @@ def bootstrap(ssh, remote, deadline):
         "tar -xzf source.tar.gz -C source",
         "mkdir -p source/result/cloud-worker",
         "exec >source/result/cloud-worker/bootstrap.log 2>&1",
-        "apt-get -qq update", "apt-get -qq install -y --no-install-recommends python3 python3-venv python3-pip cmake build-essential git ca-certificates",
+        "apt-get -qq update", "apt-get -qq install -y --no-install-recommends python3 python3-venv python3-pip cmake build-essential git ca-certificates curl",
         "python3 -m venv venv", "venv/bin/python -m pip --disable-pip-version-check install -r source/artifact/requirements.txt",
         "venv/bin/python -c 'import sys; assert sys.version_info >= (3,9)'", "nvcc --version", "cmake --version",
+        *(mathdx_script() if mathdx else []),
         "cat /tmp/thunderfft-watchdog/status 2>/dev/null || true",
     ])
     ssh.run(["bash", "-c", script], timeout=remaining(deadline, 900))
@@ -348,7 +361,8 @@ def run(args, entries, registry, root, collection_module, select_tasks, parser):
             job["part"] = job["part"] or label + (f"-{index}" if index else "")
         request = {"gpu": args.gpu, "arch": ARCHS[args.gpu], "profile": args.profile, "jobs": jobs,
                    "build_jobs": args.jobs, "task_timeout": args.timeout, "collection": args.collection,
-                   "execution_seconds": config["execution_seconds"], "max_result_bytes": int(config["download_gb"] * 1e9)}
+                   "execution_seconds": config["execution_seconds"], "max_result_bytes": int(config["download_gb"] * 1e9),
+                   "mathdx": config["mathdx"]}
         write_json(folder / "request.json", request)
         # Source preparation can take time; obtain fresh offer prices and balance
         # inside the execution lock immediately before arming and creating.
@@ -386,7 +400,7 @@ def run(args, entries, registry, root, collection_module, select_tasks, parser):
             ssh.upload(folder / "source.tar.gz", remote + "/source.tar.gz", timeout=remaining(startup_deadline, 180))
             ssh.upload(folder / "request.json", remote + "/request.json", timeout=remaining(startup_deadline, 30))
             print(f"[{label}] preparing remote CUDA build environment", flush=True)
-            bootstrap(ssh, remote, startup_deadline)
+            bootstrap(ssh, remote, startup_deadline, mathdx=config["mathdx"])
             status = ssh.run(["cat", "/tmp/thunderfft-watchdog/status"], timeout=remaining(startup_deadline), check=False)
             write_json(folder / "remote-watchdog.json", {"status": status.stdout.strip(), "credential_source": "provider container-scoped credential"})
             print(f"[{label}] executing {len(jobs)} job(s); results: {folder}", flush=True)

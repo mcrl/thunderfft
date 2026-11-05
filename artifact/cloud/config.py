@@ -16,6 +16,15 @@ DEFAULTS = {
                "H100": "nvidia/cuda:13.0.2-devel-ubuntu24.04",
                "B200": "nvidia/cuda:13.0.2-devel-ubuntu24.04"},
     "environment": {},
+    "mathdx": True,
+}
+# NVIDIA MathDx 25.06.1 (cuFFTDx headers), selected by the image's CUDA major version.
+MATHDX_VERSION = "25.06.1"
+MATHDX_ARCHIVES = {
+    "12": ("https://developer.download.nvidia.com/compute/cuFFTDx/redist/cuFFTDx/cuda12/nvidia-mathdx-25.06.1-cuda12.tar.gz",
+           "d4952f6e1a7864d29d9ec4e01c21628d84086e941cf4a3da2df1e11ba5f13f84"),
+    "13": ("https://developer.download.nvidia.com/compute/cuFFTDx/redist/cuFFTDx/cuda13/nvidia-mathdx-25.06.1-cuda13.tar.gz",
+           "81646046e7ae57169fcea79fb59df526eaef65e740b66e291a69182c612b8304"),
 }
 ARCHS = {"A100": "80", "H100": "90", "B200": "100"}
 ENVIRONMENT = {
@@ -77,6 +86,8 @@ def load_config(path=None):
     for value in result["images"].values():
         if not isinstance(value, str) or not value or any(c.isspace() for c in value):
             raise ValueError("image must be a nonempty container tag or digest without whitespace")
+    if not isinstance(result["mathdx"], bool):
+        raise ValueError("mathdx must be true or false")
     result["environment"] = measurement_environment(result["environment"])
     return result
 

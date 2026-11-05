@@ -17,5 +17,6 @@
     "H100": "nvidia/cuda:13.0.2-devel-ubuntu24.04",
     "B200": "nvidia/cuda:13.0.2-devel-ubuntu24.04"
   },
-  "environment": {}
+  "environment": {},
+  "mathdx": true
 }
