@@ -151,10 +151,11 @@ Use these additional contracts when calling the APIs directly:
   devices' caches remain intact. CUDA failures throw `std::runtime_error`.
   Resetting the CUDA device or replacing its context during a cache lifetime is
   unsupported.
-- On SM80, the float N=1024 register kernel reads the global twiddle table
-  prepared by `ThunderFFTInitialize<float>(1024)` in both directions. This also
-  applies to fused callers; their per-thread `W` coefficients do not replace
-  that initialization. Keep the matching cache alive until the kernel finishes.
+- The half N=256 register kernel and, on SM80, the float N=1024 register kernel
+  read the global twiddle table prepared by `ThunderFFTInitialize<T>(N)` in
+  both directions. This also applies to fused callers; their per-thread `W`
+  coefficients do not replace that initialization. Keep the matching cache
+  alive until the kernel finishes.
 - `preprocess_W`, `ThunderFFT_kernel_smem`, and `ThunderFFT_kernel_smem_pad` are
   declaration-only APIs in this release. Use `ThunderFFTInitialize/Finalize`,
   the implemented movement helpers, and `ThunderFFT_kernel_reg` as shown in the

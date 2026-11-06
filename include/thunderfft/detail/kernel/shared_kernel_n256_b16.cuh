@@ -119,8 +119,8 @@ ThunderFFT_kernel_reg<float, 256, 16, false>(vec2_t<float>* __restrict__ reg, ve
 template<>
 __device__ __forceinline__ void
 ThunderFFT_kernel_reg<half, 256, 16, true>(vec2_t<half>* __restrict__ reg, vec2_t<half>* W_precompute, void *workspace) {
-    int laneid = threadIdx.x;
-    int warpid = threadIdx.y;
+    const unsigned laneid = threadIdx.x;
+    const unsigned warpid = threadIdx.y;
 
     int ept = 32;
     
@@ -134,15 +134,13 @@ ThunderFFT_kernel_reg<half, 256, 16, true>(vec2_t<half>* __restrict__ reg, vec2_
 
         for (int i = 0; i < ept / 2; i++) {
             // int idx = i*4 + (laneid % 4)*64 + warpid;
-            int idx = i + warpid * 16 + (laneid % 4)*64;
-
-            int idx0 = batch0*256+idx;
-            int idx1 = batch1*256+idx;
-            idx0 = idx0 + idx0/pad_period*pad;
-            idx1 = idx1 + idx1/pad_period*pad;
-
-            smem[idx0] = reg[i];
-            smem[idx1] = reg[i + ept / 2];
+            // One half2 is one bank word. With a 32 x 4 block,
+            // i + 16*warpid stays below 64; fold the 64+1 skew into
+            // the base instead of recomputing signed divisions per value.
+            const unsigned base = 260 * (laneid / 4) + 65 * (laneid % 4)
+                                + 16 * warpid;
+            smem[base + i] = reg[i];
+            smem[base + 2080 + i] = reg[i + ept / 2];
         }
 
         // __syncthreads();
@@ -163,20 +161,21 @@ ThunderFFT_kernel_reg<half, 256, 16, true>(vec2_t<half>* __restrict__ reg, vec2_
                 // int index = j + 4*x;
                 int index = (laneid%4) + warpid*4 + j*16 + i * 64;
 
-                int index0 = batch0*256 + index;
-                int index1 = batch1*256 + index;
-                index0 = index0 + index0/pad_period*pad;
-                index1 = index1 + index1/pad_period*pad;
-
-                reg[i*4+j] = smem[index0];
-                reg[i*4+j+16] = smem[index1];
+                // The transpose has the same skew: i selects a 65-word
+                // row and j a 16-word segment. The second batch is 8*260 away.
+                const unsigned base = 260 * (laneid / 4) + (laneid % 4)
+                                    + 4 * warpid + 65 * i + 16 * j;
+                reg[i*4+j] = smem[base];
+                reg[i*4+j+16] = smem[base + 2080];
                 
                 // reg[i*4+j] = s_out_0[0];
                 // reg[i*4+j+16] = s_out_1[0];
                 
                 if (j != 0) {
-                    rotate(reg[i*4+j], x * j, 256);
-                    rotate(reg[i*4+j+16], x * j, 256);
+                    const half2 cached = __ldg(ThunderFFT_get_twiddle<half>() + x * j);
+                    const half2 factor = __hmul2(cached, __floats2half2_rn(1.f, -1.f));
+                    reg[i*4+j] = cmul(reg[i*4+j], factor);
+                    reg[i*4+j+16] = cmul(reg[i*4+j+16], factor);
                 }
             }
         }
@@ -192,7 +191,7 @@ ThunderFFT_kernel_reg<half, 256, 16, true>(vec2_t<half>* __restrict__ reg, vec2_
         auto t0 = a + c;
         auto t1 = a - c;
         auto t2 = b + d;
-        auto t3 = b - d; t3 = {t3.y, -t3.x}; // multiply by -i
+        auto t3 = __hmul2(__lowhigh2highlow(b - d), __floats2half2_rn(1.f, -1.f));
 
         reg[4 * i + 0] = t0 + t2;
         reg[4 * i + 1] = t1 + t3;
@@ -206,8 +205,8 @@ ThunderFFT_kernel_reg<half, 256, 16, true>(vec2_t<half>* __restrict__ reg, vec2_
 template<>
 __device__ __forceinline__ void
 ThunderFFT_kernel_reg<half, 256, 16, false>(vec2_t<half>* __restrict__ reg, vec2_t<half>* W, void *workspace) {
-    int laneid = threadIdx.x;
-    int warpid = threadIdx.y;
+    const unsigned laneid = threadIdx.x;
+    const unsigned warpid = threadIdx.y;
 
     int ept = 32;
     
@@ -220,15 +219,13 @@ ThunderFFT_kernel_reg<half, 256, 16, false>(vec2_t<half>* __restrict__ reg, vec2
         int batch1 = (laneid/4+8);
 
         for (int i = 0; i < ept / 2; i++) {
-            int idx = i + warpid * 16 + (laneid % 4)*64;
-
-            int idx0 = batch0*256+idx;
-            int idx1 = batch1*256+idx;
-            idx0 = idx0 + idx0/pad_period*pad;
-            idx1 = idx1 + idx1/pad_period*pad;
-
-            smem[idx0] = reg[i];
-            smem[idx1] = reg[i + ept / 2];
+            // One half2 is one bank word. With a 32 x 4 block,
+            // i + 16*warpid stays below 64; fold the 64+1 skew into
+            // the base instead of recomputing signed divisions per value.
+            const unsigned base = 260 * (laneid / 4) + 65 * (laneid % 4)
+                                + 16 * warpid;
+            smem[base + i] = reg[i];
+            smem[base + 2080 + i] = reg[i + ept / 2];
         }
 
         __syncthreads();
@@ -238,17 +235,18 @@ ThunderFFT_kernel_reg<half, 256, 16, false>(vec2_t<half>* __restrict__ reg, vec2
                 int x= (laneid%4) + warpid*4 + i*16;
                 int index = (laneid%4) + warpid*4 + j*16 + i * 64;
 
-                int index0 = batch0*256 + index;
-                int index1 = batch1*256 + index;
-                index0 = index0 + index0/pad_period*pad;
-                index1 = index1 + index1/pad_period*pad;
-
-                reg[i*4+j] = smem[index0];
-                reg[i*4+j+16] = smem[index1];
+                // The transpose has the same skew: i selects a 65-word
+                // row and j a 16-word segment. The second batch is 8*260 away.
+                const unsigned base = 260 * (laneid / 4) + (laneid % 4)
+                                    + 4 * warpid + 65 * i + 16 * j;
+                reg[i*4+j] = smem[base];
+                reg[i*4+j+16] = smem[base + 2080];
                 
                 if (j != 0) {
-                    rotate(reg[i*4+j], -x * j, 256);
-                    rotate(reg[i*4+j+16], -x * j, 256);
+                    const half2 cached = __ldg(ThunderFFT_get_twiddle<half>() + x * j);
+                    const half2 factor = cached;
+                    reg[i*4+j] = cmul(reg[i*4+j], factor);
+                    reg[i*4+j+16] = cmul(reg[i*4+j+16], factor);
                 }
             }
         }
@@ -264,7 +262,7 @@ ThunderFFT_kernel_reg<half, 256, 16, false>(vec2_t<half>* __restrict__ reg, vec2
         auto t0 = a + c;
         auto t1 = a - c;
         auto t2 = b + d;
-        auto t3 = b - d; t3 = {-t3.y, t3.x}; // multiply by -i
+        auto t3 = __hmul2(__lowhigh2highlow(b - d), __floats2half2_rn(-1.f, 1.f));
 
         reg[4 * i + 0] = t0 + t2;
         reg[4 * i + 1] = t1 + t3;
