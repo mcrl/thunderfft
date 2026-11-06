@@ -11,3 +11,7 @@ __pycache__/
 !/result/.gitkeep
 /cloud_key/
 /.thunderfft-cloud-source.json
+
+# Account credentials
+.env
+.env.*

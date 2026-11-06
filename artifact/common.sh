@@ -66,6 +66,10 @@ artifact_configure() {
   if [[ -n "${MATHDX_ROOT+x}" ]]; then
     args+=("-DMATHDX_ROOT=${MATHDX_ROOT}")
   fi
+  # Pin cuDNN headers and library to the same installation (artifact/setup.sh).
+  if [[ -n "${CUDNN_HOME:-}" ]]; then
+    args+=("-DCUDNN_LIB=${CUDNN_HOME}/lib/libcudnn.so" "-DCUDNN_INCLUDE_DIR=${CUDNN_HOME}/include")
+  fi
   cmake "${args[@]}" "$@"
 }
 

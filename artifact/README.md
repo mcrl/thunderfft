@@ -37,16 +37,24 @@ selected adapters, downloads their result bundles, and destroys the instance.
 Use `--cloud-batch` to collect multiple parts on the same GPU and build, then
 assemble the returned CSVs locally. Credentials stay outside this repository.
 
-Use Python 3.9 or newer, CMake 3.18 or newer, a C++17 compiler and the CUDA
-toolkit for the GPU being evaluated. The tested A100 setup uses CUDA 12.9 and
-`THUNDERFFT_ARCHS=80`. Only the selected CMake targets are built, so the
-optional convolution targets' MathDX/cuDNN dependencies are not required.
-Install the plotting dependency once:
+Requirements: a C++17 compiler, the CUDA toolkit for the GPU being evaluated
+(the tested A100 setup uses CUDA 12.9) and `python3.9` or newer with `venv`.
+Set up each account once; no root access is needed:
 
 ```bash
-python3 -m pip install -r artifact/requirements.txt
+bash artifact/setup.sh          # Python venv, CMake, MathDx 25.06.1, cuDNN 9.12
+source ~/.thunderfft_env         # also sourced from ~/.bashrc
 bash artifact/check.sh          # CPU contracts and failure-path checks
 ```
+
+`setup.sh` installs everything under `$HOME`: a venv at `~/venv` with the
+plotting dependency, CMake and PyTorch headers (Table 6), MathDx and cuDNN
+downloaded from NVIDIA with pinned SHA-256 checksums, and `~/.thunderfft_env`,
+which sets `PATH`, `MATHDX_ROOT`, `CUDNN_HOME`, `LD_LIBRARY_PATH` and
+`THUNDERFFT_ARCHS` (detected from GPU 0). Rerunning it skips completed steps.
+`CUDA_HOME`, `THUNDERFFT_ARCHS`, `THUNDERFFT_MATHDX_ARCHIVE` and
+`THUNDERFFT_CUDNN_ARCHIVE` (a local archive or extracted directory) override
+the defaults.
 
 ```bash
 ./run.sh --list

@@ -15,7 +15,7 @@ for suite in artifact/validation/test_evaluate.py artifact/table2/test_model.py 
              artifact/figure5/test_measure.py artifact/table6/test_measure.py; do
   "${ARTIFACT_PYTHON}" "${suite}"
 done
-for script in run.sh artifact/common.sh artifact/*/run.sh; do
+for script in run.sh artifact/common.sh artifact/setup.sh artifact/*/run.sh; do
   bash -n "${script}"
 done
 "${ARTIFACT_PYTHON}" -m json.tool artifact/registry.json >/dev/null
