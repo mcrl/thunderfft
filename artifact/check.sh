@@ -12,7 +12,7 @@ for suite in artifact/validation/test_evaluate.py artifact/table2/test_model.py 
              artifact/figure2/test_assemble.py artifact/table5/test_assemble.py \
              artifact/table7/test_assemble.py artifact/table7/test_utilization.py \
              artifact/figure3/test_measure.py artifact/figure4/test_measure.py \
-             artifact/figure5/test_measure.py; do
+             artifact/figure5/test_measure.py artifact/table6/test_measure.py; do
   "${ARTIFACT_PYTHON}" "${suite}"
 done
 for script in run.sh artifact/common.sh artifact/*/run.sh; do

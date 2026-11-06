@@ -1,0 +1,272 @@
+--- a/monarch_cuda_kernel.h
++++ b/monarch_cuda_kernel.h
+@@ -393,4 +393,267 @@
+       
+     } // b_tile_id
+   }   // h_tile_id
+-}
+\ No newline at end of file
++}
++
++// Table 6: copy of monarch_conv_cuda_kernel that repeats the forward FFT on complex input for timing.
++template <int BLOCK_DIM_X, int BLOCK_DIM_Y, int N, int MATMUL_WARP_WIDTH, bool RECOMPUTE, int B_TILE_SIZE, int H_TILE_SIZE>
++__global__ void monarch_conv_cuda_kernel_fft_repeat(
++    const c10::complex<at::Half> *__restrict__ a,
++    const at::Half *__restrict__ in_gate,
++    const c10::complex<at::Half> *__restrict__ k_f,
++    const c10::complex<at::Half> *__restrict__ b,
++    const c10::complex<at::Half> *__restrict__ twiddle_factors_fft,
++    const c10::complex<at::Half> *__restrict__ b_ifft,
++    const c10::complex<at::Half> *__restrict__ twiddle_factors_ifft,
++    c10::complex<at::Half> *out,
++    const at::Half *__restrict__ out_gate,
++    uint B,
++    uint H,
++    uint signal_size,
++    uint sqrt_N,
++    int num_repeat)
++{
++  static_assert(MATMUL_WARP_WIDTH == 1, "FFT output store below is written for N = 256");
++
++  extern __shared__ at::Half a_real[];
++  at::Half *a_imag = &a_real[N];
++  at::Half *b_real = &a_real[2 * N];
++  at::Half *b_imag = &a_real[3 * N];
++  at::Half *b_real_2 = &a_real[4 * N];
++  at::Half *b_imag_2 = &a_real[5 * N];
++
++  const int num_threads = BLOCK_DIM_X * BLOCK_DIM_Y;
++  const int thread_id = threadIdx.x + blockDim.x * threadIdx.y;
++  const int items_per_thread_input = N / num_threads;
++  const int items_per_thread_matrix = N / num_threads;
++
++  using BlockLoad_Input = cub::BlockLoad<float, BLOCK_DIM_X, items_per_thread_input / 2, cub::BLOCK_LOAD_STRIPED, BLOCK_DIM_Y>;
++  using BlockLoad_Sequence = cub::BlockLoad<c10::complex<float>, BLOCK_DIM_X, items_per_thread_input / 2, cub::BLOCK_LOAD_STRIPED, BLOCK_DIM_Y>;
++  using BlockLoad_Shared = cub::BlockLoad<c10::complex<float>, BLOCK_DIM_X, items_per_thread_matrix / 2, cub::BLOCK_LOAD_STRIPED, BLOCK_DIM_Y>;
++  using BlockStore_Sequence = cub::BlockStore<float, BLOCK_DIM_X, items_per_thread_input / 2, cub::BLOCK_STORE_STRIPED, BLOCK_DIM_Y>;
++
++  int b_offset_signal = blockIdx.x * H * signal_size * B_TILE_SIZE;
++  int h_offset_signal = blockIdx.y * signal_size * H_TILE_SIZE;
++  int h_offset_kernel = blockIdx.y * N * H_TILE_SIZE;
++
++  complex_half_t a_input_data[items_per_thread_input];
++  at::Half x_input_data[items_per_thread_input];
++  at::Half gate_data[items_per_thread_input];
++  complex_half_t b_input_data[items_per_thread_matrix];
++  complex_half_t b_input_data_2[items_per_thread_matrix];
++
++  wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_K, WMMA_N, half, wmma::row_major> b_frag_dft[MATMUL_WARP_WIDTH][MATMUL_WARP_WIDTH][2];
++  wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_K, WMMA_N, half, wmma::row_major> b_frag_idft[MATMUL_WARP_WIDTH][MATMUL_WARP_WIDTH][2];
++  wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_K, WMMA_N, half, wmma::col_major> a_frag_dft[MATMUL_WARP_WIDTH][MATMUL_WARP_WIDTH][2];
++  wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_K, WMMA_N, half, wmma::row_major> k_frag[MATMUL_WARP_WIDTH][MATMUL_WARP_WIDTH][2];
++  wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_K, WMMA_N, half, wmma::row_major> twiddle_dft_frag[MATMUL_WARP_WIDTH][MATMUL_WARP_WIDTH][2];
++  wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_K, WMMA_N, half, wmma::row_major> twiddle_idft_frag[MATMUL_WARP_WIDTH][MATMUL_WARP_WIDTH][2];
++
++  BlockLoad_Shared().Load(
++      reinterpret_cast<const c10::complex<float> *>(b),
++      reinterpret_cast<c10::complex<float>(&)[items_per_thread_matrix / 2]>(b_input_data));
++
++  BlockLoad_Shared().Load(
++      reinterpret_cast<const c10::complex<float> *>(b_ifft),
++      reinterpret_cast<c10::complex<float>(&)[items_per_thread_matrix / 2]>(b_input_data_2));
++
++  int a_idx, b_idx;
++  __half2 scratch;
++
++  for (int i = 0; i < items_per_thread_matrix / 2; i++)
++  {
++    b_idx = i * num_threads + thread_id;
++
++    scratch = __half2(b_input_data[2 * i].real(), b_input_data[2 * i + 1].real());
++    reinterpret_cast<__half2 *>(b_real)[b_idx] = scratch;
++    scratch = __half2(b_input_data[2 * i].imag(), b_input_data[2 * i + 1].imag());
++    reinterpret_cast<__half2 *>(b_imag)[b_idx] = scratch;
++
++    scratch = __half2(b_input_data_2[2 * i].real(), b_input_data_2[2 * i + 1].real());
++    reinterpret_cast<__half2 *>(b_real_2)[b_idx] = scratch;
++    scratch = __half2(b_input_data_2[2 * i].imag(), b_input_data_2[2 * i + 1].imag());
++    reinterpret_cast<__half2 *>(b_imag_2)[b_idx] = scratch;
++  }
++
++  BlockLoad_Shared().Load(
++      reinterpret_cast<const c10::complex<float> *>(twiddle_factors_fft),
++      reinterpret_cast<c10::complex<float>(&)[items_per_thread_matrix / 2]>(b_input_data));
++
++  BlockLoad_Shared().Load(
++      reinterpret_cast<const c10::complex<float> *>(twiddle_factors_ifft),
++      reinterpret_cast<c10::complex<float>(&)[items_per_thread_matrix / 2]>(b_input_data_2));
++
++  bool a_trans = true;
++  bool b_trans = false;
++  wmma::fragment<wmma::accumulator, WMMA_M, WMMA_K, WMMA_N, half> acc_frag_1[MATMUL_WARP_WIDTH][MATMUL_WARP_WIDTH][2];
++
++#pragma unroll
++  for (int j_b = 0; j_b < MATMUL_WARP_WIDTH; j_b++)
++  {
++    for (int k = 0; k < MATMUL_WARP_WIDTH; k++)
++    {
++      a_idx = a_trans ? j_b * WMMA_N * sqrt_N + k * WMMA_K : k * WMMA_K * sqrt_N + j_b * WMMA_N;
++      b_idx = b_trans ? j_b * WMMA_N * sqrt_N + k * WMMA_K : k * WMMA_K * sqrt_N + j_b * WMMA_N;
++      wmma::load_matrix_sync(a_frag_dft[k][j_b][0], reinterpret_cast<half *>(b_real) + a_idx, sqrt_N);
++      wmma::load_matrix_sync(b_frag_dft[k][j_b][0], reinterpret_cast<half *>(b_real) + b_idx, sqrt_N);
++      wmma::load_matrix_sync(a_frag_dft[k][j_b][1], reinterpret_cast<half *>(b_imag) + a_idx, sqrt_N);
++      wmma::load_matrix_sync(b_frag_dft[k][j_b][1], reinterpret_cast<half *>(b_imag) + b_idx, sqrt_N);
++    }
++  }
++
++  for (int j_b = 0; j_b < MATMUL_WARP_WIDTH; j_b++)
++  {
++    for (int k = 0; k < MATMUL_WARP_WIDTH; k++)
++    {
++      b_idx = b_trans ? j_b * WMMA_N * sqrt_N + k * WMMA_K : k * WMMA_K * sqrt_N + j_b * WMMA_N;
++      wmma::load_matrix_sync(b_frag_idft[k][j_b][0], reinterpret_cast<half *>(b_real_2) + b_idx, sqrt_N);
++      wmma::load_matrix_sync(b_frag_idft[k][j_b][1], reinterpret_cast<half *>(b_imag_2) + b_idx, sqrt_N);
++    }
++  }
++
++  for (int i = 0; i < items_per_thread_matrix / 2; i++)
++  {
++    b_idx = i * num_threads + thread_id;
++
++    scratch = __half2(b_input_data[2 * i].real(), b_input_data[2 * i + 1].real());
++    reinterpret_cast<__half2 *>(b_real)[b_idx] = scratch;
++    scratch = __half2(b_input_data[2 * i].imag(), b_input_data[2 * i + 1].imag());
++    reinterpret_cast<__half2 *>(b_imag)[b_idx] = scratch;
++
++    scratch = __half2(b_input_data_2[2 * i].real(), b_input_data_2[2 * i + 1].real());
++    reinterpret_cast<__half2 *>(b_real_2)[b_idx] = scratch;
++    scratch = __half2(b_input_data_2[2 * i].imag(), b_input_data_2[2 * i + 1].imag());
++    reinterpret_cast<__half2 *>(b_imag_2)[b_idx] = scratch;
++  }
++
++  for (int j_b = 0; j_b < MATMUL_WARP_WIDTH; j_b++)
++  {
++    for (int k = 0; k < MATMUL_WARP_WIDTH; k++)
++    {
++      b_idx = b_trans ? j_b * WMMA_N * sqrt_N + k * WMMA_K : k * WMMA_K * sqrt_N + j_b * WMMA_N;
++      wmma::load_matrix_sync(twiddle_dft_frag[k][j_b][0], reinterpret_cast<half *>(b_real) + b_idx, sqrt_N);
++      wmma::load_matrix_sync(twiddle_dft_frag[k][j_b][1], reinterpret_cast<half *>(b_imag) + b_idx, sqrt_N);
++    }
++  }
++
++  for (int j_b = 0; j_b < MATMUL_WARP_WIDTH; j_b++)
++  {
++    for (int k = 0; k < MATMUL_WARP_WIDTH; k++)
++    {
++      b_idx = b_trans ? j_b * WMMA_N * sqrt_N + k * WMMA_K : k * WMMA_K * sqrt_N + j_b * WMMA_N;
++      wmma::load_matrix_sync(twiddle_idft_frag[k][j_b][0], reinterpret_cast<half *>(b_real_2) + b_idx, sqrt_N);
++      wmma::load_matrix_sync(twiddle_idft_frag[k][j_b][1], reinterpret_cast<half *>(b_imag_2) + b_idx, sqrt_N);
++    }
++  }
++
++  for (int h_tile_id = 0; h_tile_id < H_TILE_SIZE; h_tile_id++)
++  {
++
++    BlockLoad_Sequence().Load(
++        reinterpret_cast<const c10::complex<float> *>(k_f + h_offset_kernel + h_tile_id * N),
++        reinterpret_cast<c10::complex<float>(&)[items_per_thread_input / 2]>(a_input_data));
++
++    for (int i = 0; i < items_per_thread_input / 2; i++)
++    {
++      a_idx = i * num_threads + thread_id;
++
++      scratch = __half2(a_input_data[2 * i].real(), a_input_data[2 * i + 1].real());
++      reinterpret_cast<__half2 *>(a_real)[a_idx] = scratch;
++
++      scratch = __half2(a_input_data[2 * i].imag(), a_input_data[2 * i + 1].imag());
++      reinterpret_cast<__half2 *>(a_imag)[a_idx] = scratch;
++    }
++
++    for (int j_a = 0; j_a < MATMUL_WARP_WIDTH; j_a++)
++    {
++      for (int k = 0; k < MATMUL_WARP_WIDTH; k++)
++      {
++        a_idx = j_a * WMMA_K * sqrt_N + k * WMMA_K;
++        wmma::load_matrix_sync(k_frag[j_a][k][0], reinterpret_cast<half *>(a_real + a_idx), sqrt_N);
++        wmma::load_matrix_sync(k_frag[j_a][k][1], reinterpret_cast<half *>(a_imag + a_idx), sqrt_N);
++      }
++    }
++
++    for (int b_tile_id = 0; b_tile_id < B_TILE_SIZE; b_tile_id++)
++    {
++
++      int input_offset = h_offset_signal + b_offset_signal + h_tile_id * signal_size + b_tile_id * H * signal_size;
++
++      BlockLoad_Sequence().Load(
++          reinterpret_cast<const c10::complex<float> *>(a + input_offset),
++          reinterpret_cast<c10::complex<float>(&)[items_per_thread_input / 2]>(a_input_data));
++
++      for (int i = 0; i < items_per_thread_input / 2; i++)
++      {
++        a_idx = i * num_threads + thread_id;
++
++        scratch = __half2(a_input_data[2 * i].real(), a_input_data[2 * i + 1].real());
++        reinterpret_cast<__half2 *>(a_real)[a_idx] = scratch;
++
++        scratch = __half2(a_input_data[2 * i].imag(), a_input_data[2 * i + 1].imag());
++        reinterpret_cast<__half2 *>(a_imag)[a_idx] = scratch;
++      }
++
++      if(out_gate != nullptr){
++        BlockLoad_Input().Load(
++          reinterpret_cast<const float *>(out_gate + input_offset),
++          reinterpret_cast<float(&)[items_per_thread_input / 2]>(gate_data),
++          signal_size / 2, 0.
++        );
++      }
++      
++      __syncthreads();
++
++      wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_K, WMMA_N, half, wmma::row_major> x_frag[MATMUL_WARP_WIDTH][MATMUL_WARP_WIDTH][2];
++      load_b_frag<wmma::row_major, false, MATMUL_WARP_WIDTH, false>(
++          reinterpret_cast<half *>(a_real), reinterpret_cast<half *>(a_imag), sqrt_N, N, acc_frag_1, x_frag);
++
++#pragma unroll 1
++      for (int repeat = 0; repeat < num_repeat; repeat++)
++      {
++
++      _complex_matmul<wmma::col_major, wmma::row_major, false, MATMUL_WARP_WIDTH, false>(
++          reinterpret_cast<half *>(a_real),
++          reinterpret_cast<half *>(a_imag),
++          sqrt_N,
++          N,
++          a_frag_dft,
++          x_frag,
++          acc_frag_1,
++          wmma::mem_row_major);
++
++      complex_matmul<wmma::row_major, wmma::row_major, false, false, MATMUL_WARP_WIDTH, true, false>(
++          reinterpret_cast<half *>(a_real),
++          reinterpret_cast<half *>(a_imag),
++          sqrt_N,
++          N,
++          b_frag_dft,
++          acc_frag_1,
++          twiddle_dft_frag,
++          wmma::mem_row_major);
++
++      for (int j_a = 0; j_a < MATMUL_WARP_WIDTH; j_a++) {
++        for (int j_b = 0; j_b < MATMUL_WARP_WIDTH; j_b++) {
++          for (int k = 0; k < 2; k++) {
++            for (int i = 0; i < acc_frag_1[j_a][j_b][k].num_elements; i++) {
++              x_frag[j_a][j_b][k].x[i] = acc_frag_1[j_a][j_b][k].x[i];
++              x_frag[j_a][j_b][k].x[i + acc_frag_1[j_a][j_b][k].num_elements] = acc_frag_1[j_a][j_b][k].x[i];
++            }
++          }
++        }
++      }
++
++      }
++
++      wmma::store_matrix_sync(reinterpret_cast<half *>(a_real), acc_frag_1[0][0][0], sqrt_N, wmma::mem_col_major);
++      wmma::store_matrix_sync(reinterpret_cast<half *>(a_imag), acc_frag_1[0][0][1], sqrt_N, wmma::mem_col_major);
++      __syncthreads();
++      for (int i = thread_id; i < signal_size; i += num_threads)
++      {
++        out[input_offset + i] = c10::complex<at::Half>(a_real[i], a_imag[i]);
++      }
++      __syncthreads();
++
++    }
++  }
++}

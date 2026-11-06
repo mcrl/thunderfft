@@ -126,12 +126,13 @@
       "id": "table6",
       "title": "Comparison with prior Tensor Core FFT libraries",
       "paper_page": 9,
-      "implementation": "pending",
+      "implementation": "ready",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
         "smoke": [
-          "data.csv"
+          "data.csv",
+          "table.csv"
         ],
         "paper": [
           "data.csv",
@@ -139,7 +140,8 @@
         ]
       },
       "available": false,
-      "full_paper_comparison": false
+      "full_paper_comparison": true,
+      "coverage": "A100 N=256 FP16, batch 65536: cuFFTDx, tcFFT, FlashFFTConv and ThunderFFT compute time"
     },
     {
       "id": "table7",

@@ -306,7 +306,9 @@ int main(int argc,char**argv) {
 #ifndef THFF_WITH_CUFFTDX
     if(dx) throw std::runtime_error("built without cuFFTDx; use thff_paper_fft_cufftdx (configure with MATHDX_ROOT)");
 #endif
-    cudaDeviceProp prop; CUDA_OK(cudaGetDeviceProperties(&prop,0));
+    constexpr int device=0;
+    CUDA_OK(cudaSetDevice(device));
+    cudaDeviceProp prop; CUDA_OK(cudaGetDeviceProperties(&prop,device));
     int driver=0,runtime=0,cufft_version=0;
     CUDA_OK(cudaDriverGetVersion(&driver)); CUDA_OK(cudaRuntimeGetVersion(&runtime));
     FFT_OK(cufftGetVersion(&cufft_version));

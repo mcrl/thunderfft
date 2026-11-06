@@ -1,0 +1,81 @@
+--- a/tcfft_half.cu
++++ b/tcfft_half.cu
+@@ -263,6 +263,78 @@
+     */
+ }
+ 
++// Table 6: layer_256_0_A100 with a repeat loop for timing.
++template <int CONT_SIZE, int NUM_WARP>
++__global__ void layer_256_0_A100_repeat(half2 *in, half *F_real, half *F_imag, int num_repeat)
++{
++    extern __shared__ half2 smem_in[];
++    int block_start = blockIdx.x * 256 * CONT_SIZE;
++
++    wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> frag_F_real;
++    wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> frag_F_imag;
++    wmma::load_matrix_sync(frag_F_real, F_real, 16);
++    wmma::load_matrix_sync(frag_F_imag, F_imag, 16);
++
++    int raw_row = threadIdx.x % 4 * 2;
++    int raw_col = threadIdx.x / 4;
++
++    for (int i = 0; i < 256 * CONT_SIZE; i += NUM_WARP * 16 * 16)
++    {
++        wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, half> frag_out_real;
++        wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, half> frag_out_imag;
++        wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::col_major> frag_in_real;
++        wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::col_major> frag_in_imag;
++
++        int warp_start = i + threadIdx.y * 256;
++
++        for (int j = 0; j < 8; ++j)
++        {
++            int row = raw_row + j % 4 / 2 * 8 + j % 2;
++            int col = raw_col + j / 4 * 8;
++            half2 ele = in[block_start + warp_start + row + col * 16];
++            frag_in_real.x[8 + j] = frag_in_real.x[j] = ele.x;
++            frag_in_imag.x[8 + j] = frag_in_imag.x[j] = ele.y;
++        }
++
++#pragma unroll 1
++        for (int repeat = 0; repeat < num_repeat; ++repeat)
++        {
++            complex_mul(frag_F_real, frag_F_imag, frag_in_real, frag_in_imag, frag_out_real, frag_out_imag);
++
++            wmma::store_matrix_sync((half *)(smem_in + warp_start), frag_out_real, 16, wmma::mem_row_major);
++            wmma::store_matrix_sync((half *)(smem_in + warp_start) + 256, frag_out_imag, 16, wmma::mem_row_major);
++
++            wmma::load_matrix_sync(frag_in_real, (half *)(smem_in + warp_start), 16);
++            wmma::load_matrix_sync(frag_in_imag, (half *)(smem_in + warp_start) + 256, 16);
++
++            for (int j = 0; j < 8; ++j)
++            {
++                int row = raw_row + j % 4 / 2 * 8 + j % 2;
++                int col = raw_col + j / 4 * 8;
++                half2 in_ele = {frag_in_real.x[j], frag_in_imag.x[j]};
++                in_ele = cmul(in_ele, W_N_K(256, row * col));
++                frag_in_real.x[8 + j] = frag_in_real.x[j] = in_ele.x;
++                frag_in_imag.x[8 + j] = frag_in_imag.x[j] = in_ele.y;
++            }
++
++            complex_mul(frag_F_real, frag_F_imag, frag_in_real, frag_in_imag, frag_out_real, frag_out_imag);
++
++            for (int j = 0; j < 8; ++j)
++            {
++                frag_in_real.x[8 + j] = frag_in_real.x[j] = frag_out_real.x[j];
++                frag_in_imag.x[8 + j] = frag_in_imag.x[j] = frag_out_imag.x[j];
++            }
++        }
++
++        for (int j = 0; j < 8; ++j)
++        {
++            int col = raw_row + j / 4 * 8 + j % 2;
++            int row = raw_col + j % 4 / 2 * 8;
++            in[block_start + warp_start + row * 16 + col] = {frag_out_real.x[j], frag_out_imag.x[j]};
++        }
++    }
++}
++
+ template <int CONT_SIZE, int NUM_WARP>
+ __global__ void layer_256_1(int step, half2 *in, half *F_real, half *F_imag)
+ {

@@ -21,7 +21,7 @@ and Table 1 is a literature survey, so neither has a GPU evaluation task.
 | [table3](table3/README.md) | 8 | FFT kernel latency matrix | Ready: ThunderFFT 28 configurations/GPU; cuFFTDx comparison with `MATHDX_ROOT` (unmeasured) |
 | [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | MMA microbenchmark pending |
 | [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Ready: measurements and tables; FP16/TF32 ThunderFFT, FP32 cuFFT, optional cuFFTDx FP16 accuracy; seed and input details not stated in the paper |
-| [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | External baseline integration pending |
+| [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | Ready (`MATHDX_ROOT`) |
 | [table7](table7/README.md) | 9 | Optimization ablation | Two recovered candidates can be collected separately; first two variants remain unavailable |
 
 The general paper environment (p. 7) is one GPU with an AMD EPYC-class host:
