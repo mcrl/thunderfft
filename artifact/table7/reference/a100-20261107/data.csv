@@ -1,0 +1,5 @@
+variant,N,batch,precision,trial,inside_repeats,t_R_us,t_2R_us,compute_us,relative_l2,max_transform_relative_l2,nonfinite_outputs,output_guard_changed,passed
+register_branch,64,65536,tf32,0,1000,11972.6076126,23909.3761444,11.9367685318,nan,nan,-1,-1,0
+register_uniform,64,65536,tf32,0,1000,3714.04790878,7382.01618195,3.66796827316,nan,nan,-1,-1,0
+historical_e4aa1b0,64,65536,tf32,0,1000,7927.80780792,15816.7037964,7.88889598846,nan,nan,-1,-1,0
+historical_652808b,64,65536,tf32,0,1000,3499.00794029,6980.60798645,3.48160004616,nan,nan,-1,-1,0

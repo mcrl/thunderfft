@@ -1,6 +1,6 @@
 # Table 3: FFT kernel latency matrix
 
-Status: operational ThunderFFT adapter; cuFFTDx comparison implemented (requires a build configured with `MATHDX_ROOT`, not yet measured); complete multi-GPU reproduction pending
+Status: operational ThunderFFT and cuFFTDx adapters (cuFFTDx requires a build configured with `MATHDX_ROOT`); complete matched multi-GPU reproduction pending
 
 Paper p. 8, Section 6.2: single A100 PCIe 80GB, H100 PCIe, and B200; FFT
 sizes 64/128/256/512/1024/2048/4096; batch 65,536. Measure register-input and
@@ -259,7 +259,11 @@ The separate single-FFT end-to-end metric did not show an improvement.
 Other Table 3 configurations were not retimed, and the cuFFTDx sweep remains
 pending. This follow-up does not establish full paper reproduction.
 
-## cuFFTDx comparison (implemented, not yet measured)
+## cuFFTDx comparison
+
+An A100 N=64 FP16 register result collected on 2026-11-04 is documented in
+[Table 2](../table2/README.md). A complete matched collection of all 28
+configurations on A100, H100 and B200 remains pending.
 
 When the build directory is configured with `MATHDX_ROOT`, `run.sh` also builds
 `thff_paper_fft_cufftdx`, the same `paper_fft.cu` compiled with cuFFTDx (MathDX

@@ -251,29 +251,35 @@ def assemble_collection(directory, entries, profile):
                     if sources:
                         raise ValueError("collect Table 3 CSVs for Figure 2; Figure 2 is regenerated during assembly")
                     sources = [staging / "table3"] if (staging / "table3").is_dir() else []
+                elif evaluation == "table4":
+                    # Reuse collected timings directly, including Table 3 bundles
+                    # with cuFFTDx rows. No GPU work or full Table 3 assembly is needed.
+                    sources = [*by_id.get("table3", []), *sources]
                 state = (adapter.assemble(sources, output, profile) if adapter else
                          simple_assembly(evaluation, sources, output, profile))
                 if state.get("status") not in ("complete", "partial", "pending"):
                     raise ValueError(f"{evaluation}: assembler returned an invalid status")
+                provenance_sources = sources if evaluation == "table4" else by_id.get(evaluation, [])
+                full_comparison = bool(state.get("full_paper_comparison")) if evaluation == "table4" else False
                 state.update(evaluation=evaluation, profile=profile, operation="offline_assembly",
                              source_parts=[str(p.relative_to(directory)) if p.is_relative_to(directory) else str(p)
-                                           for p in by_id.get(evaluation, [])],
-                             assembled_at=now(), full_paper_comparison=False)
+                                           for p in provenance_sources],
+                             assembled_at=now(), full_paper_comparison=full_comparison)
                 atomic_json(output / "status.json", state)
                 for item in state.get("missing", []):
                     missing.append({"evaluation": evaluation, "item": item["item"], "reason": item["reason"]})
                 states.append(state)
             write_csv(staging / "missing.csv", missing, ("evaluation", "item", "reason"))
             write_csv(staging / "status.csv", [{"evaluation": s["evaluation"], "status": s["status"],
-                       "parts": len(by_id.get(s["evaluation"], [])), "missing_items": len(s.get("missing", [])),
-                       "full_paper_comparison": False} for s in states],
+                       "parts": len(s["source_parts"]), "missing_items": len(s.get("missing", [])),
+                       "full_paper_comparison": s["full_paper_comparison"]} for s in states],
                       ("evaluation", "status", "parts", "missing_items", "full_paper_comparison"))
             atomic_json(staging / "manifest.json", {
                 "schema_version": 1, "operation": "offline_assembly", "collection": directory.name,
                 "profile": profile, "assembled_at": now(), "new_gpu_measurements": False,
                 "parts": manifest["parts"], "evaluations": states,
                 "complete": all(s["status"] == "complete" for s in states),
-                "full_paper_comparison": False})
+                "full_paper_comparison": bool(states) and all(s["full_paper_comparison"] for s in states)})
             final = directory / "assembled"
             backup = directory / (".previous-" + uuid.uuid4().hex)
             if final.exists():

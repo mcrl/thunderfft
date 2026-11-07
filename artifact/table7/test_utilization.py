@@ -20,11 +20,23 @@ class UtilizationChecks(unittest.TestCase):
         self.assertEqual(row["reference_peak_tflops"], 156)
         self.assertEqual(row["utilization_status"], "calculated")
 
-    def test_same_operation_count_for_both_recovered_variants(self):
+    def test_same_operation_count_for_all_radix4_variants(self):
         a = utilization.calculate("register_branch", 65536, 7.9, "NVIDIA A100 80GB PCIe")
         b = utilization.calculate("register_uniform", 65536, 7.9, "NVIDIA A100 80GB PCIe")
+        c = utilization.calculate("reconstructed_radix4_compute", 65536, 7.9, "NVIDIA A100 80GB PCIe")
         self.assertEqual(a, b)
+        self.assertEqual(a, c)
         self.assertAlmostEqual(a["utilization_pct"], 32.672280428432326)
+
+    def test_mixed_radix16_uses_issued_mma_count_not_fractional_stage_model(self):
+        # Four radix-16 butterflies issue 16 MMAs each; the final sixteen
+        # radix-4 butterflies issue one each, processing 16 FFTs per warp.
+        row = utilization.calculate("reconstructed_radix16", 65536, 7.4, "NVIDIA A100 80GB PCIe")
+        self.assertEqual(row["tensor_flops_per_fft"], (4 * 16 + 16) * 2048 // 16)
+        self.assertEqual(row["tensor_flops_per_fft"], 10240)
+        self.assertNotEqual(row["tensor_flops_per_fft"], 32 * 64 * 6)
+        self.assertAlmostEqual(row["achieved_tflops"], 90.68765405405405)
+        self.assertAlmostEqual(row["utilization_pct"], 58.133111573111576)
 
     def test_time_and_batch_scaling_without_an_extra_repeat_multiplier(self):
         baseline = utilization.calculate("register_uniform", 64, 1, "A100")
@@ -42,7 +54,7 @@ class UtilizationChecks(unittest.TestCase):
         self.assertEqual(row["utilization_status"], "pending_reference")
 
     def test_unverified_variants_and_invalid_inputs_fail(self):
-        for changes in ({"variant": "radix16"}, {"variant": "radix4_compute"},
+        for changes in ({"variant": "unknown"}, {"variant": "radix16"}, {"variant": "radix4_compute"},
                         {"batch": 0}, {"batch": 17}, {"batch": True},
                         {"time_us": 0}, {"time_us": float("nan")}, {"time_us": float("inf")},
                         {"precision": "fp16"}, {"gpu_name": ""}):

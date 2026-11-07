@@ -1,0 +1,889 @@
+{
+  "schema_version": 1,
+  "scope": "2025 legacy fft/my_fft.cu N64 TF32 global + reachable device helpers + referenced macros",
+  "method": "Comments and formatting removed; string literals, identifiers, template declarations, directives, wrappers and macro dependencies retained. Conservative exact source-closure grouping, not a proof of compiler or runtime equivalence.",
+  "limitations": [
+    "Does not group later thunderfft/include kernels: this tracks the legacy kernels that the commit sweep builds.",
+    "Host benchmark protocol, LUT generation, compiler flags and compiler version require a separate matched-driver audit.",
+    "Overloads with a referenced name are retained conservatively.",
+    "A source match may be reused as a coverage equivalence, not represented as another independently measured run."
+  ],
+  "interpretation": "Equivalent source maps to a measured representative. It is not an independent timing of that commit or a proof of identical compiler output.",
+  "legacy_commits_covered": 50,
+  "legacy_commit_variant_rows": 87,
+  "independently_timed_register_candidates": 12,
+  "commits": [
+    {
+      "commit": "0289cb5b6a9b15664bf3d367afc1b80d2749ccc3",
+      "date": "2025-09-07",
+      "message": "sm version done",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "5809b7ad690d87aa5e4e2c63c5104d2a9e0244d2f01e0e489495c095839b0407",
+          "measurement_id": "0289cb5-default",
+          "coverage": "independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "ed9fb7dbf8e963168b19bf8d025c69985ad874e7",
+      "date": "2025-09-07",
+      "message": "validation",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "5809b7ad690d87aa5e4e2c63c5104d2a9e0244d2f01e0e489495c095839b0407",
+          "measurement_id": "0289cb5-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "a4e7501d32f9bd34e6c6daf68638d5f9a8dee61d",
+      "date": "2025-09-08",
+      "message": "fill_reg_b reuse w",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "5809b7ad690d87aa5e4e2c63c5104d2a9e0244d2f01e0e489495c095839b0407",
+          "measurement_id": "0289cb5-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "8c6ec6117f75fbb6db5fc7a798108eadbcfd527e",
+      "date": "2025-09-08",
+      "message": "static loop",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "5809b7ad690d87aa5e4e2c63c5104d2a9e0244d2f01e0e489495c095839b0407",
+          "measurement_id": "0289cb5-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "51e346c0fea2767c79075c2798fa2598876415a6",
+      "date": "2025-09-09",
+      "message": "Replace type casting with __float_as_uint for tf32",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "c842a523e3a19dc103c0373f0138a638449b2cd853fdb1bb5ac9f6f7edcd9dd7",
+          "measurement_id": "51e346c-default",
+          "coverage": "independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "5720e397d743f03ed6860a660c34d865ccd767d2",
+      "date": "2025-09-12",
+      "message": "add sm baseline",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "f39e4c2661af47b55a4b6a6f39fa3e901691676eb65d7d7712cb99fcbf286176",
+          "measurement_id": "5720e39-default",
+          "coverage": "independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "c800961c376ac82af3fc51d284ffc8f5d4b204f5",
+      "date": "2025-09-12",
+      "message": "dump",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "29b1097fcc4b8a319a99d51934ee2f66cb3fe6a97f4b0f00e8b7eef4a66046b5",
+          "measurement_id": "e4aa1b0-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "22f067e9b74cbb787be8fee2a534843fbe7efc28",
+      "date": "2025-09-12",
+      "message": "print stat",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "29b1097fcc4b8a319a99d51934ee2f66cb3fe6a97f4b0f00e8b7eef4a66046b5",
+          "measurement_id": "e4aa1b0-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375",
+      "date": "2025-09-14",
+      "message": "float implementation done",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "29b1097fcc4b8a319a99d51934ee2f66cb3fe6a97f4b0f00e8b7eef4a66046b5",
+          "measurement_id": "e4aa1b0-default",
+          "coverage": "independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "652808b8b5865bacf039cbf576e3b53b946ccd0e",
+      "date": "2025-09-15",
+      "message": "ckpt",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "0aa7efe9f3ed5ce3159710d26d516d29d80c5ba86bf7ddeb416b7c6b5be67aba",
+          "measurement_id": "652808b-default",
+          "coverage": "independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "bbeffb27339f07ef4cb6f55ca6cbc73b1d5c879a",
+      "date": "2025-09-15",
+      "message": "dump",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "072eefce8e583549b9ff85ba0b8f844a01d2a1d7a46beadfcf34db691c6e279f",
+          "measurement_id": "bbeffb2-default",
+          "coverage": "independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "acf7a8579a91652cbe37dcb6e0aa312de9d050a5",
+      "date": "2025-09-15",
+      "message": "benchmark",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "0c020a32a3758b2f42d20c8905a261968f84a455dbda334c593537be2549fde1",
+          "measurement_id": "acf7a85-default",
+          "coverage": "independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "abfab847bbf9fd4e2e175444895631aa144ea454",
+      "date": "2025-09-15",
+      "message": "Merge branch 'main' of https://github.com/rhrnald/fft into tmp",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "cb66bdfabdfd7ccdf9ba4e7c7f2aa0802ceca95b38c144ec310b889ee09911be",
+          "measurement_id": "abfab84-default",
+          "coverage": "independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "403c6ae8b152684d5b60bf04ebf067f02e97e026",
+      "date": "2025-09-16",
+      "message": "reduce divergence",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "51d2f9ab520423124e957309f1dde6fefbad9ede9449b3704093dbd06ff5153e",
+          "measurement_id": "403c6ae-default",
+          "coverage": "independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "96ff01083d5d12bdc33d53bbfddaac10986094b1",
+      "date": "2025-09-16",
+      "message": "use precomputed W",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "3d269d860609195a8a978e528b7a2c77e3b0600e5374ef4aacbe5b11002136ba",
+          "measurement_id": "96ff010-default",
+          "coverage": "independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "d7df79c2551e1981d7d009603cc208483c2f0360",
+      "date": "2025-09-17",
+      "message": "sm bugfix",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "3d269d860609195a8a978e528b7a2c77e3b0600e5374ef4aacbe5b11002136ba",
+          "measurement_id": "96ff010-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "5e37821a24e02e9986b61acda044bfdf2f99f563",
+      "date": "2025-09-25",
+      "message": "half fft computation opt",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "34e3ec9fbc3eee090c5919279bd0eae3bc7d93f5",
+      "date": "2025-09-25",
+      "message": "Refactor FFT benchmarking and execution measurement",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "134f9c87ef418ee03df0c8f83ce6103cceb3865a",
+      "date": "2025-09-25",
+      "message": "Add tool script for FFT analysis and sanitization",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "680ad09518905d8ad694b4a463ce2c8c56a08d96",
+      "date": "2025-09-26",
+      "message": "clang",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "88dc3dee27e348a4ce568382de971cb72526589b",
+      "date": "2025-09-26",
+      "message": "clang",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "575f653409fca7c8a6d3e791d33c54aeab7c7e11",
+      "date": "2025-09-26",
+      "message": "log",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "3b4567ba2a271f2e4a39d70af9c4ac56336eeb67",
+      "date": "2025-09-26",
+      "message": "Fix ours half fft",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "06808140848de413ff5c2cc60530a9c0f49ddf56",
+      "date": "2025-10-01",
+      "message": "add thunderfft",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "4e90e019c85992752b581ae2814b1e6770531e70",
+      "date": "2025-10-01",
+      "message": "Merge branch 'main' of github.com:rhrnald/fft into main",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "aabde908ac897cad13a3d630eed45d40f2ad3977",
+      "date": "2025-10-02",
+      "message": "minor bug fix",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "2a8a9a16bccee0be2785cdc7f043272380fda455",
+      "date": "2025-10-07",
+      "message": "impement 4096-point fft",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "ea55a72fbbe5a5cb4d78a87cc0f6e2a3fa38e36d",
+      "date": "2025-10-24",
+      "message": "thunderfft benchmark",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "95a33784f71745f42f08fdb62269f1331572824f",
+      "date": "2025-10-24",
+      "message": "minor fix",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "4f9151e2b498c422fef621e56eb618472cb47019",
+      "date": "2025-10-30",
+      "message": "remove bank conflict",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "3062d0cf6e3c10a0adea0e64ec473546fa036a2f",
+      "date": "2025-11-04",
+      "message": "remove bank conflict",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "b5032e2e864fc8503d600ec3daf49c585f8d8fd4",
+      "date": "2025-11-04",
+      "message": "Reigster location optimization",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "f25f7f4225c3f4a1056ec3047106f4cafcb48af5",
+      "date": "2025-11-06",
+      "message": "Ours complex 2D convolution (tf32)",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "1b93642e1938a10a60b91f71856542e564f1a2a8",
+      "date": "2025-11-06",
+      "message": "4096",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "333890027249c61ba67dc2b73f95b5e275e52494",
+      "date": "2025-11-06",
+      "message": "Merge branch 'main' of github.com:rhrnald/fft into main",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "ff1fe49bfc14ddebc5fdecd4e88298b635e98037",
+      "date": "2025-11-07",
+      "message": "remove 4096 bank conflict",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "fd56f8dd208bfcfa020cb02ae276b3c35797ed7c",
+      "date": "2025-11-08",
+      "message": "Restore previous version",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "e8724590c7f97f6b2317a6390374ac59209ae295",
+      "date": "2025-11-08",
+      "message": "Refactor ThunderFFT kernel implementations",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "b44ab5f7ab642b82ec36bfa86a5c3b633d6d4dd0",
+      "date": "2025-11-08",
+      "message": "Implement 2D convolution with cuFFTDx",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "7e349bec0975694e43acfd832d5beb78df6002bf",
+      "date": "2025-11-08",
+      "message": "Add 1D FFT sample implementation with ThunderFFT",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "e740e87931007a6e096370bc54affd31c2c41777",
+      "date": "2025-11-08",
+      "message": "Reduce fill_reg_b call & 64/4096 validation",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "b178a4e7a943d66a95af069c1d97313d7d5e1fec",
+      "date": "2025-11-08",
+      "message": "half implementation done",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "54afbf1d42b508844c84612205e483b361180630",
+      "date": "2025-11-09",
+      "message": "4096 half",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "13a62f7afd19b0d027487eb9fa189373842d723c",
+      "date": "2025-11-09",
+      "message": "64 FFT e2e: faster load & store",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "9770089fe01523efb31ed41190d26b66393394ab",
+      "date": "2025-11-11",
+      "message": "?",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "07b90693f0468319f6de45c61dbe90382aff74d5",
+      "date": "2025-11-11",
+      "message": "r->s",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "257494c4b457c19bc6c9f80e01168b1c014b50ff",
+      "date": "2025-11-11",
+      "message": "Fix convolution sample to support dynamic filter sizes",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "19baf991abdbdaa6e537660ff528d22b73f27f19",
+      "date": "2025-12-08",
+      "message": "256",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "e30246e91c9dd697f1385dcd337457fa16d90ea2",
+      "date": "2025-12-09",
+      "message": "128",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    },
+    {
+      "commit": "5130980faab8351649757485d9df3d41f379ccc3",
+      "date": "2025-12-10",
+      "message": "128 inverse",
+      "variants": [
+        {
+          "kernel": "fft_kernel_radix64_batch16",
+          "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+          "measurement_id": "5e37821-default",
+          "coverage": "source_equivalent_not_independently_timed"
+        },
+        {
+          "kernel": "fft_kernel_radix64_batch16_branch",
+          "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+          "measurement_id": "403c6ae-branch",
+          "coverage": "source_equivalent_not_independently_timed"
+        }
+      ]
+    }
+  ]
+}

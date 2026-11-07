@@ -1,0 +1,5 @@
+gpu=NVIDIA A100 80GB PCIe device=0 sm=8.0 sm_count=108 driver=12090 runtime=12090 cuda_compiler=12.9.41 source=96ff01083d5d12bdc33d53bbfddaac10986094b1/fft/my_fft.cu
+variant=register_uniform N=64 precision=tf32 direction=forward normalization=none batch=65536 R=1000 trials=1 warmups_per_repeat=1 block=32 grid=4096 dynamic_shared_bytes=8704 static_shared_bytes=0 registers=151 local_bytes=0 input_seed=1234567 guard_elements_each_side=16 mode=timing
+timing=(t_2R-t_R)/R immutable_input_reset_before_every_launch=1 clock_policy=unchanged correctness_scope=unchecked repeated_output_may_overflow=1 repeated_output_accuracy_claim=0
+gpu_uuid=GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6
+accuracy_status=unchecked timing_only=1 R1_validation=0 output_guard_checks=0

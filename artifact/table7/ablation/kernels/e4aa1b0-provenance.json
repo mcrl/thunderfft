@@ -1,0 +1,131 @@
+{
+  "commit": "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375",
+  "source_repository": "https://github.com/rhrnald/fft",
+  "source_commit_url": "https://github.com/rhrnald/fft/commit/e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375",
+  "implementation_kind": "historical_compute_only_prototype",
+  "label": "Historical e4aa1b0 compute-only prototype",
+  "timing_only_required": true,
+  "paper_identity": "unconfirmed",
+  "canonical_paper_row": false,
+  "source_files": [
+    {
+      "path": "fft/my_fft.cu",
+      "sha256": "61878f8b977ed168138e9c4df2b66f6a10561cb14c1af6159ef9258a0d22ea15"
+    },
+    {
+      "path": "fft/my_fft.h",
+      "sha256": "55e0f5567ef78a5f81f801c22483c2a4a7b61f6c5b13c8a7e760aaaec3649eeb"
+    },
+    {
+      "path": "fft/utils.h",
+      "sha256": "bfc37aab5b1697fd0434d2ce3ef5be50b934b2392bf250e69f5e69a4251a28e8"
+    }
+  ],
+  "excerpts": [
+    {
+      "path": "fft/my_fft.h",
+      "symbol": "reverse_2bit_groups",
+      "lines": [
+        22,
+        30
+      ],
+      "excerpt_sha256": "7dda64caf6fd29c4b5404d10d51c46f4a66124931da1951996ff8f948483d2cf"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "mma_m16n8k8_tf32_f32_rowcol",
+      "lines": [
+        148,
+        165
+      ],
+      "excerpt_sha256": "4557a57876f09a3b141a0f89710ad4f68a4c432dbd48616322146b3c23351a6b"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "permute_radix4_local",
+      "lines": [
+        167,
+        175
+      ],
+      "excerpt_sha256": "f028b1c56ac4eb2fec11fe5a60ac9fda3125e35234b812eaad96a38b74bc448c"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "permute_radix4_branch",
+      "lines": [
+        176,
+        197
+      ],
+      "excerpt_sha256": "5c55a399dca592e9472840347a5fdc16170e1e6bde01250cd4809c4f264dfd27"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "fft_kernel_r64_b16",
+      "lines": [
+        359,
+        477
+      ],
+      "excerpt_sha256": "e0a25de11f541886b749bb9dd8431bb14bb8b32a043a3ec48734ee8fc861e6d5"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "fft_kernel_radix64_batch16",
+      "lines": [
+        615,
+        691
+      ],
+      "excerpt_sha256": "6a367065869d954d7e17d31921d44a2c1b0a1670380624bf65aeef546a930718"
+    }
+  ],
+  "adaptations": [
+    "Extracted only the original TF32 kernel and reachable device helpers; omitted unused host benchmark and unrelated kernels.",
+    "Wrapped symbols in a namespace and converted macros to same-valued namespace constexpr constants.",
+    "Preserved all executable kernel statements, loop-unroll directives, commented-out work, and indeterminate B operands. No correctness repairs or optimizations were applied."
+  ],
+  "omitted_work": [
+    "The fill_reg_b call is commented out; automatic reg_frag_b values are read without initialization."
+  ],
+  "launch": {
+    "block": [
+      32,
+      1,
+      1
+    ],
+    "grid": "batch / 16",
+    "static_shared_bytes": 8448,
+    "dynamic_shared_bytes": 0,
+    "twiddle_pointer": "Unused by the extracted executable closure; nullptr is valid."
+  },
+  "original_host_twiddle": {
+    "pi_literal_type": "double",
+    "generation": "float theta = -2.0f * 3.14159265358979323846 * i / 64.0f; cosf(theta), sinf(theta)",
+    "effect": "The omitted fill_reg_b call means these values are not read by this prototype. A common float-PI timing harness does not change its executed twiddle work."
+  },
+  "mma_work": {
+    "logical_stages": 3,
+    "mma_per_stage_per_warp": 16,
+    "mma_per_repeat_per_warp": 48,
+    "flops_per_mma": 2048,
+    "transform_slots_per_warp": 16,
+    "mma_flops_per_transform_slot": 6144,
+    "formula": "3 * 16 * (2 * 16 * 8 * 8) / 16 = 6144",
+    "interpretation": "Issued dense MMA FLOPs, excluding scalar/control/shared-memory work. The transform-slot count describes launch geometry and does not certify a valid FFT."
+  },
+  "extraction_build_comparison": {
+    "cuda_compiler": "12.9",
+    "architecture": "sm_80",
+    "flags": ["-O3", "-std=c++17", "-arch=sm_80"],
+    "original_and_extracted_sass_instructions_identical": true,
+    "instruction_count": 856,
+    "static_hmma_instruction_count": 48,
+    "mma_instructions_per_logical_repeat": 48,
+    "registers": 115,
+    "stack_bytes": 0,
+    "local_load_store_instruction_count": 0,
+    "scope": "Build and instruction comparison only; no GPU numerical test. The generated MMA instructions were retained despite the indeterminate B operands."
+  },
+  "compiler_dependence": "Uninitialized automatic B-fragment values are indeterminate. Source-level numerical semantics are undefined; compiler changes or surrounding code may change operand allocation and the emitted workload. Retain binary hashes and inspect generated MMA instructions for each compiler/architecture.",
+  "accuracy_status": "unchecked_known_incomplete",
+  "source_scope": "Function-limited historical timing; no numerical FFT or complete Table 7 reproduction claim.",
+  "communication": "The global wrapper loads register input from shared memory, executes three MMA stages with two permutations, stores to shared memory, and synchronizes once per repeat."
+}

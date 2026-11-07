@@ -1,0 +1,76 @@
+{
+  "evaluation": "table7_baseline_projection",
+  "full_paper_comparison": false,
+  "status": "projection_complete",
+  "gpu_work_performed": false,
+  "sources": [
+    {
+      "library": "tcFFT",
+      "time_us": 21.8,
+      "evidence": "documented_rounded_timing",
+      "source_date": "2026-11-06",
+      "note": "Rounded Table 6 README timing; original raw timing CSV is not supplied or revalidated."
+    },
+    {
+      "library": "FlashFFTConv",
+      "time_us": 18.1,
+      "evidence": "documented_rounded_timing",
+      "source_date": "2026-11-06",
+      "note": "Rounded Table 6 README timing; original raw timing CSV is not supplied or revalidated."
+    }
+  ],
+  "inputs": [
+    {
+      "path": "/home/chaewon/ThunderFFT/artifact/table6/README.md",
+      "sha256": "ca7063b63037aa2bbb76ebace83deaf84c2ea6188c8c1754c21db995a9537e87"
+    },
+    {
+      "path": "/home/chaewon/ThunderFFT/artifact/table7/reference/a100-20261107/kernel_comparison.csv",
+      "sha256": "30822c5aba0330e734af5f70a9126b4a1b544892d588d3c64ab91ed5a9092159"
+    },
+    {
+      "path": "/home/chaewon/ThunderFFT/artifact/table7/reference/a100-20261107/metadata.json",
+      "sha256": "987cd50f0d6b435ea973702fa3f3a96bef22f727df55f98d2fd3593a7b5928fc"
+    }
+  ],
+  "calculation": {
+    "path": "/home/chaewon/ThunderFFT/artifact/table7/project_baseline.py",
+    "sha256": "809f96eb48d6430e0bf23972d3621aece38d178fc7ef85b057d5c9ceab7227dc"
+  },
+  "source_contract": {
+    "gpu_family": "A100",
+    "N": 256,
+    "precision": "fp16",
+    "batch": 65536,
+    "kernel_variants": {
+      "tcFFT": "layer_256_0_A100",
+      "FlashFFTConv": "conv_kernel"
+    },
+    "tensor_flops_per_fft": 65536,
+    "hardware_peak_tflops": 312.0,
+    "timing_scope": "(time(2R)-time(R))/R; FFT-only resident compute"
+  },
+  "source_operation_count": "2 complex matrix products * 4 WMMA per product * (2*16*16*16) = 65536 FLOPs/FFT",
+  "target_model": {
+    "N": 64,
+    "precision": "tf32",
+    "batch": 65536,
+    "model_flops_per_slot": 12288,
+    "hardware_peak_tflops": 156.0,
+    "implemented_kernel": false,
+    "description": "32*N*log2(N) is a theoretical normalization; no N64 radix16 execution is asserted."
+  },
+  "assumption": "Source and target retain the same fraction of their respective dense hardware peaks.",
+  "formula": "projected_us = source_us * (12288/65536) * (312/156)",
+  "hardware_peak_reference": "https://images.nvidia.com/data-center/a100/a100-datasheet.pdf",
+  "limitations": [
+    "Projected times are not measured N64 latencies or full paper reproduction.",
+    "Unvalidated historical kernel rows keep their original source IDs and accuracy/provenance fields.",
+    "No utilization value is forced to 70%; it is calculated from the supplied source time."
+  ],
+  "outputs": [
+    "baseline_estimates.csv",
+    "projection_metadata.json",
+    "comparison.csv"
+  ]
+}

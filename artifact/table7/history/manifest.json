@@ -1,0 +1,849 @@
+{
+  "schema_version": 1,
+  "purpose": "Historical unit-kernel timing and source-selection evidence for Table 7",
+  "measurement_date": "2026-11-07",
+  "accuracy_status": "unchecked_timing_only",
+  "ae_import_eligible": false,
+  "full_paper_reproduction": false,
+  "paper_identity": "unconfirmed",
+  "measurements_csv": {
+    "path": "measurements.csv",
+    "sha256": "71e12a0e108b5bafeb0f8e77bdc25bed2d48472de5b673fb613bcd7bb695b6fe"
+  },
+  "coverage": {
+    "path": "coverage.json",
+    "sha256": "f8038db081a7d008e3ca6af5a4b0db9f08325a493c3194dc7fef1f47a0b8e974"
+  },
+  "methodology": {
+    "gpu": "NVIDIA A100 80GB PCIe",
+    "gpu_uuid": "GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6",
+    "compute_capability": "8.0",
+    "sm_count": 108,
+    "cuda_compiler": "12.9.41",
+    "cuda_driver": 12090,
+    "cuda_runtime": 12090,
+    "compiler_flags": [
+      "-O3",
+      "-std=c++17",
+      "-arch=sm_80"
+    ],
+    "fast_math": false,
+    "build_details": "The shared-family binaries additionally include -lineinfo; -Xptxas=-v records compiler resource usage. Source and binary hashes identify each build.",
+    "N": 64,
+    "batch": 65536,
+    "precision": "tf32",
+    "direction": "forward",
+    "normalization": "none",
+    "inside_repeats": 1000,
+    "trials": 1,
+    "warmups_per_repeat": 1,
+    "timing_formula": "(t_2R_us - t_R_us) / inside_repeats",
+    "statistic": "one sample, not a median",
+    "launch": {
+      "threads_per_block": 32,
+      "transforms_per_block": 16,
+      "blocks": 4096
+    },
+    "clock_policy": "unchanged",
+    "immutable_input_reset_before_every_launch": true,
+    "logged_input_seed": 1234567,
+    "input_by_family": {
+      "register": {
+        "kind": "constant_complex",
+        "real": 0.125,
+        "imaginary": -0.25,
+        "effective_seed": null,
+        "logged_seed_used": false,
+        "description": "All 12 register timings use the same complex value (0.125, -0.25) for every input element. The native log retains input_seed=1234567 from the common driver, but that seed is unused on the measured register input path."
+      },
+      "shared_radix8": {
+        "kind": "bounded_complex_gaussian",
+        "generator": "std::mt19937 with explicit Box-Muller transform",
+        "effective_seed": 1234567,
+        "logged_seed_used": true,
+        "gaussian_scale": 0.2,
+        "component_clamp": [
+          -0.75,
+          0.75
+        ],
+        "storage": "FP32 real and imaginary components",
+        "description": "All four shared-family drivers call guarded_input(batch, false); input generation and initial upload occur outside the GPU event interval."
+      }
+    },
+    "accuracy_checked": false,
+    "output_guards_checked": false,
+    "raw_csv_interpretation": "passed=0 and NaN error fields mean numerical accuracy was not checked. The nonfinite/output_guard columns are unused placeholders, not measured zero-error counts.",
+    "repeated_outputs_may_overflow": true,
+    "repeated_outputs_accuracy_claim": false,
+    "register_host_adapter": "Every register candidate receives the same immutable 64-entry twiddle LUT built with float PI: float theta = -2.0f * 3.14159265358979323846f * i / 64.0f. GPU kernel statements are unchanged.",
+    "selected_source_protocol_difference": "The archived register sweep uses constant complex input, a common float-PI LUT, and one warmup; archived shared radix8 drivers use seeded bounded Gaussian input. An intervening selected-artifact timing-only protocol also used seeded Gaussian input with one warmup. Current artifact timing-only mode uses constant (0.125,-0.25) input for all selected kernels and one warmup. The selected 5e37821 artifact retains its original double-PI expression followed by float theta conversion. Normal validated artifact mode uses Gaussian input and three warmups. Source hashes and per-part input/protocol metadata distinguish these measurements; similar times do not establish identical included operations or paper identity.",
+    "selected_artifact_timing_only_input": {
+      "protocol_version": "constant_input_timing_only",
+      "kind": "constant_complex",
+      "real": 0.125,
+      "imaginary": -0.25,
+      "effective_seed": null,
+      "logged_seed_used": false,
+      "input_generation_timed": false,
+      "warmups_per_repeat": 1
+    },
+    "shared_baseline_identity": "The shared family implements radix 8 using physical m16n8k8 TF32 MMA instructions; it is not the paper radix-16 row.",
+    "shared_tensor_flops_per_fft": 8192,
+    "shared_empty_placeholder_tensor_flops_per_fft": 0,
+    "prior_selected_artifact_timing_only_input": {
+      "kind": "bounded_complex_gaussian",
+      "generator": "std::mt19937 with explicit Box-Muller transform",
+      "effective_seed": 1234567,
+      "gaussian_scale": 0.2,
+      "component_clamp": [
+        -0.75,
+        0.75
+      ],
+      "input_generation_timed": false,
+      "warmups_per_repeat": 1,
+      "protocol_version": "intermediate_gaussian_timing_only",
+      "included_in_archived_16_measurements": false
+    }
+  },
+  "paper_row_selection": [
+    {
+      "row": "radix16",
+      "status": "original_source_missing",
+      "measurement_id": null
+    },
+    {
+      "row": "radix4_compute",
+      "status": "original_source_missing",
+      "measurement_id": null
+    },
+    {
+      "row": "register_branch",
+      "status": "historical_source_candidate",
+      "measurement_id": "51e346c-default",
+      "exact_paper_identity_confirmed": false
+    },
+    {
+      "row": "register_uniform",
+      "status": "historical_source_candidate",
+      "measurement_id": "5e37821-default",
+      "exact_paper_identity_confirmed": false
+    }
+  ],
+  "sessions": [
+    {
+      "started_at": "2026-11-07T07:23:46.549242+00:00",
+      "finished_at": "2026-11-07T07:24:04.874324+00:00",
+      "measurement_ids": [
+        "0289cb5-default",
+        "51e346c-default",
+        "5720e39-default",
+        "shared_radix8_22f067e",
+        "e4aa1b0-default",
+        "shared_radix8_e4aa1b0",
+        "652808b-default",
+        "shared_radix8_bbeffb2",
+        "acf7a85-default",
+        "abfab84-default",
+        "403c6ae-branch",
+        "403c6ae-default",
+        "96ff010-default",
+        "shared_radix8_d7df79c",
+        "5e37821-default"
+      ]
+    },
+    {
+      "started_at": "2026-11-07T07:27:02.506005+00:00",
+      "finished_at": "2026-11-07T07:27:02.923717+00:00",
+      "measurement_ids": [
+        "bbeffb2-default"
+      ]
+    }
+  ],
+  "measurements": [
+    {
+      "id": "0289cb5-default",
+      "commit": "0289cb5b6a9b15664bf3d367afc1b80d2749ccc3",
+      "message": "sm version done",
+      "date": "2025-09-07T22:31:46+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_branch",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "TF32 MMA operands use numeric float-to-unsigned cast predating51e346c bitcast fix."
+      ],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/my_fft.cu": "f75bd034a3860aa8067a76bdd5bbfe12226838bcee1ccc7fd69df73b89a49ca9",
+        "fft/my_fft.h": "829acfaab2479c84c2bc423b31a6579aeb90a56652f8ec9ce8907c1e031e35db",
+        "fft/my_fft_sm.h": "d10ccd468597229e7252b0b49bbfb82ec151b6ecbea77e098e956c488cb3c4fb",
+        "utils/helper.h": "3ccd4ef804a76962e5058d569cebc2725b7ca502124ac1b5eecc7157f4c2863b"
+      },
+      "driver_sha256": "d7d9c42dbed2fa4d7c0e347c09b64a4161e3c2467bd10e34f6bc4b3976bcae6b",
+      "binary_sha256": "5d96e1a7272ab6ee01741ec6082a93d7c78be3e9ad9aa7aa2e1fa0e47ed83771",
+      "normalized_source_closure_sha256": "5809b7ad690d87aa5e4e2c63c5104d2a9e0244d2f01e0e489495c095839b0407",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/0289cb5-default/raw.csv",
+        "sha256": "70e79bdcf80886a9e7c7ece1f03a04d32e038885af8f7a9e6aa616b6349345e0",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/0289cb5-default/native.log",
+        "sha256": "ef706bac6022201243e050c3d1d88a4d671844119a626994dd93f88d2313f0fd",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "51e346c-default",
+      "commit": "51e346c0fea2767c79075c2798fa2598876415a6",
+      "message": "Replace type casting with __float_as_uint for tf32",
+      "date": "2025-09-09T15:56:39+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_branch",
+      "source_selection_role": "candidate_register_branch",
+      "known_source_issues": [],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/my_fft.cu": "253ee929d5be4b18fb5d31c30c0757c1ae1a8aaf4232ebe146949d386b516b2d",
+        "fft/my_fft.h": "829acfaab2479c84c2bc423b31a6579aeb90a56652f8ec9ce8907c1e031e35db",
+        "fft/my_fft_sm.h": "5adadbb63e0dbd1e9e0a3dfd56aee00d6a902657b1a25435173ea5220b4c0402",
+        "utils/helper.h": "3ccd4ef804a76962e5058d569cebc2725b7ca502124ac1b5eecc7157f4c2863b"
+      },
+      "driver_sha256": "877cf0886070e363ba2946cfe96e5afc5d71b2f8aac065aca3e13e3f6548d619",
+      "binary_sha256": "3eafb0d7c6231212f6ca5d39c15930ab1e571e1ec6aeed12b110da61abd944dd",
+      "normalized_source_closure_sha256": "c842a523e3a19dc103c0373f0138a638449b2cd853fdb1bb5ac9f6f7edcd9dd7",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/51e346c-default/raw.csv",
+        "sha256": "5aa8ec98a0272d704a239f02189635d71638dbe218a5320e1df4b2651eb288c2",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/51e346c-default/native.log",
+        "sha256": "dcf9e1f9c92083263d5a1be38f0b828553f95585845b0c80e7907e9c0640fa19",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "5720e39-default",
+      "commit": "5720e397d743f03ed6860a660c34d865ccd767d2",
+      "message": "add sm baseline",
+      "date": "2025-09-12T03:22:44+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_branch",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "Historical TF32 B-fragment fill call is commented out",
+        "operand remains uninitialized.",
+        "Historical global input-to-register loop is commented out."
+      ],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "98de2ab4c7f0ab01c0f0c25bb3d5d2856b32373064e778ea717b2c73afa24d58",
+        "fft/my_fft.cu": "af7de9bde0b073f26e626bd089a73cd9a61b5ab756222dbd3358ae96dd011526",
+        "fft/my_fft.h": "829acfaab2479c84c2bc423b31a6579aeb90a56652f8ec9ce8907c1e031e35db",
+        "utils/helper.h": "3ccd4ef804a76962e5058d569cebc2725b7ca502124ac1b5eecc7157f4c2863b"
+      },
+      "driver_sha256": "be4caa853be9a8cb2f584a2edf55fe25736289887e2e624d41dfb2a3b3775b7a",
+      "binary_sha256": "57d2ea30a61f797e22c603a645f64b66f4ec775ed512b4940a2d418ea81c11de",
+      "normalized_source_closure_sha256": "f39e4c2661af47b55a4b6a6f39fa3e901691676eb65d7d7712cb99fcbf286176",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/5720e39-default/raw.csv",
+        "sha256": "3fd2ac7efc384c397f2a0783b1ed56f5f0c4f6467545161b4e0d837f6c8b1998",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/5720e39-default/native.log",
+        "sha256": "6670a519dfaa456704faccabdeb3f254da2864bff98b3ba831715d463dc9e251",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "shared_radix8_22f067e",
+      "commit": "22f067e9b74cbb787be8fee2a534843fbe7efc28",
+      "message": "print stat",
+      "date": "2025-09-12T23:23:01+09:00",
+      "family": "shared_radix8",
+      "kernel": "kernel_fft_tc_sm<float,64,8,false>",
+      "native_cli_variant": "historical_radix8",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "The historical TF32 specialization is empty; the timing is not FFT performance."
+      ],
+      "source_sha256": {
+        "fft/fft_tc_sm.h": "0deb22bb4493f2a49efec133e8cabac13e9a87c835b43f6622d23d6c3aec9be3",
+        "fft/utils.h": "c35ead02d46c26b1f35404efa6351dc5bdf23d87350cdb39f431bc0eda1add5c",
+        "benchmark.cu": "a737b38c3192a3936c65643481fecf2079151986bc4971ff1e88824d6f014fed"
+      },
+      "driver_sha256": "a737b38c3192a3936c65643481fecf2079151986bc4971ff1e88824d6f014fed",
+      "binary_sha256": "5bae9fe05407812eda75c34809fcb550317e271b820cf1b13a500c164b90491b",
+      "normalized_source_closure_sha256": null,
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/shared_radix8_22f067e/raw.csv",
+        "sha256": "3636fb0a06c170f6a4940088178bf97465adc3431dd3aeeed1a16ff8daae4132",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/shared_radix8_22f067e/native.log",
+        "sha256": "b521b8b5179e2d5ea4ddf798c1bd3fdf9caeb21aa93d6e3668659045e3ba38da",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "e4aa1b0-default",
+      "commit": "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375",
+      "message": "float implementation done",
+      "date": "2025-09-14T22:09:46+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_branch",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "Historical TF32 B-fragment fill call is commented out",
+        "operand remains uninitialized."
+      ],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "7db67af737b257d7fedef4d81d9f0920f1a23ebe40af5753695966c1d7b6bb4c",
+        "fft/fft_tc_sm_bench.h": "fbc38d8e8e986bada0fcf322cd3d44b013effdc9bc04d8a8703b565a62bc3b5d",
+        "fft/helper.h": "2a902c8087fa59156a1db787f01b909b4bf531d13b17cc937f2f91b5bf39ea78",
+        "fft/my_fft.cu": "61878f8b977ed168138e9c4df2b66f6a10561cb14c1af6159ef9258a0d22ea15",
+        "fft/my_fft.h": "55e0f5567ef78a5f81f801c22483c2a4a7b61f6c5b13c8a7e760aaaec3649eeb",
+        "fft/stat.h": "59f4f0c059bd602448324db1fe05a7042dbf0549b3563718ef16f062746608fc",
+        "fft/utils.h": "bfc37aab5b1697fd0434d2ce3ef5be50b934b2392bf250e69f5e69a4251a28e8",
+        "utils/helper.h": "3ccd4ef804a76962e5058d569cebc2725b7ca502124ac1b5eecc7157f4c2863b"
+      },
+      "driver_sha256": "8a64a8000d6e1504c59de3bf28f15a963a32d5cd6adfa803a09f9ace925f14fc",
+      "binary_sha256": "1cabe9050e46c1cca139a0069229bbb0799149ac6571c6e48629cbd0d8b2a9f1",
+      "normalized_source_closure_sha256": "29b1097fcc4b8a319a99d51934ee2f66cb3fe6a97f4b0f00e8b7eef4a66046b5",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/e4aa1b0-default/raw.csv",
+        "sha256": "1bd331fe00323e4ad2159fde473f3d76f2a3bd40ab7f74bf941213e1357d95a8",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/e4aa1b0-default/native.log",
+        "sha256": "207729caccf66dd36f93fc32413e290721209753ae17dcba8cf7963d0753f51e",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle",
+      "current_optional_variant": "historical_e4aa1b0",
+      "operation_coverage": "partial_fft_operand_setup_omitted"
+    },
+    {
+      "id": "shared_radix8_e4aa1b0",
+      "commit": "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375",
+      "message": "float implementation done",
+      "date": "2025-09-14T22:09:46+09:00",
+      "family": "shared_radix8",
+      "kernel": "kernel_fft_tc_sm<float,64,8,false>",
+      "native_cli_variant": "historical_radix8",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [],
+      "source_sha256": {
+        "fft/fft_tc_sm.h": "7db67af737b257d7fedef4d81d9f0920f1a23ebe40af5753695966c1d7b6bb4c",
+        "fft/utils.h": "bfc37aab5b1697fd0434d2ce3ef5be50b934b2392bf250e69f5e69a4251a28e8",
+        "benchmark.cu": "81e498856dbb735876c8b63b1a1c260cb9fb988edd172728d9d6406f7c613ee2"
+      },
+      "driver_sha256": "81e498856dbb735876c8b63b1a1c260cb9fb988edd172728d9d6406f7c613ee2",
+      "binary_sha256": "83919a604913155a7945c1b9e7cced3ce1796f896932c76218bfffab9e7d53e1",
+      "normalized_source_closure_sha256": null,
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/shared_radix8_e4aa1b0/raw.csv",
+        "sha256": "8055e68a9ffdc7b08e6401409fc5f701e2c84da1e691000cd62ac6d5c7f3d8fa",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/shared_radix8_e4aa1b0/native.log",
+        "sha256": "5884e36e4cde7d91e575570cee048ac4335bd6f07d8dccf87889fe6058557f24",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "652808b-default",
+      "commit": "652808b8b5865bacf039cbf576e3b53b946ccd0e",
+      "message": "ckpt",
+      "date": "2025-09-15T16:52:51+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_branch",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "Historical TF32 B-fragment fill call is commented out",
+        "operand remains uninitialized.",
+        "Inter-stage permutation is commented out; the measurement is a partial instruction path."
+      ],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "7db67af737b257d7fedef4d81d9f0920f1a23ebe40af5753695966c1d7b6bb4c",
+        "fft/fft_tc_sm_bench.h": "fbc38d8e8e986bada0fcf322cd3d44b013effdc9bc04d8a8703b565a62bc3b5d",
+        "fft/helper.h": "2a902c8087fa59156a1db787f01b909b4bf531d13b17cc937f2f91b5bf39ea78",
+        "fft/my_fft.cu": "f4f9cf111bc18e3bd93cf118a165cdb8d039e9f8d5e79393b95a127b4ba5694b",
+        "fft/my_fft.h": "3f781cd756bdd9fbbb730ae7cadbbb8f2ee778ea04f137d62d256be033110d85",
+        "fft/stat.h": "59f4f0c059bd602448324db1fe05a7042dbf0549b3563718ef16f062746608fc",
+        "fft/utils.h": "bfc37aab5b1697fd0434d2ce3ef5be50b934b2392bf250e69f5e69a4251a28e8",
+        "utils/helper.h": "3ccd4ef804a76962e5058d569cebc2725b7ca502124ac1b5eecc7157f4c2863b"
+      },
+      "driver_sha256": "163ac9738e9708784e70f0c2762b89979798cbc919c5d0b4896df9858afb038d",
+      "binary_sha256": "c0c77cf3b87980a8d266d0fc1c52ee0481214a00916a70b3b14d20333ff5ae78",
+      "normalized_source_closure_sha256": "0aa7efe9f3ed5ce3159710d26d516d29d80c5ba86bf7ddeb416b7c6b5be67aba",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/652808b-default/raw.csv",
+        "sha256": "53f0fe0c467183101cf558220cdd692866674621f975ce0673bc348f0b0c78d2",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/652808b-default/native.log",
+        "sha256": "ed8ef327d000afd64c49f152eefbc4c145c79c17331268a5de1cff1339bf40b2",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle",
+      "current_optional_variant": "historical_652808b",
+      "operation_coverage": "partial_fft_operand_setup_and_permutation_omitted"
+    },
+    {
+      "id": "bbeffb2-default",
+      "commit": "bbeffb27339f07ef4cb6f55ca6cbc73b1d5c879a",
+      "message": "dump",
+      "date": "2025-09-15T21:22:04+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_branch",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "Historical TF32 B-fragment fill call is commented out",
+        "operand remains uninitialized.",
+        "Float-array MMA offset is N/R rather than2*N/R, inconsistent with complex-to-float reinterpretation.",
+        "Original host header has malformed my_fft(T *d_data) invocation atline138 and does not compile."
+      ],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "9ae0869502d9e70737918c30b093f979bdbe5b298aa47caf088eae13017d9f6a",
+        "fft/fft_tc_sm_bench.h": "91834f0a9b2e555c31978baeff36581ad0596d0845d27bc58a176e0c718cb85f",
+        "fft/helper.h": "2a902c8087fa59156a1db787f01b909b4bf531d13b17cc937f2f91b5bf39ea78",
+        "fft/my_fft.cu": "1b216dbb3f528e9f1e5670d25609b2155669bb056666e539828e936a79dc2d1b",
+        "fft/my_fft.h": "fb45d1974da624fe6f64f5a74cf7eb4f8c4b4dd399744c38d2e4c36faafa780b",
+        "fft/stat.h": "59f4f0c059bd602448324db1fe05a7042dbf0549b3563718ef16f062746608fc",
+        "fft/utils.h": "e8f57b472a57247021e441a036941b6bf8f36007ef7ddec156df5afa2f813b78",
+        "utils/helper.h": "3ccd4ef804a76962e5058d569cebc2725b7ca502124ac1b5eecc7157f4c2863b"
+      },
+      "driver_sha256": "896e489bc8c99652e14dd2bb796702f431ed649f9123d1c4a97f4a8af036ee8c",
+      "binary_sha256": "c9dde9132c94aa42dccd4847b158a9fe361836f008a87c7ed57f3c15ed35ea73",
+      "normalized_source_closure_sha256": "072eefce8e583549b9ff85ba0b8f844a01d2a1d7a46beadfcf34db691c6e279f",
+      "host_header_adapter": {
+        "description": "Replaced originalmy_fft.h inclusion with its unchanged device/global declarations only; excluded malformed unused host benchmark template. All CUDA kernel and helper statements unchanged.",
+        "sha256": {
+          "device_declarations.cuh": "1719c7d97c133c21f501c9d522da702802530f5e8514c5af913cb8f94eeaba2d",
+          "device_only.cu": "1bd49bcefc0f6becf4a173375c857a89305fdfa05d5df0ffe48dc21f22804edd",
+          "host-header-adapter.patch": "1272b08c785800ac53fe7cd181906d04ab534dde8926890d92a2307b5d4c6444"
+        }
+      },
+      "raw_csv": {
+        "path": "raw/bbeffb2-default/raw.csv",
+        "sha256": "6b0a779826d3ba77b087abff418b43167249908e3c3d337dcb8104d2ce6132ce",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/bbeffb2-default/native.log",
+        "sha256": "db9b55dc23a47bb5daab7f529b06853d08fb910ed6bbeffb7eb7b0501eb88290",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "shared_radix8_bbeffb2",
+      "commit": "bbeffb27339f07ef4cb6f55ca6cbc73b1d5c879a",
+      "message": "dump",
+      "date": "2025-09-15T21:22:04+09:00",
+      "family": "shared_radix8",
+      "kernel": "kernel_fft_tc_sm<float,64,8,false>",
+      "native_cli_variant": "historical_radix8",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [],
+      "source_sha256": {
+        "fft/fft_tc_sm.h": "9ae0869502d9e70737918c30b093f979bdbe5b298aa47caf088eae13017d9f6a",
+        "fft/utils.h": "e8f57b472a57247021e441a036941b6bf8f36007ef7ddec156df5afa2f813b78",
+        "benchmark.cu": "d33e6da75389c1c786fa08d3a3783d6af4fc1ebbc6f748b62d2b52b1553466be"
+      },
+      "driver_sha256": "d33e6da75389c1c786fa08d3a3783d6af4fc1ebbc6f748b62d2b52b1553466be",
+      "binary_sha256": "edbd1a829eb3eba414230db583102aae8e2f84bc965dae3df80585a88042d01b",
+      "normalized_source_closure_sha256": null,
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/shared_radix8_bbeffb2/raw.csv",
+        "sha256": "33e2d27c003f8d79b1749d6563c4667d6855ef0af4ed32df989293bf249ae258",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/shared_radix8_bbeffb2/native.log",
+        "sha256": "f0645af1d7f3ea7cf410fd100426fddd93c9f1d05def1ccfc9d327b23ab93dc3",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "acf7a85-default",
+      "commit": "acf7a8579a91652cbe37dcb6e0aa312de9d050a5",
+      "message": "benchmark",
+      "date": "2025-09-15T23:26:35+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_branch",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "Float-array MMA offset is N/R rather than2*N/R, inconsistent with complex-to-float reinterpretation.",
+        "Historical stage permutation code is commented out."
+      ],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "7db67af737b257d7fedef4d81d9f0920f1a23ebe40af5753695966c1d7b6bb4c",
+        "fft/fft_tc_sm_bench.h": "3062129e887f14d54ecf992844441103128498e0117dc2204e80b3a29bea407d",
+        "fft/helper.h": "7a79d4fb71a6205dd78ae4027063caa83703cfec89d06aaac2516b0e0ee3b8b4",
+        "fft/my_fft.cu": "0a1e37c66de55df13ed897cd817df54cbcfdb5f16353e63d41e4b1517a401d3d",
+        "fft/my_fft.h": "d9cd2a0b0e7ccf8ad2b4341925869aa2aaf233c6f4d2a1dcfb4df7c2bb180860",
+        "fft/stat.h": "59f4f0c059bd602448324db1fe05a7042dbf0549b3563718ef16f062746608fc",
+        "fft/utils.h": "ded89ef696a30286e4ad0156f28d10b1f8f133ab4c2e860f9819b4a2c2a324fa",
+        "utils/helper.h": "3ccd4ef804a76962e5058d569cebc2725b7ca502124ac1b5eecc7157f4c2863b"
+      },
+      "driver_sha256": "4c9317f138b2f478a0e1f92123386d26076f30392da0e24e60d71d3b4cabb7b6",
+      "binary_sha256": "09888885c84e5e883d9dcbfeab9e082719284e30e04670897da58c534171f1b4",
+      "normalized_source_closure_sha256": "0c020a32a3758b2f42d20c8905a261968f84a455dbda334c593537be2549fde1",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/acf7a85-default/raw.csv",
+        "sha256": "6484530af6484e947200e494f416ac5156349c47198869211b5618433aae93af",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/acf7a85-default/native.log",
+        "sha256": "74ece8d3352c09ba316b8194d793f3989217f012110ae393441d713b8fb5b6f9",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "abfab84-default",
+      "commit": "abfab847bbf9fd4e2e175444895631aa144ea454",
+      "message": "Merge branch 'main' of https://github.com/rhrnald/fft into tmp",
+      "date": "2025-09-15T23:34:34+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_branch",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "Float-array MMA offset is N/R rather than2*N/R, inconsistent with complex-to-float reinterpretation."
+      ],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "9ae0869502d9e70737918c30b093f979bdbe5b298aa47caf088eae13017d9f6a",
+        "fft/fft_tc_sm_bench.h": "f73a6aabeb47d66f027a677110348baaec72072c294244e53d2c9c8288d1b05e",
+        "fft/helper.h": "7a79d4fb71a6205dd78ae4027063caa83703cfec89d06aaac2516b0e0ee3b8b4",
+        "fft/my_fft.cu": "9996b58e000cff7b8fc6bfc551f512f93cc71fcaff4007fd4544ad9daf6be4d6",
+        "fft/my_fft.h": "d9cd2a0b0e7ccf8ad2b4341925869aa2aaf233c6f4d2a1dcfb4df7c2bb180860",
+        "fft/stat.h": "59f4f0c059bd602448324db1fe05a7042dbf0549b3563718ef16f062746608fc",
+        "fft/utils.h": "0eaa30496736ffda7dace2ebece625aa0dd7b1ed8797bbc64f4449d7d0fcace9",
+        "utils/helper.h": "3ccd4ef804a76962e5058d569cebc2725b7ca502124ac1b5eecc7157f4c2863b"
+      },
+      "driver_sha256": "268f9fa2a3e8d83a71b76617daa62deee6107b8f0c2f8a76b3e83d2deb1246c5",
+      "binary_sha256": "d6111da80535fca87acd66bff49a259f8b96dbdc880e0527e92b4fe2dd802d2c",
+      "normalized_source_closure_sha256": "cb66bdfabdfd7ccdf9ba4e7c7f2aa0802ceca95b38c144ec310b889ee09911be",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/abfab84-default/raw.csv",
+        "sha256": "330cbea7a3c0898837f45551294fcb02de11ab8154da538d23f7f9b8fecea374",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/abfab84-default/native.log",
+        "sha256": "6f054c1a6d8d5cc09741e8f1f5ad6c90c0f4f227a88e20802e4278e4bf1b2174",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "403c6ae-branch",
+      "commit": "403c6ae8b152684d5b60bf04ebf067f02e97e026",
+      "message": "reduce divergence",
+      "date": "2025-09-16T20:36:57+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16_branch",
+      "native_cli_variant": "register_branch",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "9ae0869502d9e70737918c30b093f979bdbe5b298aa47caf088eae13017d9f6a",
+        "fft/fft_tc_sm_bench.h": "1f58ce7e3f411d529907e61478a948ea9300692c09c80c04a87bdbf7ed6c0ccf",
+        "fft/helper.h": "4728cdb8d9e9176e25e84c5b9782cdaa181402012b71c7b2a0bb90e353776095",
+        "fft/my_fft.cu": "8f8869bb43f5103630802a7ebae27e8464ede22e16f0a754690adddf891f7b1e",
+        "fft/my_fft.h": "2008ffd0456e15604dca9f9638ededa90300d16b73f90b62bec8a864b6564281",
+        "fft/stat.h": "59f4f0c059bd602448324db1fe05a7042dbf0549b3563718ef16f062746608fc",
+        "fft/utils.h": "0eaa30496736ffda7dace2ebece625aa0dd7b1ed8797bbc64f4449d7d0fcace9"
+      },
+      "driver_sha256": "73780ae1ddddb4089bff3eba0d2b1cb2d5cfa9d4b86aa866b0f05e8996bb53ce",
+      "binary_sha256": "3a52164427a024f09d525145d8f3bcd171e6a36a05bc835dca7c4f9c900f2bdc",
+      "normalized_source_closure_sha256": "8374decaeba81912f6c5cfa577f3f5841f8e9eed076160a052db3db061917b9a",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/403c6ae-branch/raw.csv",
+        "sha256": "b3afc498fcc4c9f465db1b58244a6cb1f80caf8dce5dec2c247280ab865c69ff",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/403c6ae-branch/native.log",
+        "sha256": "906e6408dcca24efaa23dc97bac2a1ca9c01b8e521fcd70b1113d27a58824dec",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "403c6ae-default",
+      "commit": "403c6ae8b152684d5b60bf04ebf067f02e97e026",
+      "message": "reduce divergence",
+      "date": "2025-09-16T20:36:57+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_uniform",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "Original global output loop omits second group of8FFTs",
+        "corrected later in5e37821."
+      ],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "9ae0869502d9e70737918c30b093f979bdbe5b298aa47caf088eae13017d9f6a",
+        "fft/fft_tc_sm_bench.h": "1f58ce7e3f411d529907e61478a948ea9300692c09c80c04a87bdbf7ed6c0ccf",
+        "fft/helper.h": "4728cdb8d9e9176e25e84c5b9782cdaa181402012b71c7b2a0bb90e353776095",
+        "fft/my_fft.cu": "8f8869bb43f5103630802a7ebae27e8464ede22e16f0a754690adddf891f7b1e",
+        "fft/my_fft.h": "2008ffd0456e15604dca9f9638ededa90300d16b73f90b62bec8a864b6564281",
+        "fft/stat.h": "59f4f0c059bd602448324db1fe05a7042dbf0549b3563718ef16f062746608fc",
+        "fft/utils.h": "0eaa30496736ffda7dace2ebece625aa0dd7b1ed8797bbc64f4449d7d0fcace9"
+      },
+      "driver_sha256": "5e06ae5165cf5b47c2100ac084ff423d95e9a1eda7fb4de9991b80125d3aa4a1",
+      "binary_sha256": "ff74607161f9511a5c28868ced3872f0963d17d6e21d523d8a1130ea9a0372e4",
+      "normalized_source_closure_sha256": "51d2f9ab520423124e957309f1dde6fefbad9ede9449b3704093dbd06ff5153e",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/403c6ae-default/raw.csv",
+        "sha256": "0a4fb2633a4f328c92ec128408f5ace96e68daed13538d5c6f9595edb4935945",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/403c6ae-default/native.log",
+        "sha256": "49dcf212c3d2d0c41fe591283997ea19a19f3a2205e20c99705ac90513253062",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "96ff010-default",
+      "commit": "96ff01083d5d12bdc33d53bbfddaac10986094b1",
+      "message": "use precomputed W",
+      "date": "2025-09-16T21:35:31+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_uniform",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [
+        "Original global output loop omits second group of8FFTs",
+        "corrected later in5e37821."
+      ],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "9ae0869502d9e70737918c30b093f979bdbe5b298aa47caf088eae13017d9f6a",
+        "fft/fft_tc_sm_bench.h": "1f58ce7e3f411d529907e61478a948ea9300692c09c80c04a87bdbf7ed6c0ccf",
+        "fft/helper.h": "6a1357c3d15e92aeeb43b2b7fb170db6cc93215f93c3bd85e1d18664dc9ffc08",
+        "fft/my_fft.cu": "4c2e42ff61363f84716848a92c72bffe945de5eaf53bf4ba66070a22bcd6063a",
+        "fft/my_fft.h": "2008ffd0456e15604dca9f9638ededa90300d16b73f90b62bec8a864b6564281",
+        "fft/stat.h": "59f4f0c059bd602448324db1fe05a7042dbf0549b3563718ef16f062746608fc",
+        "fft/utils.h": "0eaa30496736ffda7dace2ebece625aa0dd7b1ed8797bbc64f4449d7d0fcace9"
+      },
+      "driver_sha256": "04177918c6c8825215407e13f5bbb515bfeb7ed531f519bc5b297e53cfbe7cb9",
+      "binary_sha256": "c7c5f9e79ce9f31d7b990d9eea809c7d5778142d3984b109c4d286c7240114b7",
+      "normalized_source_closure_sha256": "3d269d860609195a8a978e528b7a2c77e3b0600e5374ef4aacbe5b11002136ba",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/96ff010-default/raw.csv",
+        "sha256": "8a7a551c35baa1ebf1fa6fa3ef2cee468753e0255abd77d77527f3e721ba6a50",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/96ff010-default/native.log",
+        "sha256": "af8e34b08f0ef824bd7692391f8c4d40e1eb8f9dcaa97798ba0f2e860b86e1ad",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "shared_radix8_d7df79c",
+      "commit": "d7df79c2551e1981d7d009603cc208483c2f0360",
+      "message": "sm bugfix",
+      "date": "2025-09-17T02:16:27+09:00",
+      "family": "shared_radix8",
+      "kernel": "kernel_fft_tc_sm<float,64,8,false>",
+      "native_cli_variant": "historical_radix8",
+      "source_selection_role": "historical_diagnostic_only",
+      "known_source_issues": [],
+      "source_sha256": {
+        "fft/fft_tc_sm.h": "550945f3c8cd4434efa4d27b994bc3bfe77244c12e0bb1a62381b916769fe595",
+        "fft/utils.h": "860da643b6be2edfa6b3c9b2440875954d109b756b6d35ba5663c463c92d7761",
+        "benchmark.cu": "8f41b310c5bb7480652db46c71c7189475a460fc346ecaf3825ef2d3fb378831"
+      },
+      "driver_sha256": "8f41b310c5bb7480652db46c71c7189475a460fc346ecaf3825ef2d3fb378831",
+      "binary_sha256": "f8a229a3f1db2b28b397c57bd555f58979146b4cf1341c62058e737f2dc7d3a8",
+      "normalized_source_closure_sha256": null,
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/shared_radix8_d7df79c/raw.csv",
+        "sha256": "9b4a397288c19fe940468e55251994dd6750cc1552c7f4becbb03272cde8014b",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/shared_radix8_d7df79c/native.log",
+        "sha256": "d5e604ff61fbe45e656db05dd111360da7bc8a701fd60fe6a1b506c561a90240",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    },
+    {
+      "id": "5e37821-default",
+      "commit": "5e37821a24e02e9986b61acda044bfdf2f99f563",
+      "message": "half fft computation opt",
+      "date": "2025-09-25T16:56:50+09:00",
+      "family": "register",
+      "kernel": "fft_kernel_radix64_batch16",
+      "native_cli_variant": "register_uniform",
+      "source_selection_role": "candidate_register_uniform",
+      "known_source_issues": [],
+      "source_sha256": {
+        "conv/convolution.hpp": "71153b9284210af8de5859c048a4d27ba1d3aeccf3a1c3a43facf10b2b7b0aa5",
+        "conv/gpuTimer.h": "2a4d1cd3259a7dce63a41f7d879e4e7dc50c82a35c2161f005f76d697e4a72ca",
+        "conv/my_fft.h": "9d678b27d96e907c6bcc70544081ff6250d23c5cd82768957be858e362046540",
+        "fft/fft_tc_sm.h": "550945f3c8cd4434efa4d27b994bc3bfe77244c12e0bb1a62381b916769fe595",
+        "fft/fft_tc_sm_bench.h": "b107d463e5d43a2448dbc4be8a72aeda13e4854f0b07a790f97a2313187dffa1",
+        "fft/helper.h": "6a1357c3d15e92aeeb43b2b7fb170db6cc93215f93c3bd85e1d18664dc9ffc08",
+        "fft/my_fft.cu": "a07e9f4b536cdc82ecd8e9bc809e0a4fd9a1b6e1a4d65e40e483f54ccdd0082b",
+        "fft/my_fft.h": "2008ffd0456e15604dca9f9638ededa90300d16b73f90b62bec8a864b6564281",
+        "fft/stat.h": "59f4f0c059bd602448324db1fe05a7042dbf0549b3563718ef16f062746608fc",
+        "fft/utils.h": "860da643b6be2edfa6b3c9b2440875954d109b756b6d35ba5663c463c92d7761"
+      },
+      "driver_sha256": "f75a2bf793beaea04a75d2863369c812ba480770c8ce9dbf52fd79d6bc248022",
+      "binary_sha256": "32e3dc7938ba8ff85a8c23d514173cd2871af5c02dfe479710859afb453200cd",
+      "normalized_source_closure_sha256": "57b6920b480dcaeda59a7800d95d96374ca333b933d9c6c8702bcfb47d9ce815",
+      "host_header_adapter": null,
+      "raw_csv": {
+        "path": "raw/5e37821-default/raw.csv",
+        "sha256": "53c26576972c065796f30b17d155268d754d69cd79c8a24c0c2384e874a7441d",
+        "modified": false
+      },
+      "native_log": {
+        "path": "raw/5e37821-default/native.log",
+        "sha256": "90f8ba683888aed382e6d5908309c3bd33bad197e26e9bdf96403bff6323c3c6",
+        "modified": false
+      },
+      "accuracy_checked": false,
+      "output_guards_checked": false,
+      "ae_import_eligible": false,
+      "ae_import_ineligibility_reason": "archived_raw_format_is_not_a_current_collection_bundle"
+    }
+  ],
+  "redaction": "Native logs and raw CSVs are copied byte-for-byte; no redaction was required. Local filesystem paths and account/author metadata are omitted from the public index. Historical commit messages retain their original public repository references.",
+  "measurement_scope": "Named kernel and partial-function instruction throughput, with source omissions and unchecked accuracy recorded separately from paper-stage identity.",
+  "collection_import": {
+    "direct_import_supported": false,
+    "reason": "The archived raw CSV/log layout is not a current runner collection bundle with status.json, metadata.json and data.csv. Unchecked unit-kernel timing is supported by the current runner/assembler when its source, operation coverage and protocol are recorded.",
+    "ae_import_eligible_false_scope": "archive_format_only; not a blanket exclusion of unchecked unit-kernel or partial-function measurements"
+  },
+  "available_partial_unit_sources": [
+    {
+      "archive_measurement_id": "e4aa1b0-default",
+      "current_variant": "historical_e4aa1b0",
+      "operation_coverage": "partial_fft_operand_setup_omitted"
+    },
+    {
+      "archive_measurement_id": "652808b-default",
+      "current_variant": "historical_652808b",
+      "operation_coverage": "partial_fft_operand_setup_and_permutation_omitted"
+    }
+  ]
+}

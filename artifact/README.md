@@ -18,11 +18,11 @@ and Table 1 is a literature survey, so neither has a GPU evaluation task.
 | [figure4](figure4/README.md) | 10 | A100 1D convolution plot | Ready subset: ThunderFFT and cuDNN gated on the paper workload; FlashFFTConv via backend CSV |
 | [figure5](figure5/README.md) | 10 | H100 2D convolution plot | Ready subset (`MATHDX_ROOT`): cuDNN, cuFFT, tiled cuFFTDx; tiled ThunderFFT via backend CSV |
 | [table2](table2/README.md) | 3 | A100 performance model and measured reference | Ready: calculated rows + measured cuFFTDx row from Table 3 (needs `MATHDX_ROOT`) |
-| [table3](table3/README.md) | 8 | FFT kernel latency matrix | Ready: ThunderFFT 28 configurations/GPU; cuFFTDx comparison with `MATHDX_ROOT` (unmeasured) |
-| [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | MMA microbenchmark pending |
+| [table3](table3/README.md) | 8 | FFT kernel latency matrix | Ready: ThunderFFT 28 configurations/GPU; cuFFTDx comparison with `MATHDX_ROOT`; complete matched three-GPU collection pending |
+| [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | Ready: unit throughput from Table 3 CSVs + independent ideal MMA benchmark; assemble GPU parts separately |
 | [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Ready: measurements and tables; FP16/TF32 ThunderFFT, FP32 cuFFT, optional cuFFTDx FP16 accuracy; seed and input details not stated in the paper |
 | [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | Ready (`MATHDX_ROOT`) |
-| [table7](table7/README.md) | 9 | Optimization ablation | Two recovered candidates can be collected separately; first two variants remain unavailable |
+| [table7](table7/README.md) | 9 | Optimization ablation and unit-kernel timings | Ready subset: two complete-FFT candidates and two explicitly partial historical kernels; separate collection/assembly, accuracy and operation-coverage labels |
 
 The general paper environment (p. 7) is one GPU with an AMD EPYC-class host:
 A100 PCIe 80GB with Ubuntu 20.04/CUDA 12.9, and H100 PCIe or B200 with Ubuntu
@@ -67,14 +67,14 @@ the defaults.
 ./run.sh table5 --result-dir /path/to/results --build-dir /path/to/build
 ```
 
-By default, `run.sh` selects **validation, Table 2, Table 3, Table 5 and Figure 2**,
+By default, `run.sh` selects **validation, Table 2, Table 3, Table 4, Table 5, Table 7 and Figure 2**,
 in dependency order, with no downloaded FFT library or cuFFTDx tuning data.
 CUDA Toolkit's cuFFT is still used as an FP64 numerical reference and Table 5's
 explicitly labeled FP32 path; no cuFFT performance tuning is required.
 `./run.sh all` includes unfinished assignments; `./run.sh --list` lists every
 assignment, while `./run.sh --dry-run` previews the available default batch.
 
-The runnable Table 2/3/Figure 2 adapters cover the subsets in the table above.
+The runnable Table 2/3/4/7/Figure 2 adapters cover the subsets in the table above.
 Successful execution does not imply that the excluded cuFFTDx comparison or
 the complete multi-GPU paper experiment has been reproduced. Each task's
 `coverage` and `full_paper_comparison=false` are retained in runner status and
@@ -155,11 +155,13 @@ THUNDERFFT_TABLE3_PRECISIONS=fp16 \
 THUNDERFFT_TABLE3_PRECISIONS=tf32 \
   ./run.sh table3 --collection ae --part a100-tf32
 
-# Collect each available ablation candidate independently.
-THUNDERFFT_TABLE7_VARIANTS=register_branch \
-  ./run.sh table7 --collection ae --part ablation-branch-time
-THUNDERFFT_TABLE7_VARIANTS=register_uniform \
-  ./run.sh table7 --collection ae --part ablation-uniform-time
+# Collect historical unit kernels independently, with their operation scope.
+THUNDERFFT_TABLE7_VARIANTS=historical_e4aa1b0,historical_652808b \
+THUNDERFFT_TABLE7_TIMING_ONLY=1 THUNDERFFT_TABLE7_TRIALS=3 \
+  ./run.sh table7 --collection ae --part ablation-partial-kernels
+THUNDERFFT_TABLE7_VARIANTS=register_branch,register_uniform \
+THUNDERFFT_TABLE7_TIMING_ONLY=1 THUNDERFFT_TABLE7_TRIALS=3 \
+  ./run.sh table7 --collection ae --part ablation-register-kernels
 
 # Generate the tables/figures from whatever has been collected. No GPU work.
 ./run.sh --collection ae --assemble
@@ -170,15 +172,30 @@ collection. Use a different collection for smoke and paper data or incompatible
 measurement settings. Table 3 supports `THUNDERFFT_TABLE3_N_LIST`,
 `THUNDERFFT_TABLE3_PRECISIONS`, and `THUNDERFFT_TABLE3_PLACEMENTS`. Table 5 supports
 `THUNDERFFT_TABLE5_N_LIST` and `THUNDERFFT_TABLE5_PHASES`; Table 7 supports
-`THUNDERFFT_TABLE7_VARIANTS` for separate timing collections.
-Their READMEs list the exact values and measurement commands. Collecting Table 7
-without an explicit variant list in collection mode selects its two available
-candidates and leaves the missing original stages pending.
+`THUNDERFFT_TABLE7_VARIANTS` for separate timing collections and
+`THUNDERFFT_TABLE7_TIMING_ONLY=1` for unchecked unit-kernel timings. Their READMEs
+list the exact values and commands. Without an explicit variant list, Table 7
+selects its two available complete-FFT candidates; timing-only mode includes
+the two partial historical kernels. Explicit `THUNDERFFT_TABLE7_VARIANTS=all`
+also requests the missing original paper stages and reports pending.
+
+Table 7's `kernel_comparison.csv` contains collected source variants, with
+source hashes, operation coverage and accuracy status in each row. Unchecked
+timings remain `collected_unvalidated` and are included in assembly. The
+paper-shaped `table.csv` keeps the first two original stages blank and appends
+partial kernels under their own IDs. An operation-limited kernel timing is a
+unit-kernel measurement, not a complete-FFT accuracy result. Mixed input,
+trial-count or warmup protocols remain labeled per part and set
+`protocol_heterogeneous=true`; use matched settings for a direct comparison.
+The original four-stage paper identity remains unconfirmed.
 
 Table 7 utilization is derived from the operation count and collected timing,
-with A100 hardware peak **156 TFLOPS** as the denominator. Each recovered TF32
-candidate issues 6144 MMA FLOPs per FFT. No separate utilization collection or
-profiler CSV is needed; assembly calculates the values from valid timing rows.
+with A100 hardware peak **156 TFLOPS** as the denominator. Each selected
+historical kernel issues 6144 MMA FLOPs per FFT-sized slot. For the partial
+kernels this counts emitted MMA work despite omitted operand setup or
+permutation. No separate utilization collection or profiler CSV is needed;
+assembly calculates the values from recorded timings and preserves the
+accuracy/operation-coverage labels.
 Other GPUs retain achieved throughput with the utilization reference pending.
 
 Existing successful runs can be imported without measuring again. Transfer the
@@ -195,6 +212,18 @@ The second command assembles Table 3's collected parts and generates Figure 2
 from its A100 register data. It does not run Table 3 again. During collection,
 selecting Figure 2 selects its Table 3 source measurements; figures are generated
 by the separate assembly command.
+
+`./run.sh table4` measures ideal TF32 MMA throughput. It reuses an existing
+Table 3 result supplied by `THUNDERFFT_TABLE4_SOURCE_DIR`, or the Table 3 result
+from the same batch, to calculate N=64 unit throughput and efficiency. An
+ideal-only result can be collected before Table 3 is available. Use
+`THUNDERFFT_TABLE4_MODE=derive` for conversion without a new GPU measurement.
+
+`./run.sh table4 --collection ae-table4 --assemble` combines collected Table 3
+and Table 4 parts using only the CPU. Missing GPU cells remain blank, and
+efficiency requires matching GPU UUIDs. For bundles containing cuFFTDx rows,
+use the separate Table 4 collection described in [Table 4](table4/README.md),
+since the Table 3 assembler does not yet accept mixed-library bundles.
 
 Table 3 also retains each fully validated configuration as a checkpoint. If a
 later configuration fails or the runner is interrupted, completed configurations

@@ -2,6 +2,7 @@
 """CPU-only coverage of immutable imports, incomplete assembly and no-GPU routing."""
 
 import importlib.util
+import csv
 import json
 from pathlib import Path
 import shutil
@@ -104,11 +105,35 @@ class CollectionChecks(unittest.TestCase):
         self.assertEqual(self.main("--collection", "test", "--assemble", "table4"), 2)
         state = json.loads((self.directory / "assembled/table4/status.json").read_text())
         self.assertEqual(state["status"], "pending")
-        self.assertFalse((self.directory / "assembled/table4/data.csv").exists())
+        self.assertTrue((self.directory / "assembled/table4/data.csv").is_file())
+        self.assertIn("hardware_peak_tflops", (self.directory / "assembled/table4/table.csv").read_text())
 
     def test_dry_run_does_not_create_collection(self):
         self.assertEqual(self.main("--collection", "test", "--assemble", "--dry-run"), 0)
         self.assertFalse(self.directory.exists())
+
+    def test_table4_derives_collected_table3_without_measurement(self):
+        spec = importlib.util.spec_from_file_location("table4_collection_fixture", HERE / "table3/test_assemble.py")
+        fixture = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fixture)
+        source = fixture.make_part(self.root / "table3-source", ((64, "tf32", "register"),))
+        (source / "status.json").write_text(json.dumps({"evaluation": "table3",
+            "profile": "smoke", "status": "completed", "exit_code": 0}))
+        collection.add_part(self.directory, "table3", "a100", source, "smoke")
+        shutil.rmtree(source)
+        self.assertEqual(self.main("--collection", "test", "--assemble", "table4"), 2)
+        output = self.directory / "assembled/table4"
+        with (output / "table.csv").open() as stream:
+            rows = list(csv.DictReader(stream))
+        a100 = next(row for row in rows if row["gpu"] == "A100")
+        self.assertAlmostEqual(float(a100["unit_tflops"]), 6144 * 1024 / (1.5 * 1e6))
+        self.assertEqual(a100["ideal_mma_tflops"], "")
+        self.assertTrue(all(row["unit_tflops"] == "" for row in rows if row["gpu"] != "A100"))
+        self.assertFalse((self.directory / "assembled/table3").exists())
+        state = json.loads((output / "status.json").read_text())
+        self.assertEqual(state["source_parts"], ["parts/table3/a100"])
+        with (self.directory / "assembled/status.csv").open() as stream:
+            self.assertEqual(next(csv.DictReader(stream))["parts"], "1")
 
     def test_selected_update_preserves_previously_assembled_evaluations(self):
         collection.add_part(self.directory, "table2", "model", self.bundle(), "smoke")
@@ -118,6 +143,32 @@ class CollectionChecks(unittest.TestCase):
         self.assertTrue((self.directory / "assembled/table4/status.json").is_file())
         statuses = json.loads((self.directory / "assembled/manifest.json").read_text())["evaluations"]
         self.assertEqual({state["evaluation"] for state in statuses}, {"table2", "table4"})
+
+    def test_table4_separate_ideal_parts_complete_with_three_matching_units(self):
+        spec = importlib.util.spec_from_file_location("table4_full_collection_fixture", HERE / "table4/test_derive.py")
+        fixture = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fixture)
+        for gpu in fixture.DERIVE.GPUS:
+            unit = fixture.make_part(self.root / f"unit-{gpu}", gpu=gpu, profile="paper",
+                                     gpu_uuid=fixture.UUIDS[gpu])
+            ideal = fixture.make_ideal(self.root / f"ideal-{gpu}", gpu=gpu, profile="paper")
+            bundle = self.root / f"bundle-{gpu}"
+            fixture.DERIVE.generate([], bundle, "paper", ideal_dirs=[ideal])
+            (bundle / "status.json").write_text(json.dumps({"evaluation": "table4", "profile": "paper",
+                                                           "status": "completed", "exit_code": 0}))
+            collection.add_part(self.directory, "table4", f"ideal-{gpu}", bundle, "paper")
+            collection.add_part(self.directory, "table3", f"unit-{gpu}", unit, "paper")
+            shutil.rmtree(ideal)
+            shutil.rmtree(bundle)
+            shutil.rmtree(unit)
+        self.assertEqual(self.main("--collection", "test", "--assemble", "table4"), 0)
+        manifest = json.loads((self.directory / "assembled/manifest.json").read_text())
+        self.assertTrue(manifest["complete"])
+        self.assertTrue(manifest["full_paper_comparison"])
+        self.assertFalse(manifest["new_gpu_measurements"])
+        state = json.loads((self.directory / "assembled/table4/status.json").read_text())
+        self.assertEqual((state["status"], state["matched_gpu_pairs"]), ("complete", 3))
+        self.assertEqual(len(state["source_parts"]), 6)
 
     def test_terminal_checkpoint_recovery_and_figure_after_original_removed(self):
         spec = importlib.util.spec_from_file_location("collection_table3_fixture", HERE / "table3/test_assemble.py")

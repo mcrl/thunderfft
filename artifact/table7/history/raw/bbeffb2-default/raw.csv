@@ -1,0 +1,2 @@
+variant,N,batch,precision,trial,inside_repeats,t_R_us,t_2R_us,compute_us,relative_l2,max_transform_relative_l2,nonfinite_outputs,output_guard_changed,passed
+register_branch,64,65536,tf32,0,1000,3563.51995468,7113.72804642,3.55020809174,nan,nan,0,0,0

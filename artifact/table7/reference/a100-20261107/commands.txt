@@ -1,0 +1,4 @@
+/home/chaewon/ThunderFFT/build_artifact/table7/thff_ablation register_branch 65536 1000 1 --timing-only
+/home/chaewon/ThunderFFT/build_artifact/table7/thff_ablation register_uniform 65536 1000 1 --timing-only
+/home/chaewon/ThunderFFT/build_artifact/table7/thff_ablation historical_e4aa1b0 65536 1000 1 --timing-only
+/home/chaewon/ThunderFFT/build_artifact/table7/thff_ablation historical_652808b 65536 1000 1 --timing-only

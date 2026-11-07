@@ -2,6 +2,7 @@
 """CPU fixtures for split Table 7 collection and offline assembly."""
 import contextlib
 import csv
+import hashlib
 import importlib.util
 import io
 import json
@@ -24,8 +25,30 @@ GPU = ("gpu=NVIDIA A100 80GB PCIe device=0 sm=8.0 sm_count=108 driver=12090 runt
        f"gpu_uuid={UUID}\n")
 
 
-def fixture_rows(variant):
-    return [dict(zip(measure.RAW_FIELDS, (variant, 64, 64, "tf32", 0, 128, 100, 228, 1, .001, .002, 0, 0, 1)))]
+@contextlib.contextmanager
+def future_recovered_variants():
+    """Exercise full-table behavior with explicitly fictional recovered sources."""
+    path = HERE / "variants.json"
+    manifest = json.loads(path.read_text())
+    uniform_source = next(entry["source"] for entry in manifest["variants"] if entry["id"] == "register_uniform")
+    for entry in manifest["variants"]:
+        if entry["status"] != "available":
+            entry.update(status="available", implementation_kind="recovered",
+                         source=uniform_source)
+    original_read = Path.read_text
+    def read_text(candidate, *args, **kwargs):
+        if candidate == path:
+            return json.dumps(manifest)
+        return original_read(candidate, *args, **kwargs)
+    # These fixture counts are not declarations about the unrecovered sources.
+    with patch.object(Path, "read_text", read_text), \
+            patch.dict(measure.utilization.FLOPS_PER_FFT, {"radix16": 12288, "radix4_compute": 6144}):
+        yield
+
+
+def fixture_rows(variant, time_us=1):
+    return [dict(zip(measure.RAW_FIELDS, (variant, 64, 64, "tf32", 0, 128,
+                                       100, 100 + 128 * time_us, time_us, .001, .002, 0, 0, 1)))]
 
 
 def fixture_profile(part, variant):
@@ -35,20 +58,38 @@ def fixture_profile(part, variant):
     (part / f"{variant}.profile.json").write_text("not a Table 7 utilization input\n")
 
 
-def fixture_part(root, name, variant="register_uniform", phase="timing"):
+def fixture_part(root, name, variant="register_uniform", phase="timing", time_us=1,
+                 timing_only=False, trials=1, input_pattern=None):
     part = root / name
     part.mkdir()
+    manifest = json.loads((HERE / "variants.json").read_text())
+    hashes = {entry["source"]: hashlib.sha256((HERE / entry["source"]).read_bytes()).hexdigest()
+              for entry in measure.manifest_entries(manifest) if entry["status"] == "available"}
+    hashes["measure.py"] = "a" * 64
     metadata = {"evaluation": "table7", "profile": "smoke", "phase": phase,
-                "status": "completed_declared_subset", "settings": {"batch": 64, "R": 128, "trials": 1, "precision": "TF32"},
+                "status": "completed_timing_only" if timing_only else "completed_declared_subset",
+                "timing_only": timing_only, "accuracy_status": "unchecked" if timing_only else "passed",
+                "settings": {"batch": 64, "R": 128, "trials": trials, "precision": "TF32",
+                             "warmups_per_repeat_count": 1 if timing_only else 3},
                 "coverage": {"measured_variants": [variant]},
-                "source_sha256": {"ablation/kernels/recovered.cuh": "a" * 64}, "binary_sha256": "b" * 64}
+                "source_sha256": hashes, "binary_sha256": "b" * 64}
+    if input_pattern is not None:
+        metadata["settings"]["input_pattern"] = input_pattern
     (part / "metadata.json").write_text(json.dumps(metadata))
     (part / "status.json").write_text(json.dumps({"status": "completed"}))
     rows = []
     if phase in ("timing", "both"):
-        rows = fixture_rows(variant)
+        rows = [dict(fixture_rows(variant, time_us)[0], trial=trial) for trial in range(trials)]
+        if timing_only:
+            for row in rows:
+                row.update(relative_l2="nan", max_transform_relative_l2="nan",
+                           nonfinite_outputs=-1, output_guard_changed=-1, passed=0)
         measure.write_csv(part / f"{variant}.csv", rows, measure.RAW_FIELDS)
-        (part / f"{variant}.log").write_text(GPU)
+        log = GPU + ("accuracy_status=unchecked timing_only=1 R1_validation=0 output_guard_checks=0\n"
+                     if timing_only else "")
+        if input_pattern is not None:
+            log += f"timing_input={input_pattern}\n"
+        (part / f"{variant}.log").write_text(log)
     measure.write_csv(part / "data.csv", rows, measure.RAW_FIELDS)
     if phase in ("profile", "both"):
         fixture_profile(part, variant)
@@ -105,6 +146,188 @@ class AssemblyChecks(unittest.TestCase):
         self.assertEqual(self.table()["register_uniform"]["utilization_pct"], "")
         self.assertEqual(len(result["ignored_parts"]), 1)
 
+    def test_unchecked_and_validated_parts_preserve_different_protocols_and_sources(self):
+        diagnostic = fixture_part(self.root, "unchecked", "register_branch", timing_only=True,
+                                  trials=2, input_pattern="constant_0.125_minus0.25")
+        path = diagnostic / "metadata.json"
+        meta = json.loads(path.read_text())
+        meta["binary_sha256"] = "c" * 64
+        meta["source_sha256"]["measure.py"] = "d" * 64
+        path.write_text(json.dumps(meta))
+        valid = fixture_part(self.root, "validated", input_pattern="bounded_complex_gaussian_seed1234567")
+        result = self.assemble([diagnostic, valid])
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["collected"]["timing"], ["register_branch", "register_uniform"])
+        self.assertEqual(result["collected"]["unchecked"], ["register_branch"])
+        self.assertEqual(result["accuracy_status"], "mixed")
+        self.assertTrue(result["protocol_heterogeneous"])
+        self.assertEqual(result["ignored_parts"], [])
+        branch = self.table()["register_branch"]
+        self.assertEqual(branch["timing_status"], "collected_unvalidated")
+        self.assertEqual(branch["accuracy_status"], "unchecked")
+        self.assertEqual(branch["utilization_status"], "calculated_unvalidated")
+        self.assertEqual(branch["max_transform_relative_l2"], "")
+        self.assertEqual(branch["trials"], "2")
+        self.assertEqual(branch["warmups_per_repeat_count"], "1")
+        self.assertEqual(branch["binary_sha256"], "c" * 64)
+        self.assertEqual(branch["input_pattern"], "constant_0.125_minus0.25")
+        self.assertEqual(float(self.table()["register_uniform"]["median_time_ms"]), .001)
+        self.assertFalse(result["full_paper_comparison"])
+
+    def test_four_separate_timings_complete_table_and_calculate_baseline_speedup(self):
+        times = {"radix16": 8, "radix4_compute": 12, "register_branch": 7, "register_uniform": 4}
+        parts = [fixture_part(self.root, variant, variant, time_us=time_us)
+                 for variant, time_us in times.items()]
+        with future_recovered_variants():
+            result = self.assemble(parts)
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["missing"], [])
+        self.assertFalse(result["full_paper_comparison"])
+        self.assertEqual(result["paper_identity"], "unconfirmed")
+        for variant, row in self.table().items():
+            self.assertAlmostEqual(float(row["radix16_speedup"]), 8 / times[variant])
+            expected_flops = 12288 if variant == "radix16" else 6144
+            self.assertEqual(int(row["tensor_flops_per_fft"]), expected_flops)
+            self.assertAlmostEqual(float(row["utilization_pct"]), expected_flops * 64 / times[variant] / 1e6 / 156 * 100)
+
+    def test_partial_historical_kernels_append_without_claiming_original_paper_rows(self):
+        parts = [fixture_part(self.root, variant, variant, timing_only=True)
+                 for variant in ("historical_e4aa1b0", "historical_652808b")]
+        result = self.assemble(parts)
+        table = self.table()
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(len(table), 6)
+        self.assertEqual(len(result["missing"]), 8)
+        for variant in ("radix16", "radix4_compute", "register_branch", "register_uniform"):
+            self.assertEqual(table[variant]["median_time_ms"], "")
+        for variant in ("historical_e4aa1b0", "historical_652808b"):
+            row = table[variant]
+            self.assertEqual(row["accuracy_status"], "unchecked")
+            self.assertEqual(row["implementation_kind"], "historical_partial_kernel")
+            self.assertTrue(row["operation_coverage"].startswith("partial_fft_"))
+            self.assertIn("not a mathematically valid FFT", row["known_source_issues"])
+            self.assertEqual(row["timing_scope"], "repeated_kernel_compute")
+            self.assertEqual(row["paper_identity"], "unconfirmed")
+            self.assertEqual(row["radix16_speedup"], "")
+            self.assertRegex(row["source_commit"], "^[0-9a-f]{40}$")
+            self.assertRegex(row["source_sha256"], "^[0-9a-f]{64}$")
+        with (self.output / "kernel_comparison.csv").open() as stream:
+            comparison = list(csv.DictReader(stream))
+        self.assertEqual([row["variant"] for row in comparison], ["historical_e4aa1b0", "historical_652808b"])
+        self.assertFalse(result["full_paper_comparison"])
+
+    def test_partial_kernel_cannot_claim_validated_output(self):
+        part = fixture_part(self.root, "partial", "historical_e4aa1b0")
+        with self.assertRaisesRegex(ValueError, "requires timing-only"):
+            self.assemble([part])
+
+    def test_unchecked_duplicate_nan_rows_are_equal_but_changed_provenance_is_rejected(self):
+        first = fixture_part(self.root, "first", timing_only=True)
+        second = fixture_part(self.root, "second", timing_only=True)
+        result = self.assemble([first, second])
+        self.assertEqual(result["collected"]["unchecked"], ["register_uniform"])
+        path = second / "metadata.json"
+        meta = json.loads(path.read_text())
+        meta["binary_sha256"] = "c" * 64
+        path.write_text(json.dumps(meta))
+        with self.assertRaisesRegex(ValueError, "Conflicting source or measurement provenance"):
+            self.assemble([first, second])
+
+    def test_unchecked_parts_need_consistent_metadata_log_and_raw_sentinels(self):
+        for fault in ("metadata", "log", "raw", "input", "coverage"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                part = fixture_part(root, "part", timing_only=True)
+                if fault in ("metadata", "input", "coverage"):
+                    path = part / "metadata.json"
+                    meta = json.loads(path.read_text())
+                    if fault == "metadata":
+                        meta["accuracy_status"] = "passed"
+                    elif fault == "input":
+                        meta["settings"]["input_pattern"] = "constant_0.125_minus0.25"
+                    else:
+                        meta["variant_provenance"] = {"register_uniform": {"operation_coverage": "fabricated"}}
+                    path.write_text(json.dumps(meta))
+                elif fault == "log":
+                    (part / "register_uniform.log").write_text(GPU)
+                else:
+                    for filename in ("data.csv", "register_uniform.csv"):
+                        path = part / filename
+                        path.write_text(path.read_text().replace(",nan,nan,", ",0,nan,"))
+                with self.assertRaises(ValueError):
+                    assembly.assemble([part], root / "output", "smoke")
+
+    def test_baseline_subset_keeps_uncollected_variants_blank(self):
+        parts = [fixture_part(self.root, "baseline", "radix16", time_us=8),
+                 fixture_part(self.root, "uniform", time_us=4)]
+        with future_recovered_variants():
+            result = self.assemble(parts)
+        self.assertEqual(result["status"], "partial")
+        table = self.table()
+        self.assertEqual(float(table["radix16"]["radix16_speedup"]), 1)
+        self.assertEqual(float(table["register_uniform"]["radix16_speedup"]), 2)
+        self.assertEqual(table["radix4_compute"]["radix16_speedup"], "")
+        self.assertEqual(table["register_branch"]["median_time_ms"], "")
+
+    def test_previous_reconstruction_cannot_complete_missing_paper_rows(self):
+        parts = [fixture_part(self.root, "baseline", "radix16", time_us=8),
+                 fixture_part(self.root, "shared", "radix4_compute", time_us=12)]
+        result = self.assemble(parts)
+        self.assertEqual(result["status"], "pending")
+        self.assertEqual(result["collected"]["timing"], [])
+        self.assertEqual({entry["variant"] for entry in result["ignored_variants"]},
+                         {"radix16", "radix4_compute"})
+        for entry in result["ignored_variants"]:
+            self.assertIn("not been recovered", entry["reason"])
+        for row in self.table().values():
+            self.assertEqual(row["median_time_ms"], "")
+            self.assertEqual(row["radix16_speedup"], "")
+
+    def test_old_mixed_bundle_keeps_only_unchanged_recovered_source(self):
+        part = fixture_part(self.root, "old-all")
+        selected = ["radix16", "radix4_compute", "register_branch", "register_uniform"]
+        combined = []
+        for variant in selected:
+            rows = fixture_rows(variant)
+            combined.extend(rows)
+            measure.write_csv(part / f"{variant}.csv", rows, measure.RAW_FIELDS)
+            (part / f"{variant}.log").write_text(GPU)
+        measure.write_csv(part / "data.csv", combined, measure.RAW_FIELDS)
+        path = part / "metadata.json"
+        meta = json.loads(path.read_text())
+        meta["coverage"]["measured_variants"] = selected
+        # The old all-four binary had only the 403c6ae branch source, so it must
+        # not be presented as a measurement of the new 51e346c branch candidate.
+        del meta["source_sha256"]["ablation/kernels/historical_branch_51e346c.cuh"]
+        path.write_text(json.dumps(meta))
+        result = self.assemble([part])
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["collected"]["timing"], ["register_uniform"])
+        self.assertEqual(result["parts"][0]["variants"], ["register_uniform"])
+        ignored = {entry["variant"]: entry["reason"] for entry in result["ignored_variants"]}
+        self.assertEqual(set(ignored), {"radix16", "radix4_compute", "register_branch"})
+        self.assertIn("source hash", ignored["register_branch"])
+        self.assertEqual(float(self.table()["register_uniform"]["median_time_ms"]), .001)
+        self.assertEqual(self.table()["register_branch"]["median_time_ms"], "")
+        self.assertTrue(all(row["radix16_speedup"] == "" for row in self.table().values()))
+
+    def test_experimental_variant_ids_are_not_paper_rows(self):
+        part = fixture_part(self.root, "experimental", "reconstructed_radix16")
+        with self.assertRaisesRegex(ValueError, "measured-variant coverage"):
+            self.assemble([part])
+
+    def test_changed_current_source_is_not_accepted_as_the_same_candidate(self):
+        part = fixture_part(self.root, "changed")
+        path = part / "metadata.json"
+        meta = json.loads(path.read_text())
+        manifest = json.loads((HERE / "variants.json").read_text())
+        source = next(entry["source"] for entry in manifest["variants"] if entry["id"] == "register_uniform")
+        meta["source_sha256"][source] = "f" * 64
+        path.write_text(json.dumps(meta))
+        result = self.assemble([part])
+        self.assertEqual(result["status"], "pending")
+        self.assertIn("source hash", result["ignored_variants"][0]["reason"])
+
     def test_legacy_both_reuses_timing_and_ignores_profiler_values(self):
         part = fixture_part(self.root, "both", phase="both")
         result = self.assemble([part])
@@ -145,7 +368,7 @@ class AssemblyChecks(unittest.TestCase):
                 if field == "settings":
                     meta[field]["batch"] = 128
                 elif field == "source_sha256":
-                    meta[field]["ablation/kernels/recovered.cuh"] = "c" * 64
+                    meta[field]["measure.py"] = "c" * 64
                 elif field == "binary_sha256":
                     meta[field] = "c" * 64
                 else:
@@ -194,18 +417,93 @@ class AssemblyChecks(unittest.TestCase):
 
 
 class CollectionChecks(unittest.TestCase):
+    def test_default_selection_adds_optional_microbenchmarks_only_for_unchecked_mode(self):
+        manifest = json.loads((HERE / "variants.json").read_text())
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(measure.requested_variants(manifest), "register_branch,register_uniform")
+            os.environ["THUNDERFFT_TABLE7_TIMING_ONLY"] = "1"
+            self.assertEqual(measure.requested_variants(manifest),
+                             "register_branch,register_uniform,historical_e4aa1b0,historical_652808b")
+            os.environ["THUNDERFFT_TABLE7_VARIANTS"] = "all"
+            self.assertEqual(measure.requested_variants(manifest), "all")
+
+    def test_timing_only_choice_is_explicit_and_ranges_match_native(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(measure.selected_timing_only())
+            os.environ["THUNDERFFT_TABLE7_TIMING_ONLY"] = "1"
+            self.assertTrue(measure.selected_timing_only())
+            os.environ["THUNDERFFT_TABLE7_TIMING_ONLY"] = "true"
+            with self.assertRaises(ValueError):
+                measure.selected_timing_only()
+            for key, maximum in (("THUNDERFFT_TABLE7_BATCH", 1048576), ("THUNDERFFT_TABLE7_TRIALS", 100)):
+                os.environ[key] = str(maximum)
+                self.assertEqual(measure.setting(key, 1, maximum=maximum), maximum)
+                os.environ[key] = str(maximum + 1)
+                with self.assertRaises(ValueError):
+                    measure.setting(key, 1, maximum=maximum)
+
+    def test_timing_only_routes_native_flag_and_assembles_unvalidated_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary, build, output = root / "fake-binary", root / "build", root / "output"
+            binary.write_text("CPU fixture")
+            build.mkdir()
+            calls = []
+            def run(command, **kwargs):
+                calls.append(command)
+                self.assertEqual(command, [str(binary), "register_uniform", "64", "128", "1", "--timing-only"])
+                rows = fixture_rows("register_uniform")
+                rows[0].update(relative_l2="nan", max_transform_relative_l2="nan",
+                               nonfinite_outputs=-1, output_guard_changed=-1, passed=0)
+                writer = csv.DictWriter(kwargs["stdout"], fieldnames=measure.RAW_FIELDS)
+                writer.writeheader()
+                writer.writerows(rows)
+                kwargs["stderr"].write(GPU + "accuracy_status=unchecked timing_only=1 R1_validation=0 output_guard_checks=0\n"
+                                       "timing_input=constant_0.125_minus0.25\n")
+                return subprocess.CompletedProcess(command, 0)
+            env = {"THUNDERFFT_TABLE7_VARIANTS": "register_uniform", "THUNDERFFT_TABLE7_TIMING_ONLY": "1",
+                   "THUNDERFFT_TABLE7_BATCH": "64", "THUNDERFFT_TABLE7_REPEATS": "128", "THUNDERFFT_TABLE7_TRIALS": "1"}
+            argv = ["measure.py", "--output", str(output), "--binary", str(binary), "--build-dir", str(build)]
+            with patch.dict(os.environ, env, clear=True), patch.object(sys, "argv", argv), \
+                    patch.object(measure, "capture", return_value={}), \
+                    patch.object(measure.subprocess, "run", side_effect=run), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(measure.main(), 0)
+            self.assertEqual(len(calls), 1)
+            meta = json.loads((output / "metadata.json").read_text())
+            self.assertEqual(meta["status"], "completed_timing_only")
+            self.assertEqual(meta["accuracy_status"], "unchecked")
+            self.assertEqual(meta["settings"]["warmups_per_repeat_count"], 1)
+            self.assertEqual(meta["settings"]["input_pattern"], "constant_0.125_minus0.25")
+            self.assertEqual(meta["coverage"]["gpu_validation"], "not_run_timing_only")
+            with (output / "table.csv").open() as stream:
+                row = next(csv.DictReader(stream))
+            self.assertEqual(row["timing_status"], "collected_unvalidated")
+            self.assertEqual(row["utilization_status"], "calculated_unvalidated")
+            self.assertEqual(row["max_transform_relative_l2"], "")
+            self.assertEqual(row["radix16_speedup"], "")
+            result = assembly.assemble([output], root / "assembled", "smoke")
+            self.assertEqual(result["status"], "partial")
+            self.assertEqual(result["collected"]["timing"], ["register_uniform"])
+            self.assertEqual(result["accuracy_status"], "unchecked")
+            self.assertEqual(result["ignored_parts"], [])
+            self.assertTrue(result["unit_kernel_comparison"]["available"])
+            self.assertEqual((output / "kernel_comparison.csv").read_text(),
+                             (root / "assembled" / "kernel_comparison.csv").read_text())
+
     def test_collection_defaults_available_variants_without_gpu(self):
         with tempfile.TemporaryDirectory() as directory:
             env = dict(os.environ, CUDA_VISIBLE_DEVICES="", THUNDERFFT_COLLECTION="fixture")
             env.pop("THUNDERFFT_TABLE7_VARIANTS", None)
             env.pop("THUNDERFFT_TABLE7_PHASE", None)
             env.pop("THUNDERFFT_TABLE7_NCU", None)
+            env.pop("THUNDERFFT_TABLE7_TIMING_ONLY", None)
             result = subprocess.run([sys.executable, str(HERE / "measure.py"), "--check-selection", "--output", directory], env=env,
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stderr)
             coverage = json.loads((Path(directory) / "coverage.json").read_text())
             self.assertEqual(coverage["requested"], "register_branch,register_uniform")
-            self.assertEqual(len(coverage["source_missing"]), 2)
+            self.assertEqual(coverage["source_missing"], ["radix16", "radix4_compute"])
 
     def test_profiling_is_not_a_table_utilization_phase(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -253,7 +551,57 @@ class CollectionChecks(unittest.TestCase):
             with (output / "table.csv").open() as stream:
                 row = next(csv.DictReader(stream))
             self.assertAlmostEqual(float(row["utilization_pct"]), .393216 / 156 * 100)
-            self.assertEqual(json.loads((output / "metadata.json").read_text())["phase"], "timing")
+            self.assertEqual(row["radix16_speedup"], "")
+            metadata = json.loads((output / "metadata.json").read_text())
+            self.assertEqual(metadata["phase"], "timing")
+            self.assertEqual(json.loads((output / "coverage.json").read_text()), metadata["coverage"])
+            self.assertEqual(metadata["coverage"]["measured_variants"], ["register_uniform"])
+
+    def test_full_measurement_exports_speedup_and_refreshed_coverage(self):
+        # Native output fixtures only: this test never launches a GPU workload.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary, build, output = root / "fake-binary", root / "build", root / "output"
+            binary.write_text("CPU test fixture")
+            build.mkdir()
+            times = {"radix16": 8, "radix4_compute": 12, "register_branch": 7, "register_uniform": 4}
+            calls = []
+            def run(command, **kwargs):
+                calls.append(command)
+                variant = command[1]
+                self.assertEqual(command, [str(binary), variant, "64", "128", "1"])
+                stream = io.StringIO()
+                writer = csv.DictWriter(stream, fieldnames=measure.RAW_FIELDS)
+                writer.writeheader()
+                writer.writerows(fixture_rows(variant, times[variant]))
+                kwargs["stdout"].write(stream.getvalue())
+                kwargs["stderr"].write(GPU)
+                return subprocess.CompletedProcess(command, 0)
+            env = {"THUNDERFFT_TABLE7_BATCH": "64", "THUNDERFFT_TABLE7_REPEATS": "128", "THUNDERFFT_TABLE7_TRIALS": "1"}
+            argv = ["measure.py", "--output", str(output), "--binary", str(binary), "--build-dir", str(build)]
+            with future_recovered_variants(), patch.dict(os.environ, env, clear=True), patch.object(sys, "argv", argv), \
+                    patch.object(measure, "capture", return_value={}), \
+                    patch.object(measure.subprocess, "run", side_effect=run), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(measure.main(), 0)
+            self.assertEqual([command[1] for command in calls], list(times))
+            metadata = json.loads((output / "metadata.json").read_text())
+            coverage = json.loads((output / "coverage.json").read_text())
+            self.assertEqual(coverage, metadata["coverage"])
+            self.assertEqual(coverage["measured_variants"], list(times))
+            self.assertIn("passed", coverage["gpu_validation"])
+            self.assertIn("ablation/kernels/radix16.cuh", metadata["source_sha256"])
+            self.assertIn("ablation/kernels/radix4_shared.cuh", metadata["source_sha256"])
+            with (output / "table.csv").open() as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 4)
+            for row in rows:
+                self.assertAlmostEqual(float(row["radix16_speedup"]), 8 / times[row["variant"]])
+            with future_recovered_variants():
+                result = assembly.assemble([output], root / "assembled", "smoke")
+            self.assertEqual(result["status"], "complete")
+            with (root / "assembled" / "table.csv").open() as stream:
+                self.assertEqual(list(csv.DictReader(stream)), rows)
 
 
 if __name__ == "__main__":

@@ -87,9 +87,12 @@
       "id": "table4",
       "title": "Peak, ideal MMA and 64-point unit throughput",
       "paper_page": 8,
-      "implementation": "pending",
+      "implementation": "ready",
       "owner": null,
       "depends_on": [],
+      "optional_depends_on": [
+        "table3"
+      ],
       "required_outputs": {
         "smoke": [
           "data.csv"
@@ -99,8 +102,9 @@
           "table.csv"
         ]
       },
-      "available": false,
-      "full_paper_comparison": false
+      "available": true,
+      "full_paper_comparison": false,
+      "coverage": "Measured TF32 m16n8k8 ideal throughput, N64 unit throughput reused from Table 3, and efficiency on matching GPU UUIDs; one GPU per run with offline multi-GPU assembly; hardware peaks are paper references"
     },
     {
       "id": "table5",
@@ -147,21 +151,23 @@
       "id": "table7",
       "title": "64-point optimization ablation",
       "paper_page": 9,
-      "implementation": "prepared_subset",
+      "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
         "smoke": [
-          "data.csv"
+          "data.csv",
+          "kernel_comparison.csv"
         ],
         "paper": [
           "data.csv",
-          "table.csv"
+          "table.csv",
+          "kernel_comparison.csv"
         ]
       },
-      "available": false,
+      "available": true,
       "full_paper_comparison": false,
-      "coverage": "Recovered N64 register-branch/uniform candidates and measurement code; radix16/radix4 sources missing; GPU validation not run"
+      "coverage": "N64 TF32 unit-kernel timings: 51e346c branch and 5e37821 uniform complete-FFT candidates, plus optional e4aa1b0 and 652808b partial kernels in timing-only mode; collected rows retain accuracy and operation coverage; first two original paper sources missing and full paper-stage identity unconfirmed"
     },
     {
       "id": "figure2",

@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "purpose": "Archived A100 historical unit-kernel measurement bundle",
+  "measurement_date": "2026-11-07",
+  "original_run_id": "20261107T080020Z-187d854c",
+  "accuracy_status": "unchecked",
+  "full_paper_comparison": false,
+  "trials": 1,
+  "raw_files_modified": false,
+  "files": [
+    {
+      "path": "build.log",
+      "sha256": "f820f86f565012999d7a051edbb8b68d96d716cda37a8cff17e98d04ccecc7e5"
+    },
+    {
+      "path": "commands.txt",
+      "sha256": "a3465e89abb921933a01cc2908d9aa3034fcac35d7eab521e92c1a9d143ec68e"
+    },
+    {
+      "path": "configure.log",
+      "sha256": "0dbaacde7ffdd1d17bf424f3e24831c01c04a012cb6b89d873271515efaf9b22"
+    },
+    {
+      "path": "coverage.json",
+      "sha256": "28e9c433f6c5d01e8d9a60393f50e80f1ea729c8f91bc3cd4f4458d9a33aa4a8"
+    },
+    {
+      "path": "data.csv",
+      "sha256": "8f65ed58900823781061021d3af1175d14b94b70d158b379ac1192fcbc3ca5be"
+    },
+    {
+      "path": "historical_652808b.csv",
+      "sha256": "d1b557e1fa18653ed9437296a797679e7528e2a499ec51a80925b345b2ed86b6"
+    },
+    {
+      "path": "historical_652808b.log",
+      "sha256": "484c2d0f95d5fe484fdb071313851f0f0572057a938c875c954f8a5b55a66e45"
+    },
+    {
+      "path": "historical_e4aa1b0.csv",
+      "sha256": "d34f19aa0d444760fb43f367c92c9c55d6a2708b5fd1c1aa2388510faa6fd72a"
+    },
+    {
+      "path": "historical_e4aa1b0.log",
+      "sha256": "078b92fd61d37f443d49cc657477ab59ca83f85ba9e59bbd2b3f7a040d1b45eb"
+    },
+    {
+      "path": "kernel_comparison.csv",
+      "sha256": "30822c5aba0330e734af5f70a9126b4a1b544892d588d3c64ab91ed5a9092159"
+    },
+    {
+      "path": "metadata.json",
+      "sha256": "987cd50f0d6b435ea973702fa3f3a96bef22f727df55f98d2fd3593a7b5928fc"
+    },
+    {
+      "path": "register_branch.csv",
+      "sha256": "dfc7c4e0727c59280e0c3e0d4db9d99e2a44ec473fc9c823de7c75150173d86d"
+    },
+    {
+      "path": "register_branch.log",
+      "sha256": "70140d75479eeaa7e857137bba9786aa07e336b435291807818d8a188062e87a"
+    },
+    {
+      "path": "register_uniform.csv",
+      "sha256": "6a5172bd544f27144778dc28c508ce655bf64f501c301887657011861a869f26"
+    },
+    {
+      "path": "register_uniform.log",
+      "sha256": "7239b20800f8a2a40d46a4072490f4fae2b523247c52befb9a4491674c8d4ba5"
+    },
+    {
+      "path": "run.log",
+      "sha256": "e3d89ff2f0ee1d23d3916c31fe95055c8f1e9a18c7955bf759114f9045830e34"
+    },
+    {
+      "path": "status.json",
+      "sha256": "2cd92021cc48953c4618227e097bd05edddc882ebbf6c44351063cf3a13c6497"
+    },
+    {
+      "path": "table.csv",
+      "sha256": "30822c5aba0330e734af5f70a9126b4a1b544892d588d3c64ab91ed5a9092159"
+    }
+  ]
+}

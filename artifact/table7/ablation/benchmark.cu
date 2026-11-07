@@ -1,7 +1,13 @@
-// Native driver for recovered Table 7 candidates. See kernels/provenance.json.
+// Native driver for Table 7 candidates. See kernels/provenance.json.
 // Repeated FFTs are a compute-throughput workload; their outputs can overflow.
-// Accuracy is established independently with R=1, before timing or profiling.
+// Default runs validate R=1. Explicit --timing-only runs are unvalidated diagnostics.
 #include "kernels/recovered.cuh"
+#include "kernels/historical_branch_51e346c.cuh"
+#include "kernels/historical_uniform_5e37821.cuh"
+#include "kernels/historical_e4aa1b0.cuh"
+#include "kernels/historical_652808b.cuh"
+#include "kernels/radix16.cuh"
+#include "kernels/radix4_shared.cuh"
 
 #include <algorithm>
 #include <cmath>
@@ -22,6 +28,7 @@ constexpr int kThreadsPerBlock = 32;
 constexpr int kGuardElements = 16;
 constexpr int kCheckBatch = 64;
 constexpr int kWarmups = 3;
+constexpr int kUniformSharedBytes = 8704;  // Original 5e37821 host launch.
 constexpr double kErrorThreshold = 0.005;
 constexpr double kPi = 3.141592653589793238462643383279502884;
 constexpr std::uint32_t kSeed = 1234567;
@@ -34,7 +41,7 @@ void check_cuda(cudaError_t status, const char* expression) {
 }
 #define CUDA_CHECK(expression) check_cuda((expression), #expression)
 
-enum class Variant { branch, uniform };
+enum class Variant { radix16, radix4_shared, branch, uniform, historical_e4aa1b0, historical_652808b };
 
 struct DeviceBuffer {
     cuFloatComplex* pointer = nullptr;
@@ -72,12 +79,16 @@ int parse_int(const char* text, int minimum, int maximum, const char* name) {
 
 void help() {
     std::printf(
-        "Usage: benchmark VARIANT [batch=65536] [R=1000] [trials=3] [--profile]\n"
+        "Usage: benchmark VARIANT [batch=65536] [R=1000] [trials=3] [--profile|--timing-only]\n"
         "VARIANT: register_branch | register_uniform\n"
+        "Timing-only historical microbenchmarks: historical_e4aa1b0 | historical_652808b\n"
+        "Experimental only: reconstructed_radix16 | reconstructed_radix4_compute\n"
         "N=64, forward, unnormalized TF32, batch must be a multiple of 16.\n"
-        "First validate R=1 Gaussian and tone inputs (batch64) against CPU FP64 DFT.\n"
+        "Default: validate R=1 Gaussian and tone inputs (batch64) against CPU FP64 DFT.\n"
         "Timing: reset immutable input before each launch; report (t_2R-t_R)/R.\n"
         "Repeated outputs may overflow and are not numerical validation.\n"
+        "--timing-only: skip accuracy/guard checks; one warmup per repeat count;\n"
+        "               constant input (0.125,-0.25); NaN errors, -1 check counts, passed=0.\n"
         "--profile: after the two validation launches, launch R once and exit;\n"
         "           no warmups or timing rows (for an external profiler).\n"
         "CSV: variant,N,batch,precision,trial,inside_repeats,t_R_us,t_2R_us,"
@@ -85,14 +96,27 @@ void help() {
         "output_guard_changed,passed\n");
 }
 
-void launch(Variant variant, cuFloatComplex* data, int batch, unsigned repeats) {
+void launch(Variant variant, cuFloatComplex* data, int batch, unsigned repeats,
+            const cuFloatComplex* twiddles) {
     const unsigned blocks = static_cast<unsigned>(batch / kTransformsPerBlock);
-    if (variant == Variant::uniform) {
-        thff_table7_legacy::fft_kernel_radix64_batch16<<<
-            blocks, kThreadsPerBlock, 8192>>>(data, nullptr, repeats);
-    } else {
-        thff_table7_legacy::fft_kernel_radix64_batch16_branch<<<
+    if (variant == Variant::radix16) {
+        thff_table7_legacy::fft_kernel_radix16_batch16<<<
             blocks, kThreadsPerBlock>>>(data, nullptr, repeats);
+    } else if (variant == Variant::radix4_shared) {
+        thff_table7_legacy::fft_kernel_radix4_shared_batch16<<<
+            blocks, kThreadsPerBlock>>>(data, nullptr, repeats);
+    } else if (variant == Variant::uniform) {
+        thff_table7_5e37821::fft_kernel_radix64_batch16<<<
+            blocks, kThreadsPerBlock, kUniformSharedBytes>>>(data, twiddles, repeats);
+    } else if (variant == Variant::historical_e4aa1b0) {
+        thff_table7_e4aa1b0::fft_kernel_radix64_batch16<<<
+            blocks, kThreadsPerBlock>>>(data, twiddles, repeats);
+    } else if (variant == Variant::historical_652808b) {
+        thff_table7_652808b::fft_kernel_radix64_batch16<<<
+            blocks, kThreadsPerBlock, kUniformSharedBytes>>>(data, twiddles, repeats);
+    } else {
+        thff_table7_51e346c::fft_kernel_radix64_batch16<<<
+            blocks, kThreadsPerBlock>>>(data, twiddles, repeats);
     }
     CUDA_CHECK(cudaGetLastError());
 }
@@ -174,12 +198,12 @@ struct Validation {
     }
 };
 
-Validation validate_r1(Variant variant, bool tone) {
+Validation validate_r1(Variant variant, bool tone, const cuFloatComplex* twiddles) {
     const auto input = guarded_input(kCheckBatch, tone);
     auto output = input;
     DeviceBuffer work(input.size());
     CUDA_CHECK(cudaMemcpy(work.pointer, input.data(), work.bytes(), cudaMemcpyHostToDevice));
-    launch(variant, work.data(), kCheckBatch, 1);
+    launch(variant, work.data(), kCheckBatch, 1, twiddles);
     CUDA_CHECK(cudaMemcpy(output.data(), work.pointer, work.bytes(), cudaMemcpyDeviceToHost));
 
     std::complex<double> weights[kN][kN];
@@ -231,11 +255,12 @@ void reset(const DeviceBuffer& immutable, const DeviceBuffer& work) {
 
 double timed_launch(Variant variant, const DeviceBuffer& immutable,
                     const DeviceBuffer& work, int batch, unsigned repeats,
-                    const Event& start, const Event& stop) {
+                    const Event& start, const Event& stop,
+                    const cuFloatComplex* twiddles) {
     // The default-stream reset precedes the start event and is not timed.
     reset(immutable, work);
     CUDA_CHECK(cudaEventRecord(start.value));
-    launch(variant, work.data(), batch, repeats);
+    launch(variant, work.data(), batch, repeats, twiddles);
     CUDA_CHECK(cudaEventRecord(stop.value));
     CUDA_CHECK(cudaEventSynchronize(stop.value));
     float elapsed_ms = 0;
@@ -255,13 +280,22 @@ int main(int argc, char** argv) {
             return 0;
         }
         const bool profile = argc >= 3 && std::strcmp(argv[argc - 1], "--profile") == 0;
-        const int positional_count = argc - (profile ? 1 : 0);
+        const bool timing_only = argc >= 3 && std::strcmp(argv[argc - 1], "--timing-only") == 0;
+        const int warmups = profile ? 0 : (timing_only ? 1 : kWarmups);
+        const int positional_count = argc - ((profile || timing_only) ? 1 : 0);
         if (positional_count < 2 || positional_count > 5)
-            throw std::runtime_error("usage: benchmark VARIANT [batch] [R] [trials] [--profile]");
+            throw std::runtime_error("usage: benchmark VARIANT [batch] [R] [trials] [--profile|--timing-only]");
         const std::string variant_name = argv[1];
-        const Variant variant = variant_name == "register_branch" ? Variant::branch : Variant::uniform;
-        if (variant_name != "register_branch" && variant_name != "register_uniform")
-            throw std::runtime_error("unknown variant; use register_branch or register_uniform");
+        Variant variant;
+        if (variant_name == "reconstructed_radix16") variant = Variant::radix16;
+        else if (variant_name == "reconstructed_radix4_compute") variant = Variant::radix4_shared;
+        else if (variant_name == "register_branch") variant = Variant::branch;
+        else if (variant_name == "register_uniform") variant = Variant::uniform;
+        else if (variant_name == "historical_e4aa1b0") variant = Variant::historical_e4aa1b0;
+        else if (variant_name == "historical_652808b") variant = Variant::historical_652808b;
+        else throw std::runtime_error("unknown or unrecovered variant; see --help for historical and experimental candidates");
+        if ((variant == Variant::historical_e4aa1b0 || variant == Variant::historical_652808b) && !timing_only)
+            throw std::runtime_error("historical partial kernels require --timing-only; they do not implement a validated complete FFT");
         const int batch = positional_count > 2 ? parse_int(argv[2], 16, 1048576, "batch") : 65536;
         const int repeats = positional_count > 3 ? parse_int(argv[3], 1, 1000000, "R") : 1000;
         const int trials = positional_count > 4 ? parse_int(argv[4], 1, 100, "trials") : 3;
@@ -277,10 +311,18 @@ int main(int argc, char** argv) {
         CUDA_CHECK(cudaDriverGetVersion(&driver));
         CUDA_CHECK(cudaRuntimeGetVersion(&runtime));
         cudaFuncAttributes attributes{};
-        if (variant == Variant::uniform) {
-            CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_legacy::fft_kernel_radix64_batch16));
+        if (variant == Variant::radix16) {
+            CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_legacy::fft_kernel_radix16_batch16));
+        } else if (variant == Variant::radix4_shared) {
+            CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_legacy::fft_kernel_radix4_shared_batch16));
+        } else if (variant == Variant::uniform) {
+            CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_5e37821::fft_kernel_radix64_batch16));
+        } else if (variant == Variant::historical_e4aa1b0) {
+            CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_e4aa1b0::fft_kernel_radix64_batch16));
+        } else if (variant == Variant::historical_652808b) {
+            CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_652808b::fft_kernel_radix64_batch16));
         } else {
-            CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_legacy::fft_kernel_radix64_batch16_branch));
+            CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_51e346c::fft_kernel_radix64_batch16));
         }
         std::fprintf(stderr,
             "gpu=%s device=0 sm=%d.%d sm_count=%d driver=%d runtime=%d "
@@ -290,15 +332,22 @@ int main(int argc, char** argv) {
             "dynamic_shared_bytes=%d static_shared_bytes=%zu registers=%d local_bytes=%zu "
             "input_seed=%u guard_elements_each_side=%d mode=%s\n"
             "timing=(t_2R-t_R)/R immutable_input_reset_before_every_launch=1 "
-            "clock_policy=unchanged correctness_scope=independent_R1_only "
+            "clock_policy=unchanged "
             "repeated_output_may_overflow=1 repeated_output_accuracy_claim=0\n",
             properties.name, properties.major, properties.minor,
             properties.multiProcessorCount, driver, runtime,
             __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__, __CUDACC_VER_BUILD__,
-            variant_name.c_str(), batch, repeats, trials, profile ? 0 : kWarmups,
-            batch / kTransformsPerBlock, variant == Variant::uniform ? 8192 : 0,
+            variant_name.c_str(), batch, repeats, trials, warmups,
+            batch / kTransformsPerBlock,
+            (variant == Variant::uniform || variant == Variant::historical_652808b) ? kUniformSharedBytes : 0,
             attributes.sharedSizeBytes, attributes.numRegs, attributes.localSizeBytes,
-            kSeed, kGuardElements, profile ? "profile" : "timing");
+            kSeed, kGuardElements, profile ? "profile" : (timing_only ? "timing_only" : "timing"));
+        std::fprintf(stderr,
+            "accuracy_status=%s timing_only=%d R1_validation=%d output_guard_checks=%d\n",
+            timing_only ? "unchecked" : "validation_requested", timing_only ? 1 : 0,
+            timing_only ? 0 : 1, timing_only ? 0 : 1);
+        std::fprintf(stderr, "timing_input=%s\n",
+                     timing_only ? "constant_0.125_minus0.25" : "bounded_complex_gaussian_seed1234567");
         std::fprintf(stderr, "gpu_uuid=GPU-");
         for (int byte = 0; byte < 16; ++byte) {
             if (byte == 4 || byte == 6 || byte == 8 || byte == 10)
@@ -307,19 +356,38 @@ int main(int argc, char** argv) {
         }
         std::fprintf(stderr, "\n");
 
-        const Validation gaussian = validate_r1(variant, false);
-        const Validation tone = validate_r1(variant, true);
-        if (!gaussian.passed() || !tone.passed())
-            throw std::runtime_error("independent R=1 accuracy gate failed; no timing performed");
-        Validation validation = gaussian;
-        validation.error_squared += tone.error_squared;
-        validation.reference_squared += tone.reference_squared;
-        validation.max_transform_relative_l2 = std::max(
-            gaussian.max_transform_relative_l2, tone.max_transform_relative_l2);
-        validation.nonfinite_outputs += tone.nonfinite_outputs;
-        validation.guard_changed += tone.guard_changed;
+        // Preserve the original host expressions: float PI in 51e346c,
+        // double PI followed by conversion to float theta in 5e37821.
+        // Both LUTs are initialized outside the timed interval.
+        DeviceBuffer twiddles(kN);
+        cuFloatComplex host_twiddles[kN];
+        for (int i = 0; i < kN; ++i) {
+            float theta = variant == Variant::uniform
+                ? static_cast<float>(-2.0f * 3.14159265358979323846 * i / 64.0f)
+                : -2.0f * 3.14159265358979323846f * i / 64.0f;
+            host_twiddles[i] = make_cuFloatComplex(cosf(theta), sinf(theta));
+        }
+        CUDA_CHECK(cudaMemcpy(twiddles.pointer, host_twiddles,
+                              sizeof(host_twiddles), cudaMemcpyHostToDevice));
+        Validation validation;
+        if (!timing_only) {
+            const Validation gaussian = validate_r1(variant, false, twiddles.pointer);
+            const Validation tone = validate_r1(variant, true, twiddles.pointer);
+            if (!gaussian.passed() || !tone.passed())
+                throw std::runtime_error("independent R=1 accuracy gate failed; no timing performed");
+            validation = gaussian;
+            validation.error_squared += tone.error_squared;
+            validation.reference_squared += tone.reference_squared;
+            validation.max_transform_relative_l2 = std::max(
+                gaussian.max_transform_relative_l2, tone.max_transform_relative_l2);
+            validation.nonfinite_outputs += tone.nonfinite_outputs;
+            validation.guard_changed += tone.guard_changed;
+        }
 
-        const auto input = guarded_input(batch, false);
+        const auto input = timing_only
+            ? std::vector<cuFloatComplex>(static_cast<std::size_t>(batch) * kN + 2 * kGuardElements,
+                                         make_cuFloatComplex(0.125f, -0.25f))
+            : guarded_input(batch, false);
         DeviceBuffer immutable(input.size()), work(input.size());
         CUDA_CHECK(cudaMemcpy(immutable.pointer, input.data(), immutable.bytes(), cudaMemcpyHostToDevice));
         std::printf("variant,N,batch,precision,trial,inside_repeats,t_R_us,t_2R_us,"
@@ -330,7 +398,7 @@ int main(int argc, char** argv) {
             // Exactly the third recovered-kernel launch in this process. An
             // external profiler can skip the two R=1 validation launches.
             reset(immutable, work);
-            launch(variant, work.data(), batch, static_cast<unsigned>(repeats));
+            launch(variant, work.data(), batch, static_cast<unsigned>(repeats), twiddles.pointer);
             CUDA_CHECK(cudaDeviceSynchronize());
             if (device_guard_changes(work))
                 throw std::runtime_error("profile launch changed output guards");
@@ -339,34 +407,35 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        for (int warmup = 0; warmup < kWarmups; ++warmup) {
+        for (int warmup = 0; warmup < warmups; ++warmup) {
             reset(immutable, work);
-            launch(variant, work.data(), batch, static_cast<unsigned>(repeats));
+            launch(variant, work.data(), batch, static_cast<unsigned>(repeats), twiddles.pointer);
             reset(immutable, work);
-            launch(variant, work.data(), batch, static_cast<unsigned>(2 * repeats));
+            launch(variant, work.data(), batch, static_cast<unsigned>(2 * repeats), twiddles.pointer);
         }
         CUDA_CHECK(cudaDeviceSynchronize());
-        if (device_guard_changes(work))
+        if (!timing_only && device_guard_changes(work))
             throw std::runtime_error("warmup launch changed output guards");
         Event start, stop;
         for (int trial = 0; trial < trials; ++trial) {
             const double t_r = timed_launch(variant, immutable, work, batch,
-                                            repeats, start, stop);
-            std::uint64_t guard_changed = device_guard_changes(work);
+                                            repeats, start, stop, twiddles.pointer);
+            std::uint64_t guard_changed = timing_only ? 0 : device_guard_changes(work);
             const double t_2r = timed_launch(variant, immutable, work, batch,
-                                             2 * repeats, start, stop);
-            guard_changed += device_guard_changes(work);
+                                             2 * repeats, start, stop, twiddles.pointer);
+            if (!timing_only) guard_changed += device_guard_changes(work);
             const double compute_us = (t_2r - t_r) / repeats;
-            const bool passed = validation.passed() && guard_changed == 0 &&
-                                std::isfinite(compute_us) && compute_us > 0;
-            std::printf("%s,64,%d,tf32,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu,%d\n",
+            const bool timing_passed = std::isfinite(compute_us) && compute_us > 0;
+            const bool passed = !timing_only && validation.passed() && guard_changed == 0 && timing_passed;
+            std::printf("%s,64,%d,tf32,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%lld,%lld,%d\n",
                 variant_name.c_str(), batch, trial, repeats, t_r, t_2r, compute_us,
-                validation.relative_l2(), validation.max_transform_relative_l2,
-                static_cast<unsigned long long>(validation.nonfinite_outputs),
-                static_cast<unsigned long long>(validation.guard_changed + guard_changed),
+                timing_only ? NAN : validation.relative_l2(),
+                timing_only ? NAN : validation.max_transform_relative_l2,
+                timing_only ? -1LL : static_cast<long long>(validation.nonfinite_outputs),
+                timing_only ? -1LL : static_cast<long long>(validation.guard_changed + guard_changed),
                 passed ? 1 : 0);
             std::fflush(stdout);
-            if (!passed)
+            if (!timing_passed || (!timing_only && !passed))
                 throw std::runtime_error("timing difference nonpositive or output guards changed");
         }
         return 0;

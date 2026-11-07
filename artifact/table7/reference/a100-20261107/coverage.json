@@ -1,0 +1,25 @@
+{
+  "scope": "N64 TF32 unit-kernel measurements: two complete-FFT candidates and two explicitly partial historical kernels; end-to-end FFT is outside timing scope, and exact paper-stage identities remain unconfirmed",
+  "requested": "register_branch,register_uniform,historical_e4aa1b0,historical_652808b",
+  "phase": "timing",
+  "source_available": [
+    "register_branch",
+    "register_uniform",
+    "historical_e4aa1b0",
+    "historical_652808b"
+  ],
+  "source_missing": [
+    "radix16",
+    "radix4_compute"
+  ],
+  "full_paper_comparison": false,
+  "gpu_validation": "not_run_timing_only",
+  "timing_only": true,
+  "accuracy_status": "unchecked",
+  "measured_variants": [
+    "register_branch",
+    "register_uniform",
+    "historical_e4aa1b0",
+    "historical_652808b"
+  ]
+}

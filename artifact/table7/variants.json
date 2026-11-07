@@ -1,11 +1,119 @@
 {
   "schema_version": 1,
-  "scope": "Historical N64 TF32 candidates; exact identity with the paper's ablation is unconfirmed",
-  "gpu_validation": "not_run",
+  "scope": "N64 TF32 unit-kernel measurements: two complete-FFT candidates and two explicitly partial historical kernels; end-to-end FFT is outside timing scope, and exact paper-stage identities remain unconfirmed",
+  "gpu_validation": "selected_uniform_requires_local_a100_r1",
   "variants": [
-    {"id": "radix16", "status": "missing", "title": "Radix-16 baseline", "reason": "An identifiable N64 source has not been recovered"},
-    {"id": "radix4_compute", "status": "missing", "title": "Radix-4 with reduced computation", "reason": "The original stage-wise shared-memory implementation has not been recovered"},
-    {"id": "register_branch", "status": "available", "title": "Recovered register FFT with lane-dependent branches", "source": "ablation/kernels/recovered.cuh", "kernel": "fft_kernel_radix64_batch16_branch", "candidate_paper_role": "reduced communication", "paper_identity": "unconfirmed"},
-    {"id": "register_uniform", "status": "available", "title": "Recovered register FFT with remapped fragments", "source": "ablation/kernels/recovered.cuh", "kernel": "fft_kernel_radix64_batch16", "candidate_paper_role": "reduced branch divergence", "paper_identity": "unconfirmed"}
+    {
+      "id": "radix16",
+      "status": "missing",
+      "title": "Radix-16 baseline",
+      "candidate_paper_role": "radix-16 baseline",
+      "paper_identity": "unconfirmed",
+      "reason": "The original N64 radix-16 baseline has not been recovered from the inspected history. The previous mixed-radix reconstruction is experimental and cannot supply this paper row.",
+      "timing_scope": "repeated_kernel_compute"
+    },
+    {
+      "id": "radix4_compute",
+      "status": "missing",
+      "title": "Radix-4 with stage-wise shared-memory exchange",
+      "candidate_paper_role": "reduced computation",
+      "paper_identity": "unconfirmed",
+      "reason": "The original N64 stage-wise shared-memory radix-4 implementation has not been recovered. The previous reconstruction is experimental and cannot supply this paper row.",
+      "timing_scope": "repeated_kernel_compute"
+    },
+    {
+      "id": "register_branch",
+      "status": "available",
+      "implementation_kind": "recovered",
+      "title": "Recovered register FFT with lane-dependent branches",
+      "source": "ablation/kernels/historical_branch_51e346c.cuh",
+      "namespace": "thff_table7_51e346c",
+      "kernel": "fft_kernel_radix64_batch16",
+      "source_commit": "51e346c0fea2767c79075c2798fa2598876415a6",
+      "candidate_paper_role": "reduced communication",
+      "paper_identity": "unconfirmed",
+      "gpu_validation": "passed_local_a100_r1",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "complete_fft_candidate",
+      "known_source_issues": []
+    },
+    {
+      "id": "register_uniform",
+      "status": "available",
+      "implementation_kind": "recovered",
+      "title": "Recovered LUT-based register FFT with remapped fragments",
+      "source": "ablation/kernels/historical_uniform_5e37821.cuh",
+      "namespace": "thff_table7_5e37821",
+      "kernel": "fft_kernel_radix64_batch16",
+      "source_commit": "5e37821a24e02e9986b61acda044bfdf2f99f563",
+      "candidate_paper_role": "reduced branch divergence",
+      "paper_identity": "unconfirmed",
+      "gpu_validation": "pending_local_a100_r1",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "complete_fft_candidate",
+      "known_source_issues": []
+    }
+  ],
+  "experimental_sources": [
+    {
+      "id": "reconstructed_radix16",
+      "implementation_kind": "reconstructed",
+      "source": "ablation/kernels/radix16.cuh",
+      "kernel": "fft_kernel_radix16_batch16",
+      "excluded_from_paper_rows": true
+    },
+    {
+      "id": "reconstructed_radix4_compute",
+      "implementation_kind": "reconstructed",
+      "source": "ablation/kernels/radix4_shared.cuh",
+      "kernel": "fft_kernel_radix4_shared_batch16",
+      "excluded_from_paper_rows": true
+    }
+  ],
+  "microbenchmarks": [
+    {
+      "id": "historical_e4aa1b0",
+      "status": "available",
+      "require_timing_only": true,
+      "title": "Historical shared round-trip microbenchmark",
+      "implementation_kind": "historical_partial_kernel",
+      "source": "ablation/kernels/historical_e4aa1b0.cuh",
+      "namespace": "thff_table7_e4aa1b0",
+      "kernel": "fft_kernel_radix64_batch16",
+      "source_commit": "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375",
+      "paper_identity": "unconfirmed",
+      "gpu_validation": "not_applicable_partial_kernel",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "partial_fft_operand_setup_omitted",
+      "known_source_issues": [
+        "MMA B-fragment initialization is commented out; operand values are uninitialized and compiler dependent.",
+        "Whole-transform shared-memory loads/stores occur inside each R iteration.",
+        "Timing measures emitted instruction throughput, not a mathematically valid FFT."
+      ],
+      "mma_flops_per_fft_slot": 6144,
+      "source_selection_basis": "Historical source with observed timing near 7.9 us; this does not establish paper-stage identity."
+    },
+    {
+      "id": "historical_652808b",
+      "status": "available",
+      "require_timing_only": true,
+      "title": "Historical register microbenchmark without stage permutation",
+      "implementation_kind": "historical_partial_kernel",
+      "source": "ablation/kernels/historical_652808b.cuh",
+      "namespace": "thff_table7_652808b",
+      "kernel": "fft_kernel_radix64_batch16",
+      "source_commit": "652808b8b5865bacf039cbf576e3b53b946ccd0e",
+      "paper_identity": "unconfirmed",
+      "gpu_validation": "not_applicable_partial_kernel",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "partial_fft_operand_setup_and_permutation_omitted",
+      "known_source_issues": [
+        "MMA B-fragment initialization is commented out; operand values are uninitialized and compiler dependent.",
+        "Inter-stage permutation is commented out.",
+        "Timing measures emitted instruction throughput, not a mathematically valid FFT."
+      ],
+      "mma_flops_per_fft_slot": 6144,
+      "source_selection_basis": "Historical source with observed timing near 3.5 us; this does not establish paper-stage identity."
+    }
   ]
 }

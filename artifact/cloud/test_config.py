@@ -50,6 +50,19 @@ class ConfigurationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.load({"mathdx": "yes"})
 
+    def test_table4_measurement_controls_forward_without_local_source_paths(self):
+        values = {"THUNDERFFT_TABLE4_ITERATIONS": "1024", "THUNDERFFT_TABLE4_TRIALS": "5",
+                  "THUNDERFFT_TABLE4_WARMUPS": "5", "THUNDERFFT_TABLE4_WAVES": "2",
+                  "THUNDERFFT_TABLE4_TIMEOUT": "120", "THUNDERFFT_TABLE4_MODE": "measure"}
+        self.assertEqual(config.measurement_environment(values), values)
+        for key in ("THUNDERFFT_TABLE4_SOURCE_DIR", "THUNDERFFT_TABLE4_IDEAL_DIR"):
+            with self.assertRaises(ValueError):
+                config.measurement_environment({key: "/local/results"})
+
+    def test_table7_timing_only_override_is_forwarded(self):
+        values = {"THUNDERFFT_TABLE7_TIMING_ONLY": "1", "THUNDERFFT_TABLE7_TRIALS": "1"}
+        self.assertEqual(config.measurement_environment(values), values)
+
     def test_cloud_preview_requires_no_credentials_and_creates_no_results(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "result"

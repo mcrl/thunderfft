@@ -31,9 +31,12 @@ ENVIRONMENT = {
     "THUNDERFFT_TABLE3_" + suffix for suffix in
     ("BATCH", "N_LIST", "PLACEMENTS", "PRECISIONS", "REPEATS", "TIMEOUT", "TRIALS")
 } | {
+    "THUNDERFFT_TABLE4_" + suffix for suffix in
+    ("MODE", "ITERATIONS", "TRIALS", "WARMUPS", "WAVES", "TIMEOUT")
+} | {
     "THUNDERFFT_TABLE5_" + suffix for suffix in ("BATCH", "N_LIST", "PHASES", "SEED", "TIMEOUT")
 } | {
-    "THUNDERFFT_TABLE7_" + suffix for suffix in ("BATCH", "REPEATS", "TRIALS", "VARIANTS")
+    "THUNDERFFT_TABLE7_" + suffix for suffix in ("BATCH", "REPEATS", "TRIALS", "VARIANTS", "TIMING_ONLY")
 }
 
 

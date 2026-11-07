@@ -1,172 +1,227 @@
-# Table 7: optimization ablation
+# Table 7: optimization ablation and unit-kernel measurements
 
-The measurement sources are self-contained in this folder:
+This task measures four historical N=64 TF32 kernel paths. Two are complete-FFT
+candidates; two intentionally retain partial computations from earlier commits.
+The results identify the measured function, included operations, source commit,
+and accuracy status. A partial kernel can supply a unit-kernel timing without
+claiming to implement a complete FFT.
 
-```text
-ablation/benchmark.cu                 correctness and timing driver
-ablation/kernels/recovered.cuh        two historical TF32 implementations
-ablation/kernels/provenance.json      source commits, hashes and adaptations
-variants.json                        available and missing implementations
-build.sh                             compile without launching a GPU workload
-measure.py                           selection, execution and table export
-collect_profile.py                   optional Nsight Compute diagnostic
-assemble.py                          combine collected parts without GPU work
-run.sh                               root-runner adapter
+| Variant | Source | Operations measured |
+|---|---|---|
+| `register_branch` | `51e346c` | LUT-based register FFT with lane-dependent permutation; complete-FFT candidate |
+| `register_uniform` | `5e37821` | LUT-based remapped register FFT with complete output stores; complete-FFT candidate |
+| `historical_e4aa1b0` | `e4aa1b0` | Historical shared-memory round trip inside each R iteration; MMA B-fragment initialization omitted |
+| `historical_652808b` | `652808b` | Register-retained historical path; MMA B-fragment initialization and inter-stage permutation omitted |
+
+The last two variants require timing-only mode. Their uninitialized MMA operand
+values depend on the compiler; the reported work is the emitted instruction
+path, with no claim of a mathematically valid FFT. They keep their own IDs and
+operation-coverage fields in every output.
+
+The original paper rows `radix16` and `radix4_compute` remain unrecovered and
+stay blank in the paper-shaped table. Exact identity between any selected
+kernel and the paper's original four-stage experiment is unconfirmed. The
+selected kernels also differ in layout, permutation and loop unrolling, so the
+comparison does not isolate branch divergence alone.
+
+## Measure and assemble
+
+Builds require CUDA Toolkit, a C++17 compiler and a GPU with compute capability
+8.0 or newer. No cuFFTDx tuning parameters or external FFT checkout are needed.
+The artifact uses `-O3` without `--use_fast_math`.
+
+Run all four unit kernels at the paper-sized workload, then assemble their CSVs:
+
+```sh
+THUNDERFFT_TABLE7_VARIANTS=historical_e4aa1b0,historical_652808b,register_branch,register_uniform \
+THUNDERFFT_TABLE7_TIMING_ONLY=1 THUNDERFFT_TABLE7_TRIALS=3 \
+  ./run.sh table7 --profile paper --collection a100-unit-kernels --part four-kernels
+
+# File processing only; no GPU work.
+./run.sh table7 --profile paper --collection a100-unit-kernels --assemble
 ```
 
-The available candidates are `register_branch` and `register_uniform`, recovered
-from the same historical commit. Their fragment and input/output layouts and
-loop unrolling also differ. They are not established as the exact original
-paper variants, or as a comparison that isolates only branch divergence.
-The uniform wrapper's omitted second group of output FFTs and the branch
-wrapper's missing output barrier have been repaired; provenance lists these
-adaptations. Kernel arithmetic and original mappings are otherwise retained.
+For a quick measurement, set `THUNDERFFT_TABLE7_TRIALS=1` and use a new
+collection name. One trial is one sample, not an estimate of run-to-run spread.
+Timing-only mode skips R1 accuracy and output-guard checks. Raw errors are
+`nan`, check counts are `-1`, and `passed=0`; a successful exit means the timing
+completed. These rows are collected and assembled as `collected_unvalidated`
+with `accuracy_status=unchecked` and the measured operation coverage.
 
-The original `radix16` and `radix4_compute` sources have not been recovered.
-They remain explicit missing entries. With no selection, `./run.sh table7`
-returns pending (78 from the adapter, 2 from the root runner) before building
-or launching GPU kernels. It does not silently replace the paper's four rows
-with the two available candidates. In a named collection, the default selection
-is the two available candidates, while assembly retains all four rows and marks
-the uncollected entries as missing. Ordinary default batches exclude this task.
+The main comparison output is
+`result/collections/a100-unit-kernels/assembled/table7/kernel_comparison.csv`.
+It contains only collected kernel rows: four when the command above completes.
+`table.csv` additionally keeps the missing original paper rows and appends the
+two partial kernels under their distinct IDs. Missing measurements remain blank;
+`full_paper_comparison` stays false.
 
-## Build without measuring
+To collect independently, run the same build and settings in separate parts:
+
+```sh
+THUNDERFFT_TABLE7_VARIANTS=historical_e4aa1b0,historical_652808b \
+THUNDERFFT_TABLE7_TIMING_ONLY=1 THUNDERFFT_TABLE7_TRIALS=3 \
+  ./run.sh table7 --profile paper --collection a100-unit-split --part partial-kernels
+
+THUNDERFFT_TABLE7_VARIANTS=register_branch,register_uniform \
+THUNDERFFT_TABLE7_TIMING_ONLY=1 THUNDERFFT_TABLE7_TRIALS=3 \
+  ./run.sh table7 --profile paper --collection a100-unit-split --part register-kernels
+
+./run.sh table7 --profile paper --collection a100-unit-split --assemble
+```
+
+Without an explicit variant list, the normal runner selects the two available
+complete-FFT candidates; timing-only mode selects all four available kernels.
+`THUNDERFFT_TABLE7_VARIANTS=all` explicitly requests the missing paper rows too
+and reports pending before building or launching GPU work.
+
+## Measurement scope and protocol
+
+Paper-sized mode uses N=64, batch65536 and R1000. Smoke uses batch1024 and R256.
+The default is three trials for paper-sized mode and two for smoke;
+`THUNDERFFT_TABLE7_TRIALS` can request one or more. Batch and R can be overridden
+for smoke with `THUNDERFFT_TABLE7_BATCH` and `THUNDERFFT_TABLE7_REPEATS`.
+Batch must be a positive multiple of 16. Each kernel launches one warp per block
+and processes 16 FFT-sized input slots.
+
+Timing-only mode initializes every input element to `(0.125, -0.25)` and uses
+one warmup for each repeat count. The ordinary validation mode uses bounded
+Gaussian timing input and three warmups. Both reset immutable input outside
+the CUDA event interval and report `(time(2R)-time(R))/R`. Repeated outputs may
+overflow; they are not used as numerical validation. The result is repeated
+kernel compute time per batch, not end-to-end latency of a single FFT call.
+
+To run the complete candidates with their independent accuracy gate:
+
+```sh
+THUNDERFFT_TABLE7_VARIANTS=register_branch,register_uniform \
+  ./run.sh table7 --profile paper --collection a100-unit-validated --part register-kernels
+```
+
+This mode checks R=1 bounded Gaussian and tone inputs at batch64 against a CPU
+FP64 DFT of the represented input. Each transform must have relative L2 at most
+0.005, finite outputs, and unchanged 16-element guards on each side. Failure
+stops timing. `register_branch` previously passed local A100 R1 checks;
+`register_uniform` has timing evidence, with R1 validation pending for this
+selected source. The two partial kernels cannot use this complete-FFT gate.
+
+Each result bundle records source and binary hashes, commands, GPU UUID,
+compiler/runtime, input pattern, trials, warmups, accuracy status and operation
+coverage. Standalone bundles are under `result/table7/<run_id>/`; collection
+parts are under `result/collections/<name>/parts/table7/`.
+
+Assembly retains both validated and unchecked timings with their original
+labels. Different trial counts, warmups or input patterns are recorded per part
+and set `protocol_heterogeneous=true`; they are not presented as one matched
+protocol. Source/binary identity, GPU, compiler, batch, R and precision must be
+compatible. Conflicting measurements of the same variant require choosing a
+part; missing variants can be collected later. Original missing-stage speedups
+remain blank.
+
+## Utilization
+
+Each of the four kernels issues 48 `m16n8k8` MMA instructions per warp. With
+16 FFT-sized slots, this is `48 * (2*16*8*8) / 16 = 6144` Tensor Core FLOPs per
+slot. For the partial kernels this counts issued MMA work, including operations
+whose operand setup was omitted; it is not a count of correct FFTs completed.
+
+```text
+achieved_tflops = 6144 * batch / (median_compute_us * 1e6)
+utilization_pct = 100 * achieved_tflops / 156
+```
+
+The denominator is A100 hardware peak **156 TFLOPS**. R is already removed from
+`compute_us`. Timing-only utilization retains the unchecked label. Other GPUs
+retain achieved throughput with utilization pending until a hardware reference
+is specified. No profiling CSV is required. `collect_profile.py` is an optional
+standalone diagnostic; its counters do not feed this calculation.
+
+## Historical source and measurements
+
+The self-contained headers and their adjacent provenance JSONs are under
+`ablation/kernels/`. Kernel statements are retained from the named commits;
+namespace wrapping and same-valued constants isolate the historical symbols.
+The selected complete candidates use the original host LUT formulas: float PI
+for `51e346c`, double PI converted to float theta for `5e37821`. LUT construction
+is outside timing; the uniform launch retains its original 8704-byte dynamic
+shared-memory reservation.
+
+The older `403c6ae` branch source uses a 256-byte local array in original SM80
+builds with CUDA 11.7, 12.8 and 12.9, as well as in a saved historical executable.
+It remains source evidence but is not the selected register-resident candidate.
+The selected `5e37821` already contains the complete output stores omitted by
+older uniform versions. The surviving shared-memory baseline is radix8, despite
+its 16-by-16 real matrix tile; it does not fill the missing radix16 paper row.
+
+`history/manifest.json` indexes 16 archived timing-only measurements, raw CSVs,
+native logs, source/binary hashes and known operation omissions. The compact
+coverage map links 50 legacy commits to independently measured source groups.
+These are unit-kernel measurement records. Their archived raw format is not a
+current collection bundle; use the runner commands above to collect the selected
+kernels with current metadata and assembly support.
+
+The archived register sweep used constant input, one warmup and a common
+float-PI LUT. Its shared radix8 family used seeded bounded Gaussian input.
+An intervening selected-source timing-only run also used Gaussian input;
+the current timing-only runner uses constant input for all selected kernels.
+The source hashes and per-part input/protocol metadata distinguish these runs.
+Similar times do not establish identical input, included operations or paper
+stage identity.
+
+The earlier `radix16.cuh` and `radix4_shared.cuh` reconstructions remain explicit
+native diagnostics (`reconstructed_radix16`, `reconstructed_radix4_compute`).
+They are not recovered original sources and cannot fill the pending paper rows.
+
+## Build without GPU execution
 
 ```sh
 CUDACXX=/usr/local/cuda-12.9/bin/nvcc THUNDERFFT_ARCHS=80 \
   bash artifact/table7/build.sh
 ./build_artifact/table7/thff_ablation --help
 python3 artifact/table7/test_contract.py
-python3 artifact/table7/test_profile.py
+python3 artifact/table7/test_utilization.py
 python3 artifact/table7/test_assemble.py
+python3 -m unittest discover -s artifact/table7/history -p test_history.py
 ```
 
-The build uses only CUDA Toolkit and a C++17 compiler. It needs no cuFFTDx
-parameters, external FFT checkout or GPU execution. Native compilation and
-CPU contracts have been checked; GPU numerical validation and timing have not
-been run for these recovered candidates.
+## Optional baseline projection from Table 6
 
-## Run an explicitly selected subset
-
-These commands launch GPU work when the evaluator chooses to measure:
-
-```sh
-THUNDERFFT_TABLE7_VARIANTS=register_branch,register_uniform ./run.sh table7
-THUNDERFFT_TABLE7_VARIANTS=register_branch,register_uniform \
-  ./run.sh table7 --profile paper
-```
-
-The smoke protocol uses N=64, batch1024, R256 and two trials; the paper-sized
-protocol uses batch65536, R1000 and three trials. `THUNDERFFT_TABLE7_BATCH`,
-`THUNDERFFT_TABLE7_REPEATS` and `THUNDERFFT_TABLE7_TRIALS` permit explicit
-smoke overrides. Paper-sized mode requires batch65536 and R1000. These are
-artifact protocol choices: the supplied Table 7 does not specify its original
-GPU, precision or repetitions. The utilization denominator is the A100 hardware
-peak of 156 TFLOPS, as confirmed for this experiment. The recovered code
-uses TF32 and requires compute capability 8.0 or newer. Choose a matching
-native architecture build and the root runner's logical `--device` selection.
-
-Before timing either variant, independent bounded complex Gaussian and tone
-inputs at batch64 undergo R=1 comparison against a CPU FP64 DFT of the represented
-FP32 input. Every transform must have relative L2 at most 0.005, every output
-must be finite, and the 16-element guards on both sides must be intact.
-
-Each timed launch receives the same immutable input through a device copy
-outside the event interval. After three warmups for each repeat count, compute
-time is `(time(2R)-time(R))/R`. Repeated outputs may overflow and are not used
-as an accuracy check. Invalid numerical gates, guards or nonpositive timing
-differences fail the evaluation. Results go under root `result/table7/<run_id>/`
-and include raw CSV/logs, `data.csv`, `table.csv`, `coverage.json`, source/binary
-hashes, compiler commands and the exact measurement commands. Speedup against
-the missing radix-16 baseline is left blank.
-
-## Collect separate parts and assemble
-
-Each variant can be timed in a separate execution. Utilization is calculated
-from those timing CSVs, so it requires no additional GPU execution or profiler
-CSV. The following collection commands launch GPU work; the final assembly
-command reads files only. Keep the same compiled binary, source files, GPU and
-protocol settings for all parts of one table.
-
-```sh
-THUNDERFFT_TABLE7_VARIANTS=register_branch \
-  ./run.sh table7 --collection a100-ablation --profile paper --part branch-timing
-THUNDERFFT_TABLE7_VARIANTS=register_uniform \
-  ./run.sh table7 --collection a100-ablation --profile paper --part uniform-timing
-
-./run.sh table7 --collection a100-ablation --profile paper --assemble
-```
-
-The measurement phase is `timing`. The former `profile` and `both` phases and
-`THUNDERFFT_TABLE7_NCU=1` are rejected before launching GPU work. Within a
-collection, `THUNDERFFT_TABLE7_VARIANTS` may be omitted to collect the two
-available implementations.
-
-Collected parts are retained under
-`result/collections/a100-ablation/parts/table7/`. Assembly writes
-`result/collections/a100-ablation/assembled/table7/table.csv`, the combined
-timing `data.csv`, and metadata listing collected and missing measurements.
-Run assembly at any point: missing timing cells remain blank, and utilization
-is derived for collected A100 timing rows. The result stays `partial` until
-all required cells are present. The two
-unrecovered implementations remain missing even after the available candidates
-have been measured. Paper identity remains unconfirmed.
-
-The assembler checks the numerical gates, raw timing CSVs and hashes.
-It rejects mixed smoke/paper protocols, settings, source/binary hashes, GPU
-identities or runtime/compiler versions. Identical
-duplicates are harmless; overlapping measurements with different values require
-choosing one result, rather than silently overwriting or averaging them.
-Parts created before native GPU UUID logging was added cannot be combined
-through this strict assembly contract.
-
-Existing parts collected with the former `both` phase can contribute their
-validated timing rows; their profiling counters are ignored. A profiling-only
-part does not supply timing or Table 7 utilization.
-
-For direct offline use with existing successful result directories:
-
-```sh
-python3 artifact/table7/assemble.py path/to/branch-part path/to/uniform-part \
-  --profile paper --output result/table7-assembled
-```
-
-## Utilization from operation count and time
-
-For each recovered TF32 implementation, one FFT issues 6144 Tensor Core MMA
-FLOPs: three stages, 16 MMA instructions per warp per stage, 2048 FLOPs per
-`m16n8k8` instruction, and 16 FFTs per warp. The count includes the real MMA
-operations used to represent the complex FFT arithmetic.
-
-The output uses the median of the valid per-trial compute times:
+`project_baseline.py` calculates a separate normalized comparison without GPU
+work. It keeps A100 hardware-peak utilization constant when mapping the patched
+N256 FP16 tcFFT/FlashFFTConv compute timings to an N64 TF32 work model:
 
 ```text
-mma_flops_per_fft = 3 * 16 * (2 * 16 * 8 * 8) / 16 = 6144
-achieved_tflops = 6144 * batch / (median_compute_us * 1e6)
-utilization_pct = 100 * achieved_tflops / 156
+source utilization = (65536 * batch / source_time_us / 1e6) / 312
+projected_time_us = source_time_us * (12288 / 65536) * (312 / 156)
 ```
 
-`compute_us = (time(2R) - time(R)) / R` already measures one batch iteration;
-the utilization calculation does not multiply or divide by R again. The
-denominator is the A100 hardware peak of **156 TFLOPS**, rather than the
-147.22 TFLOPS ideal-MMA measurement in Table 4. This is achieved MMA throughput
-as a percentage of hardware peak, not a hardware-counter percentage or the
-useful arithmetic count of a conventional FFT.
+The source count is eight 16-by-16-by-16 WMMA operations per FFT. The target
+count, `32*N*log2(N) = 12288`, is a theoretical normalization, not an implemented
+N64 radix16 kernel. The rounded Table 6 README times give tcFFT **63.15%** and
+**8.175 us estimated**, and FlashFFTConv **76.05%** and **6.7875 us estimated**.
+These projections do not establish a measured N64 baseline or recover the
+original paper stages.
 
-The 156 TFLOPS denominator is applied only when the measured GPU is identified
-as an A100. For another GPU, achieved throughput is still calculated but the
-utilization reference remains pending. The 6144 FLOP count is established for
-the two recovered candidates only; the missing `radix16` and `radix4_compute`
-implementations require their own operation counts when recovered.
+The included [A100 comparison](reference/a100-20261107/projection/README.md)
+combines the archived four-kernel timing run with these two documented-input
+projections; its CSVs remain separate from the canonical paper-shaped table.
 
-`collect_profile.py` remains a standalone optional Nsight Compute diagnostic.
-Its counters are not inputs to Table 7 utilization or required collection
-artifacts. For diagnostics, it retains profiler CSV/logs, tool version, metric,
-unit, kernel identity and exact command. The native `--profile` mode runs two
-R=1 correctness launches followed by a dedicated R32 launch; Nsight Compute
-skips the correctness launches and profiles the R32 launch. No profiler was
-run as part of the CPU-only preparation.
+```sh
+python3 artifact/table7/project_baseline.py --documented-table6 \
+  --table7-csv artifact/table7/reference/a100-20261107/kernel_comparison.csv \
+  --output result/table7/normalized-a100-20261107
+```
 
-The complete paper table still requires the two missing implementations,
-confirmation of original experimental settings and validated measurements.
-The printed paper times and speedups are not substituted for fresh results.
+The documented-input mode reads the public Table 6 rounded timing record and
+labels that source explicitly; it does not manufacture raw timing trials.
+To use a collected Table 6 result, replace `--documented-table6` with
+`--table6-csv result/table6/<run_id>/table.csv`; its adjacent `data.csv` must
+confirm the N256 FP16 complex batch65536 workload and supported kernel.
+For an explicit timing, use `--library FlashFFTConv --source-time-us 18.1
+--source-note 'description of the timing source'`.
+
+Outputs are `baseline_estimates.csv`, `projection_metadata.json`, and optional
+`comparison.csv`. The comparison preserves measured source IDs, accuracy and
+operation-coverage fields; estimated rows and speedups against projected
+baselines have explicit labels. Input hashes and the scaling assumption are
+recorded. Canonical `table.csv` is untouched, `full_paper_comparison` remains
+false, and existing output files are never overwritten.

@@ -1,0 +1,4 @@
+gpu=NVIDIA A100 80GB PCIe device=0 sm=8.0 sm_count=108 driver=12090 runtime=12090 cuda_compiler=12.9.41 source=commit-sweep/shared/d7df79c/benchmark.cu historical_commit=d7df79c2551e1981d7d009603cc208483c2f0360 tensor_flops_per_fft=8192
+variant=historical_radix8 N=64 precision=tf32 direction=forward normalization=none batch=65536 R=1000 trials=1 warmups_per_repeat=1 block=32 grid=4096 dynamic_shared_bytes=9344 static_shared_bytes=0 registers=64 local_bytes=0 input_seed=1234567 guard_elements_each_side=0 mode=timing
+timing=(t_2R-t_R)/R immutable_input_reset_before_every_launch=1 clock_policy=unchanged correctness_scope=not_checked correctness_checked=0 output_guards_checked=0 repeated_output_may_overflow=1 repeated_output_accuracy_claim=0
+gpu_uuid=GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6

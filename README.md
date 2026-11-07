@@ -181,7 +181,7 @@ paper calls 1D convolution Figure 4 and 2D convolution Figure 5.
 ```bash
 ./run.sh --list                 # inspect assignments and dependencies
 ./run.sh --dry-run              # preview available tasks without GPU work
-./run.sh                        # validation, Table 2/3/5 and Figure 2 smoke checks
+./run.sh                        # validation, Table 2/3/4/5/7 and Figure 2 smoke checks
 ./run.sh all                    # include unfinished assignments as pending
 ./run.sh table5                 # run one evaluation
 ./run.sh table3 --profile paper # request the paper workload
@@ -193,8 +193,9 @@ work and completion criteria. The default batch uses CUDA Toolkit and Python;
 install the plotting dependency with `python3 -m pip install -r artifact/requirements.txt`.
 The scripts require Python 3.9 or newer; set `PYTHON=/path/to/python3` if `python3` is older.
 It produces correctness results, Table 2's calculated rows, all 28 ThunderFFT
-Table 3 configurations, the corresponding A100 Figure 2 subset, and Table 5
-accuracy/range measurements. The excluded cuFFTDx comparisons and external FFT
+Table 3 configurations, Table 4's unit throughput derived from those CSVs and
+independently measured ideal MMA rate, the corresponding A100 Figure 2 subset,
+and Table 5 accuracy/range measurements. The excluded cuFFTDx comparisons and external FFT
 libraries remain explicit in the output metadata. FP32 in Table 5 is cuFFT.
 `./run.sh all` also visits unfinished tasks, which return 78; the batch returns
 2 for pending-only work and 1 for actual failures. See each task's README for

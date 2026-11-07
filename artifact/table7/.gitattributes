@@ -1,0 +1,3 @@
+# Preserve bytes used by archived source and measurement hashes.
+ablation/kernels/historical_uniform_5e37821.cuh -text whitespace=-blank-at-eol
+reference/**/*.csv -text whitespace=cr-at-eol

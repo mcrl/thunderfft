@@ -14,13 +14,26 @@ REFERENCE = {
     "paper_pdf_sha256": "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50",
 }
 
-# Both recovered kernels: 3 radix-4 stages * 16 MMA instructions per warp,
-# with 16 FFTs processed by that warp. Each mma.m16n8k8 counts 2*m*n*k.
+# The radix-4 kernels issue 3 stages * 16 MMA instructions per warp.
+# The reconstructed radix-16 kernel uses a mixed radix-16/radix-4 N64 FFT:
+# 4 butterflies * 16 MMA instructions + 16 butterflies * 1 MMA = 80 per warp.
+# Each warp processes 16 FFTs; each mma.m16n8k8 counts 2*m*n*k.
 # This is Tensor Core arithmetic including complex embedding, not 5*N*log2(N)
 # useful FFT operations or scalar trigonometric/remapping instructions.
+# In particular, the approximate paper model 32*N*log2(N)=12288 for radix-16
+# is not the actual instruction count of the mixed-radix N64 implementation.
 FLOPS_PER_MMA = 2 * 16 * 8 * 8
-FLOPS_PER_FFT = {variant: 3 * 16 * FLOPS_PER_MMA // 16
-                 for variant in ("register_branch", "register_uniform")}
+MMA_PER_WARP = {"register_branch": 48, "register_uniform": 48,
+                "historical_e4aa1b0": 48, "historical_652808b": 48,
+                "reconstructed_radix16": 80, "reconstructed_radix4_compute": 48}
+# The two historical partial kernels retain 48 issued MMA instructions per R.
+# Their counts describe hardware work, not correct FFTs: e4aa1b0 omits B setup;
+# 652808b also omits inter-stage permutation. Its unrolled SASS has a two-R body
+# plus a one-R tail, so the static instruction total must not be used as FLOPs/R.
+# The unrecovered canonical radix16/radix4_compute IDs intentionally have no
+# count. Experimental reconstructions must never provide counts for those rows.
+FLOPS_PER_FFT = {variant: count * FLOPS_PER_MMA // 16
+                 for variant, count in MMA_PER_WARP.items()}
 
 
 def calculate(variant, batch, time_us, gpu_name, precision="tf32"):
@@ -32,7 +45,7 @@ def calculate(variant, batch, time_us, gpu_name, precision="tf32"):
     if isinstance(time_us, bool) or not isinstance(time_us, (int, float)) or not math.isfinite(time_us) or time_us <= 0:
         raise ValueError("time_us must be positive and finite")
     if precision.lower() != "tf32":
-        raise ValueError("The recovered Table 7 operation count and reference require TF32")
+        raise ValueError("The Table 7 operation count and reference require TF32")
     if not isinstance(gpu_name, str) or not gpu_name.strip():
         raise ValueError("native GPU name is required")
     count = FLOPS_PER_FFT[variant]
