@@ -6,6 +6,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 HERE = Path(__file__).resolve().parent
@@ -48,10 +49,46 @@ class NativeContract(unittest.TestCase):
         argv, shape = MEASURE.figure4_cudnn_command(Path("/bin/c"), [3, 7], "paper", 3)
         self.assertEqual((argv[1:6], argv[-1], shape), (["--figure4", "4096", "3,7", "64", "768"], "3", SHAPE))
 
+    def test_library_selection_and_flash_contract(self):
+        with patch.dict("os.environ", {"THUNDERFFT_FIGURE4_LIBRARIES": "FlashFFTConv"}):
+            self.assertEqual(MEASURE.selected_libraries(MEASURE.FIGURE4, ("ThunderFFT", "FlashFFTConv")), ("FlashFFTConv",))
+            with self.assertRaisesRegex(ValueError, "unavailable"):
+                MEASURE.selected_libraries(MEASURE.FIGURE4, ("ThunderFFT",))
+        argv, shape = MEASURE.figure4_flash_command(Path("/flash"), [3, 53], "paper", 3)
+        self.assertEqual((argv[1:4], shape), (["3,53", "64", "768"], SHAPE))
+        text = NATIVE.replace("(raw/N)", "(FlashFFTConv)")
+        self.assertEqual(MEASURE.figure4_parse(text)[0][3], 0.00096)
+
     def test_paper_command_uses_paper_workload_and_gate(self):
         argv, shape = MEASURE.figure4_command(Path("/bin/x"), [53], "paper", 3)
         self.assertEqual(shape, SHAPE)
         self.assertEqual(argv[1:6] + argv[8:10] + argv[-1:], ["4096", "53", "0", "64", "768", "1", "1", "3"])
+
+
+class DeviceIdentity(unittest.TestCase):
+    def test_numeric_and_unset_visibility_use_cuda_probe(self):
+        first = "GPU-11111111-2222-3333-4444-555555555555"
+        second = "GPU-99999999-2222-3333-4444-555555555555"
+        log = "GPU=NVIDIA A100 compute=8.0 batch=256 seed=42\n"
+        metadata = {"gpu_inventory_before": {"exit_code": 0, "stdout":
+                    f"0, {first}, NVIDIA A100, 580\n1, {second}, NVIDIA A100, 580\n"},
+                    "device_uuid_probe": {"exit_code": 0, "stdout": f"GPU_UUID={second}\n"}}
+        for mask in (None, "0", "1"):
+            with self.subTest(mask=mask):
+                metadata["effective_CUDA_VISIBLE_DEVICES"] = mask
+                self.assertEqual(MEASURE.measured_identity(metadata, log)[3:], (second, "580"))
+        metadata["device_uuid_probe"]["exit_code"] = 1
+        with self.assertRaisesRegex(ValueError, "unambiguously"):
+            MEASURE.measured_identity(metadata, log)
+
+    def test_whitespace_library_selector(self):
+        with patch.dict("os.environ", {"THUNDERFFT_FIGURE4_LIBRARIES": " ThunderFFT , FlashFFTConv "}):
+            self.assertEqual(MEASURE.selected_libraries(MEASURE.FIGURE4, ("ThunderFFT", "FlashFFTConv")),
+                             ("ThunderFFT", "FlashFFTConv"))
+        for text in ("ThunderFFT,,FlashFFTConv", "Flash FFTConv", "ThunderFFT,"):
+            with self.subTest(text=text), patch.dict("os.environ", {"THUNDERFFT_FIGURE4_LIBRARIES": text}):
+                with self.assertRaises(ValueError):
+                    MEASURE.selected_libraries(MEASURE.FIGURE4, MEASURE.FIGURE4["libraries"])
 
 
 class Backends(unittest.TestCase):

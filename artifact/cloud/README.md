@@ -6,9 +6,10 @@ the selected evaluations, retrieves their result bundles, and destroys the
 instance. Results return to the coordinator's `result/` directory. Local execution
 remains available with `--backend local`, which is the default.
 
-The cloud backend changes where an evaluation runs. It does not complete pending
-evaluation adapters or supply missing baseline libraries and tuning parameters.
-See the [evaluation status](../README.md) for each task's implemented scope.
+The cloud backend prepares the dependencies of the selected evaluation and
+library subsets, then runs the same adapters as local execution. See the
+[evaluation status](../README.md) for each task's implemented scope and the
+distinction between artifact implementations and recovered paper versions.
 
 ## Prepare the coordinator
 
@@ -125,12 +126,32 @@ previous results.
 
 ## cuFFTDx (MathDx)
 
-`"mathdx": true` (the default) measures cuFFTDx (Table 3, and Table 5's
-`accuracy_fp16_cufftdx`); set it to `false` to skip them. Bootstrap downloads NVIDIA MathDx
+`"mathdx": true` (the default) enables cuFFTDx for tasks that use it (including
+Table 3 and Table 5's `accuracy_fp16_cufftdx`); set it to `false` to skip automatic
+installation. Explicitly requesting cuFFTDx still requires its dependency.
+Bootstrap downloads NVIDIA MathDx
 25.06.1 for the image's CUDA major version (12 or 13) from NVIDIA's download
 server, verifies its pinned SHA-256, and the worker sets `MATHDX_ROOT`. A hash
 mismatch or unsupported CUDA version stops the run before any job. The archive
-is about 36 MB; it is not uploaded from the coordinator.
+is about 36 MB; it is not uploaded from the coordinator. A ThunderFFT-only
+Table 3 part or tcFFT-only Table 6 part does not download MathDx.
+
+Figure 4/5 jobs selecting cuDNN install **cuDNN 9.12.0.46** for CUDA 12 or 13,
+with the SHA-256 from NVIDIA's [redistribution manifest](https://developer.download.nvidia.com/compute/cudnn/redist/redistrib_9.12.0.json).
+The worker pins matching headers and libraries through `CUDNN_HOME` and the
+library search path. Table 6 or Figure 4 selecting FlashFFTConv installs
+**PyTorch 2.8.0 CPU** from the [official wheel index](https://pytorch.org/get-started/previous-versions/)
+for its headers. The native FlashFFTConv drivers do not require a CUDA PyTorch
+runtime. External source commits are fetched and verified by their adapters.
+The setup log, package versions and PyTorch installation report return with
+the result bundle. `--dry-run` and `--cloud-plan` show which dependencies the
+selected jobs require.
+
+Supported forwarded settings include Table 3/6 and Figure 3/4/5 library
+selectors, FFT sizes, filter lists, trials, timeouts and convolution validation
+sample counts. Host filesystem paths such as `*_BACKENDS` and
+`THUNDERFFT_TABLE4_SOURCE_DIR` are not forwarded. Collect those inputs as local
+parts and combine them with downloaded remote parts using `--assemble`.
 
 ## Collect several parts on the same GPU
 
@@ -224,12 +245,13 @@ artifact runner. This environment difference must remain in measurement metadata
 An operator can supply an Ubuntu 20.04 image with compatible Python/CMake already
 installed when reproducing that OS setting.
 
-Setup installs build tools and the repository's Python requirements. Image tags
+Setup installs build tools, the repository's Python requirements, and the
+selected tasks' pinned cuDNN/MathDx/PyTorch dependencies. Image tags
 and distribution package repositories can change. For a fixed review environment,
 prepare and validate an image with the required dependencies, pin its image digest
 in `images`, and retain the compiler, package and GPU information in the returned
-evidence. Installing a missing external baseline remains the responsibility of
-that evaluation's adapter; a CUDA development image alone does not supply it.
+evidence. Baseline adapters fetch their pinned external source commits; a CUDA
+development image alone does not supply those sources.
 
 ## Cost, cleanup and recovery
 

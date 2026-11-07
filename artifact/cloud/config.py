@@ -26,10 +26,18 @@ MATHDX_ARCHIVES = {
     "13": ("https://developer.download.nvidia.com/compute/cuFFTDx/redist/cuFFTDx/cuda13/nvidia-mathdx-25.06.1-cuda13.tar.gz",
            "81646046e7ae57169fcea79fb59df526eaef65e740b66e291a69182c612b8304"),
 }
+# NVIDIA's redistrib_9.12.0.json, linux-x86_64; checked 2026-11-07.
+CUDNN_ARCHIVES = {
+    "12": ("https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-9.12.0.46_cuda12-archive.tar.xz",
+           "21fad1b3a8a3db018868184b2082bd492633ae5101752432d655782bd108b19e"),
+    "13": ("https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-9.12.0.46_cuda13-archive.tar.xz",
+           "ce92b4058d95c85959b822baa56389126a31678f5068b486523d1aa7f6490fcb"),
+}
+TORCH_HEADERS_VERSION = "2.8.0"
 ARCHS = {"A100": "80", "H100": "90", "B200": "100"}
 ENVIRONMENT = {
     "THUNDERFFT_TABLE3_" + suffix for suffix in
-    ("BATCH", "N_LIST", "PLACEMENTS", "PRECISIONS", "REPEATS", "TIMEOUT", "TRIALS")
+    ("BATCH", "N_LIST", "PLACEMENTS", "PRECISIONS", "REPEATS", "TIMEOUT", "CUFFTDX_TIMEOUT", "TRIALS", "LIBRARIES")
 } | {
     "THUNDERFFT_TABLE4_" + suffix for suffix in
     ("MODE", "ITERATIONS", "TRIALS", "WARMUPS", "WAVES", "TIMEOUT")
@@ -37,7 +45,38 @@ ENVIRONMENT = {
     "THUNDERFFT_TABLE5_" + suffix for suffix in ("BATCH", "N_LIST", "PHASES", "SEED", "TIMEOUT")
 } | {
     "THUNDERFFT_TABLE7_" + suffix for suffix in ("BATCH", "REPEATS", "TRIALS", "VARIANTS", "TIMING_ONLY")
+} | {
+    "THUNDERFFT_TABLE6_" + suffix for suffix in ("BATCH", "REPEATS", "TRIALS", "TIMEOUT", "LIBRARIES")
+} | {
+    "THUNDERFFT_FIGURE3_" + suffix for suffix in
+    ("BATCH", "N_LIST", "PRECISIONS", "REPEATS", "TIMEOUT", "TRIALS", "LIBRARIES")
+} | {
+    "THUNDERFFT_FIGURE" + figure + "_" + suffix
+    for figure in ("4", "5") for suffix in ("FILTERS", "TRIALS", "TIMEOUT", "LIBRARIES", "SLOW_RATIO")
+} | {
+    "THUNDERFFT_FIGURE4_VALIDATE_CHANNELS", "THUNDERFFT_FIGURE5_N",
 }
+
+
+def required_dependencies(jobs, *, mathdx=True):
+    """Install only dependencies of the requested evaluation/library subsets."""
+    needed = {"mathdx": False, "cudnn": False, "torch_headers": False}
+    for job in jobs:
+        environment = job.get("environment", {})
+        for evaluation in job["evaluations"]:
+            dependency_evaluation = "table3" if evaluation == "figure2" else evaluation
+            value = environment.get("THUNDERFFT_" + dependency_evaluation.upper() + "_LIBRARIES", "all")
+            libraries = {item.strip().lower() for item in value.split(",")}
+            selected = lambda library: bool(libraries & {"all", "auto", library})
+            if evaluation == "table5":
+                needed["mathdx"] = mathdx
+            elif evaluation in ("table3", "table6", "figure2", "figure3", "figure5") and selected("cufftdx"):
+                needed["mathdx"] |= mathdx
+            if evaluation in ("figure4", "figure5") and selected("cudnn"):
+                needed["cudnn"] = True
+            if evaluation in ("table6", "figure4") and selected("flashfftconv"):
+                needed["torch_headers"] = True
+    return needed
 
 
 def measurement_environment(values):

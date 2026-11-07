@@ -2,7 +2,8 @@
 
 Status: ready subset. Measures communication-only, ThunderFFT, cuFFT and
 (with `MATHDX_ROOT`) cuFFTDx on one GPU and plots performance normalized by the
-communication-only time. Not yet supported: offline collection assembly.
+communication-only time. Libraries and sizes can be collected separately and
+assembled offline.
 
 Paper p. 10, Section 6.5: N=64/256/1024/4096, batch 65,536. The
 communication-only kernel performs vectorized global loads and stores without
@@ -26,6 +27,39 @@ cuFFTDx FP16; cuFFT is FP32 only). `THUNDERFFT_FIGURE3_N_LIST`,
 `_BATCH`, `_REPEATS` and `_TRIALS` override the smoke settings; the paper
 profile requires batch 65,536. Without MathDX the cuFFTDx bars are absent and
 listed in `metadata.json` `missing`.
+
+## Collect separately and assemble
+
+`THUNDERFFT_FIGURE3_LIBRARIES` selects comma-separated native names:
+`copy`, `copy-scalar`, `thunderfft`, `cufft`, `cufftdx`. By default all installed
+paths are selected; an explicitly selected cuFFTDx path requires MathDX.
+`copy-scalar` is a diagnostic series and is not required to complete the figure.
+
+```bash
+THUNDERFFT_FIGURE3_LIBRARIES=copy,thunderfft \
+  ./run.sh figure3 --profile paper --collection paper-a100 --part communication-fft
+THUNDERFFT_FIGURE3_LIBRARIES=cufft \
+  ./run.sh figure3 --profile paper --collection paper-a100 --part cufft
+MATHDX_ROOT=/path/to/mathdx THUNDERFFT_FIGURE3_LIBRARIES=cufftdx \
+  ./run.sh figure3 --profile paper --collection paper-a100 --part cufftdx
+./run.sh figure3 --profile paper --collection paper-a100 --assemble
+```
+
+`THUNDERFFT_FIGURE3_N_LIST=64,256` also splits collection by FFT size. Store each
+non-overlapping subset under its own `--part`. You can collect FFT rows before
+the communication baseline: times are retained, normalization stays blank,
+and the run produces a pending plot until compatible copy rows are available.
+Offline assembly creates `summary.csv`, `baselines.csv` and `figure.pdf` under
+`result/collections/paper-a100/assembled/figure3/`; missing cells stay pending
+and absent bars remain gaps. Multi-GPU results use separate plot panels.
+
+Assembly reparses the original native CSVs (including all cuFFTDx candidates),
+verifies saved rows and source/device/runtime provenance, and rejects overlapping
+configurations. For each GPU family, use the same physical GPU, source hashes,
+driver/CUDA versions, and batch/repeat/trial settings across parts. The required
+paper coverage is all four sizes with TF32 storage; explicitly collected FP16
+storage adds its corresponding required series. FP32 cuFFT pairs only with the
+TF32-storage copy, never with the FP16 copy.
 
 ## What is measured
 

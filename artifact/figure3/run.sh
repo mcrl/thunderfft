@@ -14,10 +14,15 @@ artifact_configure -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 2>&1 | tee "${THUNDERFFT_R
 # As in Table 3: measure cuFFTDx whenever this build directory configured MathDX.
 targets=(thff_paper_fft)
 cufftdx_args=()
-if grep -qx 'THFF_CUFFTDX_ENABLED:INTERNAL=ON' "${THUNDERFFT_BUILD_DIR}/CMakeCache.txt"; then
+selection="${THUNDERFFT_FIGURE3_LIBRARIES:-auto}"
+want_cufftdx=0
+if [[ "${selection}" == auto || "${selection}" == all || ",${selection}," == *,cufftdx,* ]]; then
+  want_cufftdx=1
+fi
+if (( want_cufftdx )) && grep -qx 'THFF_CUFFTDX_ENABLED:INTERNAL=ON' "${THUNDERFFT_BUILD_DIR}/CMakeCache.txt"; then
   targets+=(thff_paper_fft_cufftdx)
   cufftdx_args=(--cufftdx-binary "${THUNDERFFT_BUILD_DIR}/sample/bench/thff_paper_fft_cufftdx")
-elif [[ -n "${MATHDX_ROOT:-}" ]]; then
+elif (( want_cufftdx )) && [[ -n "${MATHDX_ROOT:-}" || "${selection}" != auto ]]; then
   artifact_pending "MATHDX_ROOT is set but thff_paper_fft_cufftdx was not configured; THUNDERFFT_ARCHS must name one architecture."
 fi
 cmake --build "${THUNDERFFT_BUILD_DIR}" --target "${targets[@]}" -j "${THUNDERFFT_JOBS}" \
@@ -26,4 +31,4 @@ cmake --build "${THUNDERFFT_BUILD_DIR}" --target "${targets[@]}" -j "${THUNDERFF
   --binary "${THUNDERFFT_BUILD_DIR}/sample/bench/thff_paper_fft" ${cufftdx_args[@]+"${cufftdx_args[@]}"} \
   --build-dir "${THUNDERFFT_BUILD_DIR}" \
   --output "${THUNDERFFT_RESULT_DIR}" --profile "${THUNDERFFT_PROFILE}"
-exec "${THUNDERFFT_PYTHON}" "${TASK_DIR}/plot.py" --output-dir "${THUNDERFFT_RESULT_DIR}"
+exec "${THUNDERFFT_PYTHON}" "${TASK_DIR}/plot.py" --output-dir "${THUNDERFFT_RESULT_DIR}" --allow-pending

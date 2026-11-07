@@ -15,23 +15,16 @@ VENV="${THUNDERFFT_VENV:-${HOME}/venv}"
 ENV_FILE="${HOME}/.thunderfft_env"
 
 MATHDX_VERSION=25.06.1
-MATHDX_ROOT="${HOME}/nvidia-mathdx-${MATHDX_VERSION}/nvidia/mathdx/25.06"
-MATHDX_URL=https://developer.download.nvidia.com/compute/cuFFTDx/redist/cuFFTDx/cuda12/nvidia-mathdx-${MATHDX_VERSION}-cuda12.tar.gz
-MATHDX_SHA256=d4952f6e1a7864d29d9ec4e01c21628d84086e941cf4a3da2df1e11ba5f13f84
-
-CUDNN_NAME=cudnn-linux-x86_64-9.12.0.46_cuda12-archive
-CUDNN_HOME="${HOME}/${CUDNN_NAME}"
-CUDNN_URL=https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/${CUDNN_NAME}.tar.xz
-CUDNN_SHA256=21fad1b3a8a3db018868184b2082bd492633ae5101752432d655782bd108b19e
 
 step() { printf '\n== %s\n' "$*"; }
 die() { printf 'setup: %s\n' "$*" >&2; exit 1; }
 
-# Fetch (or copy) an archive, check its SHA-256 and unpack it into $HOME.
+# Fetch (or copy) an archive, check its SHA-256 and unpack into the selected target.
 install_archive() {
   local name="$1" url="$2" sha="$3" local_source="$4" target="$5"
   if [[ -d "${local_source}" ]]; then
-    cp -a -- "${local_source}" "${target}"
+    mkdir -p -- "${target}"
+    cp -a -- "${local_source}/." "${target}/"
     return
   fi
   local tmp
@@ -45,7 +38,8 @@ install_archive() {
     curl -fsSL --retry 3 -o "${archive}" "${url}"
   fi
   echo "${sha}  ${archive}" | sha256sum -c - >/dev/null || die "${name}: SHA-256 mismatch"
-  tar -xf "${archive}" -C "${HOME}"
+  mkdir -p -- "${target}"
+  tar -xf "${archive}" -C "${target}" --strip-components=1
 }
 
 step "Python >= 3.9"
@@ -66,7 +60,7 @@ pip=("${VENV}/bin/python" -m pip --disable-pip-version-check -q)
 "${pip[@]}" install --upgrade pip
 "${pip[@]}" install -r "${ROOT}/artifact/requirements.txt" "cmake>=3.24,<4"
 "${VENV}/bin/python" -c 'import torch' 2>/dev/null ||
-  "${pip[@]}" install torch --index-url https://download.pytorch.org/whl/cpu
+  "${pip[@]}" install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
 "${VENV}/bin/cmake" --version | head -n 1
 
 step "CUDA toolkit"
@@ -84,10 +78,29 @@ fi
 [[ "${THUNDERFFT_ARCHS}" =~ ^[0-9]+$ ]] || die "cannot detect the GPU architecture; set THUNDERFFT_ARCHS (e.g. 80)"
 echo "THUNDERFFT_ARCHS=${THUNDERFFT_ARCHS}"
 
+cuda_major="$("${CUDA_HOME}/bin/nvcc" --version | sed -n 's/.*release \([0-9][0-9]*\)\..*/\1/p')"
+case "${cuda_major}" in
+  12)
+    MATHDX_SHA256=d4952f6e1a7864d29d9ec4e01c21628d84086e941cf4a3da2df1e11ba5f13f84
+    CUDNN_SHA256=21fad1b3a8a3db018868184b2082bd492633ae5101752432d655782bd108b19e ;;
+  13)
+    MATHDX_SHA256=81646046e7ae57169fcea79fb59df526eaef65e740b66e291a69182c612b8304
+    CUDNN_SHA256=ce92b4058d95c85959b822baa56389126a31678f5068b486523d1aa7f6490fcb ;;
+  *) die "no pinned MathDx/cuDNN archives for CUDA ${cuda_major}" ;;
+esac
+# CUDA 12 and 13 archives share their internal top-level directory name.
+# Separate install roots prevent reusing the other toolkit's headers on rerun.
+MATHDX_INSTALL="${HOME}/nvidia-mathdx-${MATHDX_VERSION}-cuda${cuda_major}"
+MATHDX_ROOT="${MATHDX_INSTALL}/nvidia/mathdx/25.06"
+MATHDX_URL=https://developer.download.nvidia.com/compute/cuFFTDx/redist/cuFFTDx/cuda${cuda_major}/nvidia-mathdx-${MATHDX_VERSION}-cuda${cuda_major}.tar.gz
+CUDNN_NAME=cudnn-linux-x86_64-9.12.0.46_cuda${cuda_major}-archive
+CUDNN_HOME="${HOME}/${CUDNN_NAME}"
+CUDNN_URL=https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/${CUDNN_NAME}.tar.xz
+
 step "MathDx ${MATHDX_VERSION} (cuFFTDx)"
 if [[ ! -f "${MATHDX_ROOT}/include/cufftdx.hpp" ]]; then
   install_archive MathDx "${MATHDX_URL}" "${MATHDX_SHA256}" "${THUNDERFFT_MATHDX_ARCHIVE:-}" \
-    "${HOME}/nvidia-mathdx-${MATHDX_VERSION}"
+    "${MATHDX_INSTALL}"
 fi
 [[ -f "${MATHDX_ROOT}/include/cufftdx.hpp" ]] || die "MathDx install failed: ${MATHDX_ROOT}"
 echo "${MATHDX_ROOT}"

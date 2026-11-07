@@ -6,6 +6,7 @@ ARTIFACT_PYTHON="${THUNDERFFT_PYTHON:-${PYTHON:-python3}}"
 "${ARTIFACT_PYTHON}" -m unittest discover -s artifact/tests -v
 "${ARTIFACT_PYTHON}" -m unittest discover -s artifact/cloud -p 'test_*.py' -v
 for suite in artifact/validation/test_evaluate.py artifact/table2/test_model.py \
+             artifact/table2/test_assemble.py \
              artifact/table3/test_measure.py artifact/figure2/test_plot.py \
              artifact/table5/check_summary.py artifact/table7/test_contract.py \
              artifact/table7/test_profile.py artifact/table3/test_assemble.py \
@@ -15,7 +16,9 @@ for suite in artifact/validation/test_evaluate.py artifact/table2/test_model.py 
              artifact/table7/test_project_baseline.py \
              artifact/table7/history/test_history.py \
              artifact/figure3/test_measure.py artifact/figure4/test_measure.py \
-             artifact/figure5/test_measure.py artifact/table6/test_measure.py; do
+             artifact/figure3/test_assemble.py artifact/figure4/test_assemble.py \
+             artifact/figure5/test_measure.py artifact/figure5/test_assemble.py \
+             artifact/table6/test_measure.py artifact/table6/test_assemble.py; do
   "${ARTIFACT_PYTHON}" "${suite}"
 done
 for script in run.sh artifact/common.sh artifact/setup.sh artifact/*/run.sh artifact/table4/build.sh; do

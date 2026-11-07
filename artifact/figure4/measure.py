@@ -9,6 +9,7 @@ import argparse
 import csv
 import hashlib
 import importlib.util
+import io
 import math
 import os
 from pathlib import Path
@@ -30,6 +31,7 @@ def module(name, path):
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 TABLE3 = module("conv_table3_measure", HERE.parent / "table3/measure.py")
+SELECTION = module("conv_selection", HERE / "selection.py")
 # Backend adapters (cuDNN, FlashFFTConv, cuFFT, cuFFTDx) write these columns.
 BACKEND_FIELDS = ("gpu", "filter", "library", "repeat", "time_ms", "rel_l2", "passed", "operation")
 FIELDS = ("gpu", "shape", "filter", "library", "precision", "repeat", "time_ms", "filter_fft_included",
@@ -44,9 +46,13 @@ FIGURE4 = {
     "filters": {"smoke": (3, 9, 53), "paper": tuple(range(3, 54, 2))},
     "allowed_filters": tuple(range(1, 4097)),
     "operation": "depthwise circular convolution y[n]=sum_k x[(n-k) mod L] h[k], filter not flipped, "
-                 "full L outputs, real fp16 input/filter/output, x~U[0,1] (minstd seed 42), h~U[0,1] (seed 42+K)",
+                 "full L outputs, real fp16 input/output; fp32 spatial filter for FFT paths, fp16-rounded filter for cuDNN; x~U[0,1] (minstd seed 42), h~U[0,1] (seed 42+K)",
     "precision": "fp16",
     "truncate": ("cuDNN",),
+    "libraries": ("ThunderFFT", "cuDNN", "FlashFFTConv"),
+    "notes": {"ThunderFFT": "FP16 input/output and FFT arithmetic; spatial filter FP32, cuFFT filter FFT then FP16 conversion",
+              "FlashFFTConv": "unmodified pinned upstream 4096 FP16 kernel; native cuFFT filter FFT and frequency permutation/conversion timed; spatial filter FP32",
+              "cuDNN": "FP16 input, spatial filter and output; the same generated filter is rounded to FP16"},
 }
 
 
@@ -67,6 +73,24 @@ def figure4_cudnn_command(binary, sizes, profile, trials):
             sample, str(trials)], f"L=4096,B={batch},D={channels}"
 
 
+def selected_libraries(spec, available):
+    requested = SELECTION.normalize(os.environ.get(spec["env"] + "_LIBRARIES", "auto"), spec["libraries"])
+    if requested == "auto":
+        return tuple(library for library in spec["libraries"] if library in available)
+    values = tuple(requested.split(","))
+    missing = set(values) - set(available)
+    if missing:
+        raise ValueError(f"requested libraries are unavailable: {', '.join(sorted(missing))}")
+    return values
+
+
+def figure4_flash_command(binary, sizes, profile, trials):
+    batch, channels = (64, 768) if profile == "paper" else (4, 64)
+    sample = os.environ.get("THUNDERFFT_FIGURE4_VALIDATE_CHANNELS", "1024")
+    return [str(binary), ",".join(map(str, sizes)), str(batch), str(channels), sample, str(trials), "5", "30"], \
+        f"L=4096,B={batch},D={channels}"
+
+
 def parse_blocks(stdout, gate):
     """Split native output at "Filter size: f" lines; gate(block) returns
     (rel_l2, validated) or raises. Yields (size, trial, time_ms, rel_l2, validated)."""
@@ -84,7 +108,7 @@ def parse_blocks(stdout, gate):
 def figure4_gate(block):
     if "Circular convolution validation: PASS" not in block:
         raise ValueError("native circular-convolution correctness gate did not pass")
-    rel = re.search(r"direct circular conv \((?:raw/N|cuDNN)\): L2_rel=(\S+)", block)
+    rel = re.search(r"direct circular conv \((?:raw/N|cuDNN|FlashFFTConv)\): L2_rel=(\S+)", block)
     checked = re.search(r"^Validation sequences: (\d+) of (\d+)$", block, re.MULTILINE)
     if not (rel and checked):
         raise ValueError("native output lacks validation lines")
@@ -106,13 +130,21 @@ def check_row(row):
 
 def read_backends(paths, spec, gpu, shape, filters, measured=("ThunderFFT",)):
     """Join backend CSVs; reject rows whose operation or workload differs from ours."""
-    rows, hashes = [], {}
+    rows, hashes, seen = [], {}, set()
     for path in paths:
         with path.open(newline="") as stream:
             reader = csv.DictReader(stream)
             if not set(BACKEND_FIELDS + ("shape",)) <= set(reader.fieldnames or ()):
                 raise ValueError(f"{path}: backend CSV needs columns {BACKEND_FIELDS + ('shape',)}")
             for row in reader:
+                if None in row or any(value is None for value in row.values()):
+                    raise ValueError(f"{path}: malformed backend CSV row")
+                if row["library"] not in spec["libraries"] or row.get("precision", spec["precision"]) != spec["precision"]:
+                    raise ValueError(f"{path}: unsupported backend library/precision")
+                key = (row["library"], int(row["filter"]), int(row["repeat"]))
+                if key in seen or key[-1] < 0:
+                    raise ValueError(f"{path}: duplicate or negative backend trial")
+                seen.add(key)
                 if row["library"] in measured:
                     raise ValueError(f"{path}: backend rows cannot replace measured {row['library']}")
                 if row["passed"].strip().lower() not in ("true", "1"):
@@ -122,9 +154,59 @@ def read_backends(paths, spec, gpu, shape, filters, measured=("ThunderFFT",)):
                 if row["operation"] != spec["operation"]:
                     raise ValueError(f"{path}: {row['library']} operation differs: {row['operation']!r}")
                 check_row(row)
-                rows.append(dict({key: row.get(key, "") for key in FIELDS[:-1]}, source=str(path)))
+                normalized = dict({key: row.get(key, "") for key in FIELDS[:-1]}, source=str(path))
+                normalized["precision"] = row.get("precision") or spec["precision"]
+                normalized["filter_fft_included"] = row.get("filter_fft_included") or "unknown"
+                rows.append(normalized)
         hashes[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
     return rows, hashes
+
+
+def snapshot_backends(paths, output, spec, gpu, shape, filters, measured):
+    """Retain byte-identical backend CSVs inside the immutable result bundle."""
+    rows, hashes, origins, seen = [], {}, [], set()
+    for index, path in enumerate(paths):
+        payload = path.read_bytes()
+        sha = hashlib.sha256(payload).hexdigest()
+        relative = f"raw/backends/{index:03d}-{sha[:16]}.csv"
+        saved = output / relative
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        saved.write_bytes(payload)
+        imported, _ = read_backends([saved], spec, gpu, shape, filters, measured)
+        for row in imported:
+            key = (row["library"], int(row["filter"]), int(row["repeat"]))
+            if key in seen:
+                raise ValueError("duplicate backend measurement across imported CSVs")
+            seen.add(key)
+            row["source"] = relative
+        rows.extend(imported)
+        hashes[relative] = sha
+        origins.append({"original_path": str(path), "path": relative, "sha256": sha})
+    return rows, hashes, origins
+
+
+def measured_identity(metadata, log):
+    """Resolve actual CUDA identity from native/probe evidence, never ordinal guessing."""
+    gpu, name, capability = TABLE3.gpu_name(log)
+    native_uuid = TABLE3.gpu_uuid(log)
+    probe = metadata.get("device_uuid_probe", {})
+    probed_uuid = TABLE3.gpu_uuid(probe.get("stdout", "")) if probe.get("exit_code") == 0 else None
+    mask = metadata.get("effective_CUDA_VISIBLE_DEVICES", "") or ""
+    masked_uuid = mask if re.fullmatch(r"GPU-[0-9a-fA-F-]{36}", mask) else None
+    known = {value for value in (native_uuid, probed_uuid, masked_uuid, metadata.get("gpu_uuid")) if value}
+    if len(known) > 1:
+        raise ValueError("native/probed/recorded CUDA UUIDs disagree")
+    inventory = metadata.get("gpu_inventory_before", {})
+    devices = list(csv.reader(io.StringIO(inventory.get("stdout", "")), skipinitialspace=True))
+    candidates = [fields for fields in devices if len(fields) >= 4 and fields[2].strip() == name
+                  and (not known or fields[1].strip() in known)]
+    if inventory.get("exit_code") != 0 or len(candidates) != 1:
+        raise ValueError("cannot identify the measured CUDA device unambiguously from UUID and GPU inventory")
+    fields = candidates[0]
+    actual_uuid = fields[1].strip()
+    if not re.fullmatch(r"GPU-[0-9a-fA-F-]{36}", actual_uuid):
+        raise ValueError("invalid measured GPU UUID")
+    return gpu, name, capability, actual_uuid, fields[3].strip()
 
 
 def summarize(rows):
@@ -161,6 +243,10 @@ def collect(spec, runners, build_dir, output, profile, sources):
     runners: (library, binary, command, parse, filter_fft_included) tuples.
     """
     env = spec["env"]
+    chosen = selected_libraries(spec, tuple(r[0] for r in runners))
+    runners = [r for r in runners if r[0] in chosen]
+    if not runners:
+        raise ValueError("no runnable convolution backends selected")
     output.mkdir(parents=True, exist_ok=True)
     raw = output / "raw"
     raw.mkdir(exist_ok=True)
@@ -187,6 +273,7 @@ def collect(spec, runners, build_dir, output, profile, sources):
                 "correctness": "native gate before the time is accepted: finite relL2 <= 5e-3 vs direct reference",
                 "run_id": os.environ.get("THUNDERFFT_RUN_ID"),
                 "effective_CUDA_VISIBLE_DEVICES": os.environ.get("CUDA_VISIBLE_DEVICES"),
+                "device_uuid_probe": TABLE3.capture([sys.executable, str(HERE / "device_identity.py")]),
                 "git": TABLE3.capture(["git", "rev-parse", "HEAD"]),
                 "worktree": TABLE3.capture(["git", "status", "--porcelain"]),
                 "source_sha256": {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -195,6 +282,12 @@ def collect(spec, runners, build_dir, output, profile, sources):
                 "binary_sha256": {r[0]: hashlib.sha256(r[1].read_bytes()).hexdigest() for r in runners},
                 "gpu_inventory_before": TABLE3.capture(["nvidia-smi", "--query-gpu=index,uuid,name,driver_version,memory.total,clocks.sm,clocks.mem,power.limit", "--format=csv,noheader"]),
                 "commands": []}
+    external = build_dir / "artifact_figure4/build.json"
+    if "FlashFFTConv" in chosen and external.is_file():
+        import json
+        metadata["external_build"] = json.loads(external.read_text())
+        if metadata["external_build"].get("binary_sha256") != metadata["binary_sha256"]["FlashFFTConv"]:
+            raise ValueError("FlashFFTConv build manifest does not match the selected binary")
     rows, identity, shape = [], None, None
     TABLE3.atomic_json(output / "metadata.json", metadata)
     try:
@@ -208,7 +301,8 @@ def collect(spec, runners, build_dir, output, profile, sources):
                 argv, shape = command(binary.resolve(), group, profile, trials)
                 label = f"{library.lower()}-f{group[0]}" + (f"-f{group[-1]}" if len(group) > 1 else "")
                 out_path, log_path = raw / f"{label}.out", raw / f"{label}.log"
-                record = {"argv": argv, "stdout": str(out_path.relative_to(output)), "started_at": TABLE3.now()}
+                record = {"library": library, "argv": argv, "stdout": str(out_path.relative_to(output)),
+                          "stderr": str(log_path.relative_to(output)), "started_at": TABLE3.now()}
                 metadata["commands"].append(record)
                 with (output / "commands.txt").open("a") as stream:
                     stream.write(shlex.join(argv) + "\n")
@@ -231,11 +325,12 @@ def collect(spec, runners, build_dir, output, profile, sources):
                 record.update(exit_code=process.returncode, finished_at=TABLE3.now())
                 if process.returncode:
                     raise RuntimeError(f"{label}: executable exited {process.returncode}; see {out_path}")
-                this_identity = TABLE3.gpu_name(log_path.read_text())
+                this_identity = measured_identity(metadata, log_path.read_text())
                 if identity is not None and this_identity != identity:
                     raise ValueError("CUDA device identity changed during the sweep")
                 identity = this_identity
-                metadata.update(gpu=identity[0], gpu_name=identity[1], compute_capability=identity[2])
+                metadata.update(gpu=identity[0], gpu_name=identity[1], compute_capability=identity[2],
+                                gpu_uuid=identity[3], driver_version=identity[4])
                 results = parse(out_path.read_text())
                 if sorted((size, trial) for size, trial, *_ in results) != \
                         sorted((size, trial) for size in group for trial in range(trials)):
@@ -254,8 +349,8 @@ def collect(spec, runners, build_dir, output, profile, sources):
                     print(f"{spec['title']}: {library} is over {slow_ratio:g}x slower at f={group[0]}; "
                           "larger filters are not measured", flush=True)
                 TABLE3.atomic_json(output / "metadata.json", metadata)
-        backend_rows, metadata["backend_sha256"] = read_backends(backends, spec, identity[0], shape, filters,
-                                                                 tuple(r[0] for r in runners))
+        backend_rows, metadata["backend_sha256"], metadata["backend_imports"] = snapshot_backends(
+            backends, output, spec, identity[0], shape, filters, tuple(r[0] for r in runners))
         rows += backend_rows
         TABLE3.write_csv(output / "data.csv", rows, FIELDS)
         TABLE3.write_csv(output / "summary.csv", summarize(rows), SUMMARY_FIELDS)
@@ -276,6 +371,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--cudnn-binary", type=Path, help="thff_conv1d_compare; omit to leave cuDNN pending")
+    parser.add_argument("--flash-binary", type=Path, help="native pinned FlashFFTConv 4096 driver")
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--profile", choices=("smoke", "paper"), required=True)
@@ -284,8 +380,10 @@ def main():
     if args.cudnn_binary:
         # Direct convolution: there is no filter transform to include.
         runners.append(("cuDNN", args.cudnn_binary, figure4_cudnn_command, figure4_parse, "n/a"))
-    sources = [ROOT / "sample/conv1d/conv1d_fullfft_l4096_thunder.cu",
-               ROOT / "sample/conv1d/conv1d_compare_cudnn_thunder.cu", *HERE.glob("*.py"), HERE / "run.sh"]
+    if args.flash_binary:
+        runners.append(("FlashFFTConv", args.flash_binary, figure4_flash_command, figure4_parse, "true"))
+    sources = [*ROOT.glob("include/**/*.cuh"), ROOT / "sample/utils.h", ROOT / "sample/conv1d/conv1d_fullfft_l4096_thunder.cu",
+               ROOT / "sample/conv1d/conv1d_compare_cudnn_thunder.cu", *HERE.glob("*.py"), HERE / "flashfftconv.cu", HERE / "run.sh"]
     try:
         return collect(FIGURE4, runners, args.build_dir, args.output, args.profile, sources)
     except ValueError as error:

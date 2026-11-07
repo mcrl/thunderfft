@@ -1,9 +1,9 @@
 # Figure 5: 2D convolution
 
-Status: ready subset. Measures cuDNN, full-image cuFFT and tiled cuFFTDx after a
-correctness gate; the tiled ThunderFFT kernel is joined from a separately
-produced CSV. Requires `MATHDX_ROOT`. Not yet supported: offline collection
-assembly.
+Status: runnable with partial collection and offline assembly. Measures full-image
+cuFFT and tiled ThunderFFT without optional dependencies; also measures cuFFTDx
+when `MATHDX_ROOT` is configured and cuDNN when installed. All paths use the
+native direct-reference correctness gate.
 
 Paper p. 10, Sections 5.4/6.6: H100; cuDNN's automatically selected best
 algorithm, full-image cuFFT, tiled cuFFTDx and tiled ThunderFFT. FFT tile size
@@ -19,7 +19,10 @@ MATHDX_ROOT=/path/to/nvidia/mathdx/25.06 ./run.sh figure5 --profile smoke       
 ```
 
 cuFFTDx is compiled for the first `THUNDERFFT_ARCHS` entry. Overrides:
-`THUNDERFFT_FIGURE5_FILTERS`, `_TRIALS`, `_N` (smoke only) and `_BACKENDS`.
+`THUNDERFFT_FIGURE5_FILTERS`, `_TRIALS`, `_N` (smoke only), `_BACKENDS` and
+`_LIBRARIES=auto` (all available backends). A comma-separated `_LIBRARIES` subset
+of `cuFFT,cuFFTDx,ThunderFFT,cuDNN` selects independent measurement parts.
+Explicit requests for an unavailable backend fail.
 
 ## Operation
 
@@ -32,26 +35,47 @@ Valid 2D cross-correlation `y[i][j] = sum_{a,b<f} x[i+a][j+b] h[a][b]`,
 | cuDNN | real FP32, 1 channel (real parts) | `CUDNN_CROSS_CORRELATION`, fastest of the top three heuristic algorithms (timed); `cudnnFind` grew host memory past 300 GB at f≥31 |
 | cuFFT | real FP32 (real parts) | full-image R2C of image and N x N padded filter, product, C2R (as the earlier `cufft.cu`) |
 | cuFFTDx | complex FP32 | tiled (64) fused kernel, `sample/conv2d/cufftdx.cu`; 64 x 64 filter FFT (cuFFT) |
-| ThunderFFT | complex FP32 (TF32) | tiled (64), same pipeline as cuFFTDx; backend CSV |
+| ThunderFFT | complex FP32 (TF32) | tiled (64), fused current public N=64 TF32 FFT kernels; cuFFT filter transform included |
 
 cuDNN and cuFFT use real input while the tiled FFT paths are complex; this
 follows the earlier evaluation code (its sheet labels cuFFT "c2c", but the code
 is R2C, and only R2C matches its timing). Every timed FFT iteration includes the filter FFT; the
 zero-padded, flipped spatial filter layout and cuFFT plans are prepared once.
 
-`thff_conv N f[,f...] cufft|cufftdx|cudnn [warmup] [runs] [trials]` checks finite relL2 ≤ 5e-3 against a direct
-double-precision reference before timing. The checked outputs cover every
+`thff_conv N f[,f...] cufft|cufftdx|cudnn|thunderfft [warmup] [runs] [trials]` checks finite relL2 ≤ 5e-3 against a direct
+double-precision reference before timing. For N≤256, the gate checks every output; larger images use samples. The sampled
+outputs cover every
 corner, the last row/column and both sides of every tile boundary (crossed with
 a strided subset). Each trial is the mean of 3–20 launches (about 0.2 s of work) after up to 5
 warmups; the median of
 3 trials is plotted.
 
-## Backend CSVs (tiled ThunderFFT)
+The ThunderFFT adapter is `sample/conv2d/thunder_tiled64.cu`: it uses FP32
+complex storage, TF32 tensor-core arithmetic, a padded 64×65 shared tile and
+four warps. Each iteration includes the 64×64 cuFFT filter transform. The driver
+handles partial tiles and every odd paper filter. This is an artifact
+implementation using the current public kernels; equivalence to the original
+paper binary and paper-scale performance remain to be measured.
 
-Columns `gpu,shape,filter,library,repeat,time_ms,rel_l2,passed,operation` with
+## Split collection and offline assembly
+
+```bash
+THUNDERFFT_FIGURE5_LIBRARIES=cuFFT,ThunderFFT ./run.sh figure5 --profile paper --collection conv2d --part fft
+MATHDX_ROOT=/path/to/mathdx THUNDERFFT_FIGURE5_LIBRARIES=cuFFTDx ./run.sh figure5 --profile paper --collection conv2d --part cufftdx
+THUNDERFFT_FIGURE5_LIBRARIES=cuDNN ./run.sh figure5 --profile paper --collection conv2d --part cudnn
+./run.sh figure5 --profile paper --collection conv2d --assemble
+```
+
+Filter subsets may be collected separately with `_FILTERS`. GPU UUID, driver,
+shape, operation and each backend's source/binary identity must agree across its
+parts. Missing cells remain in `coverage.json` and gaps in `figure.pdf`.
+
+## Optional backend CSVs
+
+Columns `gpu,shape,filter,library,precision,repeat,time_ms,filter_fft_included,rel_l2,validated,passed,operation` with
 `shape=N=16384` and `operation` equal to `FIGURE5["operation"]` in `measure.py`.
-The tiled ThunderFFT driver should use the same input generation and reference
-check, and include the filter FFT in its timing.
+External adapters must use the same input generation/reference check and set
+`filter_fft_included=true` for FFT paths (`n/a` for cuDNN).
 
 ## Notes
 
@@ -86,3 +110,11 @@ it measured 5.8–6.4 ms; started on an idle GPU, 6.7–7.5 ms. Both are stable 
 a run (spread < 1%) and a longer time-based warmup did not change either, so the
 difference is not clock ramp-up; large filters (f ≥ 21) agree. Keep the default
 order when comparing runs, and recheck on H100.
+
+Native result assembly reparses every recorded stdout/log and checks the saved
+CSV rows against the successful commands and correctness gates. Imported backend
+CSVs are copied byte-for-byte into `raw/backends/`, hashed, and revalidated from
+that copy; the result bundle remains usable after moving it or deleting the
+original import file. Numeric and unset CUDA visibility masks use a context-free
+CUDA device UUID query, so physical identity does not depend on `nvidia-smi`
+ordinal ordering.

@@ -194,7 +194,7 @@ def write_summary(directory, states):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("evaluations", nargs="*",
-                        help="evaluation IDs, available (default), or all including unfinished tasks")
+                        help="evaluation IDs, available (default), or all including optional-library evaluations")
     parser.add_argument("--list", action="store_true", help="list work items without running")
     parser.add_argument("--dry-run", action="store_true", help="show plan without creating results or querying GPUs")
     parser.add_argument("--profile", choices=["smoke", "paper"], default=None,

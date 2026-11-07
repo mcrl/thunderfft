@@ -163,7 +163,7 @@ def load_adapter(evaluation):
 def simple_assembly(evaluation, parts, output, profile):
     """Reuse validated complete model/validation bundles without GPU work."""
     missing = []
-    if evaluation not in ("table2", "validation"):
+    if evaluation != "validation":
         return {"status": "pending", "full_paper_comparison": False,
                 "missing": [{"item": "adapter", "reason": "incremental measurement/assembly adapter is not implemented"}]}
     if not parts:
@@ -183,8 +183,6 @@ def simple_assembly(evaluation, parts, output, profile):
                     shutil.copytree(path, output / path.name)
                 else:
                     shutil.copy2(path, output / path.name)
-    if evaluation == "table2":
-        missing.append({"item": "cuFFTDx measured row", "reason": "external parameters/measurement pending"})
     return {"status": "partial" if parts and missing else "complete" if parts else "pending",
             "missing": missing, "full_paper_comparison": False}
 
@@ -251,7 +249,7 @@ def assemble_collection(directory, entries, profile):
                     if sources:
                         raise ValueError("collect Table 3 CSVs for Figure 2; Figure 2 is regenerated during assembly")
                     sources = [staging / "table3"] if (staging / "table3").is_dir() else []
-                elif evaluation == "table4":
+                elif evaluation in ("table2", "table4"):
                     # Reuse collected timings directly, including Table 3 bundles
                     # with cuFFTDx rows. No GPU work or full Table 3 assembly is needed.
                     sources = [*by_id.get("table3", []), *sources]
@@ -259,8 +257,8 @@ def assemble_collection(directory, entries, profile):
                          simple_assembly(evaluation, sources, output, profile))
                 if state.get("status") not in ("complete", "partial", "pending"):
                     raise ValueError(f"{evaluation}: assembler returned an invalid status")
-                provenance_sources = sources if evaluation == "table4" else by_id.get(evaluation, [])
-                full_comparison = bool(state.get("full_paper_comparison")) if evaluation == "table4" else False
+                provenance_sources = sources if evaluation in ("table2", "table4") else by_id.get(evaluation, [])
+                full_comparison = profile == "paper" and bool(state.get("full_paper_comparison"))
                 state.update(evaluation=evaluation, profile=profile, operation="offline_assembly",
                              source_parts=[str(p.relative_to(directory)) if p.is_relative_to(directory) else str(p)
                                            for p in provenance_sources],

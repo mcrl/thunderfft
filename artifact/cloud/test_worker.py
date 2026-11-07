@@ -117,6 +117,27 @@ class WorkerTests(unittest.TestCase):
         self.assertIn("hash mismatch", (self.root / "result/cloud-worker/error.json").read_text())
         self.assertTrue(json.loads((self.parent / "worker.exit.json").read_text())["result_archive_ready"])
 
+    def test_cudnn_and_flash_headers_environment_is_checked_before_jobs(self):
+        script = self.root / "run.sh"
+        script.write_text('#!/bin/bash\nset -eu\nmkdir -p result/fixture\nprintf "%s\\n%s\\n%s" "$CUDNN_HOME" "$LD_LIBRARY_PATH" "$FLASHFFTCONV_PYTHON" > result/fixture/data.csv\n')
+        manifest = json.loads((self.root / ".thunderfft-cloud-source.json").read_text())
+        manifest["files"]["run.sh"]["sha256"] = hashlib.sha256(script.read_bytes()).hexdigest()
+        (self.root / ".thunderfft-cloud-source.json").write_text(json.dumps(manifest))
+        self.request.update(cudnn=True, torch_headers=True)
+        self.write_request()
+        self.assertEqual(self.run_fixture(), 1)
+        self.assertFalse((self.root / "result/fixture").exists())
+        cudnn = self.parent / "cudnn"
+        for name in ("include/cudnn.h", "lib/libcudnn.so"):
+            path = cudnn / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        self.assertEqual(self.run_fixture(), 0)
+        lines = (self.root / "result/fixture/data.csv").read_text().splitlines()
+        self.assertEqual(lines[0], str(cudnn))
+        self.assertEqual(lines[1].split(os.pathsep)[0], str(cudnn / "lib"))
+        self.assertEqual(lines[2], sys.executable)
+
     def test_interrupt_stops_runner_records_terminal_state_and_packs(self):
         process = Mock()
         process.poll.return_value = None
@@ -253,10 +274,11 @@ class ModelRoundTripTests(unittest.TestCase):
             selected = ["run.sh", "artifact/runner.py", "artifact/collection.py",
                         "artifact/common.sh", "artifact/registry.json"]
             selected += [str(path.relative_to(repository))
-                         for directory in (repository / "artifact/cloud", repository / "artifact/table2")
+                         for directory in (repository / "artifact/cloud", repository / "artifact/table2",
+                                           repository / "artifact/table3")
                          for path in directory.iterdir()
                          if path.is_file() and not path.name.startswith("test_")
-                         and path.suffix in (".py", ".sh", ".json")]
+                         and path.suffix in (".py", ".sh", ".json", ".csv")]
             for relative in selected:
                 target = source / relative
                 target.parent.mkdir(parents=True, exist_ok=True)

@@ -148,11 +148,11 @@ corresponding Table 3 result is available.
 ./run.sh table4 --collection ae-table4 --assemble
 ```
 
-Table 4 reads the Table 3 parts directly, including bundles that also contain
-cuFFTDx rows. The example uses a collection dedicated to Table 4: the common
-runner refreshes previously assembled evaluations, and Table 3's current
-assembler does not yet accept mixed-library bundles. Keeping this assembly
-separate avoids invoking that adapter.
+Table 4 reads Table 3 parts directly, including mixed ThunderFFT/cuFFTDx bundles,
+and selects only the N=64 TF32 register-input ThunderFFT measurements for its
+unit-throughput calculation. The same collection can serve Tables 2, 3 and 4
+and Figure 2. Table 3 accepts independently collected library parts and retains
+all cuFFTDx candidates; those rows do not alter Table 4's operation count.
 
 An incomplete assembly writes the available data and exits with the runner's
 partial-result code (2). Add the remaining parts and assemble again. No GPU

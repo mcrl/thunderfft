@@ -10,7 +10,8 @@ import sys
 import time
 import uuid
 
-from .config import ARCHS, MATHDX_ARCHIVES, inherited_environment, load_config, measurement_environment
+from .config import (ARCHS, MATHDX_ARCHIVES, CUDNN_ARCHIVES, TORCH_HEADERS_VERSION,
+                     inherited_environment, load_config, measurement_environment, required_dependencies)
 from .provider import VastClient, ProviderError, CreateRejected, plan_cost
 from .transport import SSH, build_source_bundle, safe_extract_result, validate_private_key
 from .watchdog import destroy_owned, write_json
@@ -163,7 +164,19 @@ def mathdx_script():
     ]
 
 
-def bootstrap(ssh, remote, deadline, mathdx=False):
+def cudnn_script():
+    cases = " ".join(f"{major}) url={shlex.quote(url)}; sha={sha};;" for major, (url, sha) in CUDNN_ARCHIVES.items())
+    return [
+        "cuda_major=\"$(nvcc --version | sed -n 's/.*release \\([0-9][0-9]*\\)\\..*/\\1/p')\"",
+        f'case "$cuda_major" in {cases} *) echo "no pinned cuDNN archive for CUDA $cuda_major" >&2; exit 1;; esac',
+        'curl -fsSL --retry 3 -o cudnn.tar.xz "$url"',
+        'echo "$sha  cudnn.tar.xz" | sha256sum -c -',
+        'mkdir -p cudnn && tar -xJf cudnn.tar.xz -C cudnn --strip-components=1 && rm cudnn.tar.xz',
+        'test -f cudnn/include/cudnn.h && test -f cudnn/lib/libcudnn.so',
+    ]
+
+
+def bootstrap(ssh, remote, deadline, mathdx=False, cudnn=False, torch_headers=False):
     # Python>=3.9, CMake>=3.18: stock CUDA22.04/24.04 images meet these after apt.
     script = "\n".join([
         "set -euo pipefail", "unset CONTAINER_API_KEY VAST_API_KEY",
@@ -172,10 +185,13 @@ def bootstrap(ssh, remote, deadline, mathdx=False):
         "tar -xzf source.tar.gz -C source",
         "mkdir -p source/result/cloud-worker",
         "exec >source/result/cloud-worker/bootstrap.log 2>&1",
-        "apt-get -qq update", "apt-get -qq install -y --no-install-recommends python3 python3-venv python3-pip cmake build-essential git ca-certificates curl",
+        "apt-get -qq update", "apt-get -qq install -y --no-install-recommends python3 python3-dev python3-venv python3-pip cmake build-essential git ca-certificates curl xz-utils patch",
         "python3 -m venv venv", "venv/bin/python -m pip --disable-pip-version-check install -r source/artifact/requirements.txt",
         "venv/bin/python -c 'import sys; assert sys.version_info >= (3,9)'", "nvcc --version", "cmake --version",
         *(mathdx_script() if mathdx else []),
+        *(cudnn_script() if cudnn else []),
+        *([f"venv/bin/python -m pip --disable-pip-version-check install --no-cache-dir --report source/result/cloud-worker/torch-install.json torch=={TORCH_HEADERS_VERSION} --index-url https://download.pytorch.org/whl/cpu",
+           "venv/bin/python -c 'import torch; from pathlib import Path; assert (Path(torch.__file__).parent / \"include/torch/extension.h\").is_file(); print(torch.__version__)'"] if torch_headers else []),
         "cat /tmp/thunderfft-watchdog/status 2>/dev/null || true",
     ])
     ssh.run(["bash", "-c", script], timeout=remaining(deadline, 900))
@@ -320,6 +336,7 @@ def run(args, entries, registry, root, collection_module, select_tasks, parser):
         raise ValueError("Vast jobs use one GPU and require --device 0")
     config = load_config(args.cloud_config)
     jobs = make_jobs(args, entries, registry, config, select_tasks, parser)
+    dependencies = required_dependencies(jobs, mathdx=config["mathdx"])
     if args.collection:
         existing = collection_module.read_manifest(collection_module.location(args.result_dir, args.collection))
         for job in jobs:
@@ -328,11 +345,13 @@ def run(args, entries, registry, root, collection_module, select_tasks, parser):
     if args.dry_run:
         print(json.dumps({"backend": "vast", "gpu": args.gpu, "image": config["images"][args.gpu],
                           "profile": args.profile, "jobs": jobs, "budget_usd": config["budget_usd"],
+                          "dependencies": dependencies,
                           "api_calls": False, "instances_created": 0}, indent=2))
         return 0
     client = VastClient(config["api_key_file"], repo_root=root)
     proposal = plan(client, config, args.gpu)
     if args.cloud_plan:
+        proposal["dependencies"] = dependencies
         print(json.dumps(proposal, indent=2))
         print("Read-only plan. No instance created; availability and prices will be checked again at execution.")
         return 0
@@ -362,7 +381,7 @@ def run(args, entries, registry, root, collection_module, select_tasks, parser):
         request = {"gpu": args.gpu, "arch": ARCHS[args.gpu], "profile": args.profile, "jobs": jobs,
                    "build_jobs": args.jobs, "task_timeout": args.timeout, "collection": args.collection,
                    "execution_seconds": config["execution_seconds"], "max_result_bytes": int(config["download_gb"] * 1e9),
-                   "mathdx": config["mathdx"]}
+                   **dependencies}
         write_json(folder / "request.json", request)
         # Source preparation can take time; obtain fresh offer prices and balance
         # inside the execution lock immediately before arming and creating.
@@ -400,7 +419,7 @@ def run(args, entries, registry, root, collection_module, select_tasks, parser):
             ssh.upload(folder / "source.tar.gz", remote + "/source.tar.gz", timeout=remaining(startup_deadline, 180))
             ssh.upload(folder / "request.json", remote + "/request.json", timeout=remaining(startup_deadline, 30))
             print(f"[{label}] preparing remote CUDA build environment", flush=True)
-            bootstrap(ssh, remote, startup_deadline, mathdx=config["mathdx"])
+            bootstrap(ssh, remote, startup_deadline, **dependencies)
             status = ssh.run(["cat", "/tmp/thunderfft-watchdog/status"], timeout=remaining(startup_deadline), check=False)
             write_json(folder / "remote-watchdog.json", {"status": status.stdout.strip(), "credential_source": "provider container-scoped credential"})
             print(f"[{label}] executing {len(jobs)} job(s); results: {folder}", flush=True)

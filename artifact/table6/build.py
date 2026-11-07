@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import sys
 
+from selection import libraries
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 
@@ -86,39 +88,45 @@ def main():
     parser.add_argument("--nvcc", default=os.environ.get("CUDACXX") or os.environ.get("NVCC") or "nvcc")
     parser.add_argument("--arch", default=os.environ.get("THUNDERFFT_ARCHS", "80"))
     parser.add_argument("--python", default=os.environ.get("THUNDERFFT_PYTHON", sys.executable))
+    parser.add_argument("--libraries", help="Comma-separated Table 6 libraries (default: THUNDERFFT_TABLE6_LIBRARIES)")
     args = parser.parse_args()
+    try:
+        selected = libraries(args.libraries)
+    except ValueError as error:
+        parser.error(str(error))
+    selected = tuple(name for name in selected if name in ("tcfft", "flashfftconv"))
     if not args.arch.isdigit():
         parser.error("THUNDERFFT_ARCHS must name exactly one architecture, e.g. 80")
     nvcc = shutil.which(args.nvcc)
     if not nvcc:
         parser.error(f"nvcc not found: {args.nvcc}")
     out = args.build_dir.resolve() / "artifact_table6"
-    shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True, exist_ok=True)
     gencode = [f"-gencode=arch=compute_{args.arch},code=sm_{args.arch}"]
     info = {"schema_version": 1, "nvcc": nvcc, "arch": args.arch, "binaries": {}}
     run([nvcc, "--version"])
     info["nvcc_version"] = subprocess.run([nvcc, "--version"], capture_output=True, text=True).stdout.strip()
-    info["tcfft"] = clone(TCFFT, out / "tcfft")
-    run(["patch", "-p1", "--no-backup-if-mismatch", "-i", PATCH], cwd=out / "tcfft")
-    info["tcfft"]["patch"] = {"path": str(PATCH.relative_to(ROOT)), "sha256": sha256(PATCH.read_bytes()),
-                              "patched_sha256": sha256((out / "tcfft/tcfft_half.cu").read_bytes())}
-    info["flashfftconv"] = clone(FLASHFFTCONV, out / "flashfftconv")
-    run(["patch", "-p1", "--no-backup-if-mismatch", "-i", FLASH_PATCH], cwd=out / "flashfftconv" / FLASH_DIR)
-    info["flashfftconv"]["patch"] = {
-        "path": str(FLASH_PATCH.relative_to(ROOT)), "sha256": sha256(FLASH_PATCH.read_bytes()),
-        "patched_sha256": sha256((out / "flashfftconv" / FLASH_DIR / "monarch_cuda_kernel.h").read_bytes())}
-    include, version = torch_include(args.python)
-    info["flashfftconv"].update(torch_include=include, torch_version=version)
     sources = HERE / "src"
-    builds = {
-        "tcfft": ([sources / "tcfft_bench.cu", "-I", sources, "-I", out / "tcfft"], ["-lcublas"]),
-        "flashfftconv": ([sources / "flashfftconv_bench.cu", "-I", sources / "shim", "-I", include,
-                          "-I", out / "flashfftconv" / FLASH_DIR, "-I", sources] + TORCH_EXTENSION_DEFINES,
-                         []),
-    }
-    for name, (inputs, libraries) in builds.items():
+    builds = {}
+    if "tcfft" in selected:
+        info["tcfft"] = clone(TCFFT, out / "tcfft")
+        run(["patch", "-p1", "--no-backup-if-mismatch", "-i", PATCH], cwd=out / "tcfft")
+        info["tcfft"]["patch"] = {"path": str(PATCH.relative_to(ROOT)), "sha256": sha256(PATCH.read_bytes()),
+                                  "patched_sha256": sha256((out / "tcfft/tcfft_half.cu").read_bytes())}
+        builds["tcfft"] = ([sources / "tcfft_bench.cu", "-I", sources, "-I", out / "tcfft"], ["-lcublas"])
+    if "flashfftconv" in selected:
+        info["flashfftconv"] = clone(FLASHFFTCONV, out / "flashfftconv")
+        run(["patch", "-p1", "--no-backup-if-mismatch", "-i", FLASH_PATCH], cwd=out / "flashfftconv" / FLASH_DIR)
+        info["flashfftconv"]["patch"] = {
+            "path": str(FLASH_PATCH.relative_to(ROOT)), "sha256": sha256(FLASH_PATCH.read_bytes()),
+            "patched_sha256": sha256((out / "flashfftconv" / FLASH_DIR / "monarch_cuda_kernel.h").read_bytes())}
+        include, version = torch_include(args.python)
+        info["flashfftconv"].update(torch_include=include, torch_version=version)
+        builds["flashfftconv"] = ([sources / "flashfftconv_bench.cu", "-I", sources / "shim", "-I", include,
+                                  "-I", out / "flashfftconv" / FLASH_DIR, "-I", sources] + TORCH_EXTENSION_DEFINES, [])
+    for name, (inputs, links) in builds.items():
         binary = out / f"table6_{name}"
-        command = [nvcc] + FLAGS + gencode + inputs + ["-o", binary] + libraries
+        command = [nvcc] + FLAGS + gencode + inputs + ["-o", binary] + links
         run(command)
         info["binaries"][name] = {"path": str(binary), "sha256": sha256(binary.read_bytes()),
                                   "command": [str(part) for part in command]}

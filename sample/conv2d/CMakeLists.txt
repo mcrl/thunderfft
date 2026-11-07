@@ -1,19 +1,20 @@
 add_executable(thff_conv
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cu
-  ${CMAKE_CURRENT_SOURCE_DIR}/thunder.cu
-  ${CMAKE_CURRENT_SOURCE_DIR}/cufftdx.cu
+  ${CMAKE_CURRENT_SOURCE_DIR}/thunder_tiled64.cu
 )
 
 target_link_libraries(thff_conv PRIVATE thunderfft CUDA::cudart CUDA::cufft)
-# cuFFTDx is compiled for one SM: the first THUNDERFFT_ARCHS entry (e.g. 80 -> 800).
-list(GET THUNDERFFT_ARCHS 0 thff_conv_arch)
-string(REGEX MATCH "^[0-9]+" thff_conv_arch "${thff_conv_arch}")
-target_compile_definitions(thff_conv PRIVATE THFF_CONV_SM=${thff_conv_arch}0)
-
-target_include_directories(thff_conv PRIVATE
-  ${MATHDX_ROOT}/external/cutlass/include
-  ${MATHDX_ROOT}/include
-)
+# cuFFT and ThunderFFT are available without MathDX.
+if(MATHDX_ROOT AND EXISTS "${MATHDX_ROOT}/include/cufftdx.hpp")
+  target_sources(thff_conv PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cufftdx.cu)
+  list(GET THUNDERFFT_ARCHS 0 thff_conv_arch)
+  string(REGEX MATCH "^[0-9]+" thff_conv_arch "${thff_conv_arch}")
+  target_compile_definitions(thff_conv PRIVATE THFF_WITH_CUFFTDX=1 THFF_CONV_SM=${thff_conv_arch}0)
+  target_include_directories(thff_conv PRIVATE ${MATHDX_ROOT}/external/cutlass/include ${MATHDX_ROOT}/include)
+  set(THFF_CONV_CUFFTDX_ENABLED ON CACHE INTERNAL "Figure 5 cuFFTDx backend" FORCE)
+else()
+  set(THFF_CONV_CUFFTDX_ENABLED OFF CACHE INTERNAL "Figure 5 cuFFTDx backend" FORCE)
+endif()
 
 target_compile_options(thff_conv PRIVATE
   $<$<COMPILE_LANGUAGE:CUDA>:-O3 -lineinfo>

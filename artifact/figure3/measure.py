@@ -112,9 +112,34 @@ def summarize(rows):
     return summary
 
 
+def selected_libraries(cufftdx_available=False):
+    requested = os.environ.get("THUNDERFFT_FIGURE3_LIBRARIES")
+    if requested is None:
+        return tuple(name for name in NATIVE if name != "cufftdx" or cufftdx_available)
+    result = tuple(value.strip() for value in requested.split(","))
+    if result == ("all",):
+        result = tuple(NATIVE)
+    if not result or any(value not in NATIVE for value in result) or len(result) != len(set(result)):
+        raise ValueError("THUNDERFFT_FIGURE3_LIBRARIES must be all or unique comma-separated names: " + ",".join(NATIVE))
+    if "cufftdx" in result and not cufftdx_available:
+        raise ValueError("Selected cuFFTDx requires MATHDX_ROOT and the cuFFTDx executable")
+    return result
+
+
+def expected_configurations(precisions=("tf32",), sizes=SIZES):
+    result = []
+    for n in sizes:
+        for precision in precisions:
+            result.extend((n, library, precision) for library in ("Comm. only", "ThunderFFT"))
+            result.append((n, "cuFFTDx", TABLE3.MATCHED_PRECISION[precision]))
+            if precision == "tf32":
+                result.append((n, "cuFFT", "fp32"))
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, required=True)
+    parser.add_argument("--binary", type=Path)
     parser.add_argument("--cufftdx-binary", type=Path, help="thff_paper_fft_cufftdx; omit to leave cuFFTDx pending")
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -124,13 +149,16 @@ def main():
     raw = args.output / "raw"
     raw.mkdir(exist_ok=True)
     try:
+        libraries = selected_libraries(bool(args.cufftdx_binary))
+        if any(name != "cufftdx" for name in libraries) and not args.binary:
+            raise ValueError("Selected libraries require --binary")
         settings = {"batch": TABLE3.positive_env("THUNDERFFT_FIGURE3_BATCH", 1024 if args.profile == "smoke" else 65536),
                     # Figure 3 uses only the separate single-pass e2e timing; the in-kernel R/2R loop
                     # (Table 3's compute time) just has to satisfy the native contract.
                     "repeats": TABLE3.positive_env("THUNDERFFT_FIGURE3_REPEATS", 16),
                     "trials": TABLE3.positive_env("THUNDERFFT_FIGURE3_TRIALS", 2 if args.profile == "smoke" else 3),
                     "timeout_seconds_per_configuration": TABLE3.positive_env("THUNDERFFT_FIGURE3_TIMEOUT", 300)}
-        selection = {"N": TABLE3.selection_env("THUNDERFFT_FIGURE3_N_LIST", SIZES, int),
+        selection = {"libraries": libraries, "N": TABLE3.selection_env("THUNDERFFT_FIGURE3_N_LIST", SIZES, int),
                      # Default TF32: the earlier A100 evaluation measured FP32 storage.
                      "precisions": TABLE3.selection_env("THUNDERFFT_FIGURE3_PRECISIONS", PRECISIONS)
                                    if "THUNDERFFT_FIGURE3_PRECISIONS" in os.environ else ("tf32",)}
@@ -164,7 +192,7 @@ def main():
                     str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                     for path in sorted(HERE.glob("*.py")) + [HERE / "run.sh"]}),
                 "build_configuration": TABLE3.build_evidence(args.build_dir),
-                "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest(),
+                "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest() if args.binary else None,
                 "cufftdx_binary_sha256": hashlib.sha256(args.cufftdx_binary.read_bytes()).hexdigest()
                   if args.cufftdx_binary else None, "cufftdx_selection": {},
                 "gpu_inventory_before": TABLE3.capture(["nvidia-smi", "--query-gpu=index,uuid,name,driver_version,memory.total,clocks.sm,clocks.mem,power.limit", "--format=csv,noheader"]),
@@ -172,11 +200,13 @@ def main():
     jobs = []
     for n in selection["N"]:
         for precision in selection["precisions"]:
-            jobs += [(n, library, precision) for library in ("copy", "copy-scalar", "thunderfft")]
-            if precision == "tf32":
+            jobs += [(n, library, precision) for library in libraries if library in ("copy", "copy-scalar", "thunderfft")]
+            if precision == "tf32" and "cufft" in libraries:
                 jobs.append((n, "cufft", "fp32"))
-            if args.cufftdx_binary:
+            if "cufftdx" in libraries:
                 jobs.append((n, "cufftdx", TABLE3.MATCHED_PRECISION[precision]))
+    if not jobs:
+        parser.error("selected libraries have no jobs for the requested precision (cuFFT requires tf32 storage)")
     rows, identity = [], None
     TABLE3.atomic_json(args.output / "metadata.json", metadata)
     try:
@@ -224,9 +254,11 @@ def main():
         TABLE3.write_csv(args.output / "baselines.csv",
                          [row for row in rows if row["library"] in ("cuFFT", "cuFFTDx")], FIELDS)
         TABLE3.write_csv(args.output / "summary.csv", summarize(rows), SUMMARY_FIELDS)
-        present = {row["library"] for row in rows}
-        metadata["missing"] = [library for library in ("cuFFT", "cuFFTDx") if library not in present]
-        metadata["full_paper_comparison_complete"] = not metadata["missing"] and set(selection["N"]) == set(SIZES)
+        present = {(int(row["N"]), row["library"], row["precision"]) for row in rows}
+        metadata["missing"] = [f"N{n}/{library}/{precision}" for n, library, precision
+                               in expected_configurations(tuple(sorted(set(selection["precisions"]) | {"tf32"})))
+                               if (n, library, precision) not in present]
+        metadata["full_paper_comparison_complete"] = not metadata["missing"]
         metadata.update(status="completed", numerical_and_timing_gates_passed=True)
     except (OSError, ValueError, RuntimeError) as error:
         metadata.update(status="failed", error=str(error), numerical_and_timing_gates_passed=False)

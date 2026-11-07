@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 import tempfile
 import unittest
+import shutil
 from unittest.mock import patch
 
 
@@ -45,15 +46,53 @@ class PartialFigureTests(unittest.TestCase):
             return original(axis, *args, **kwargs)
         with patch.object(matplotlib.axes.Axes, "errorbar", capture):
             result = ASSEMBLE.assemble([source], output, "smoke")
-        self.assertEqual((result["status"], len(result["missing"])), ("partial", 13))
+        self.assertEqual((result["status"], len(result["missing"])), ("partial", 26))
         self.assertTrue(math.isnan(captured[0][1]))
         self.assertTrue((output / "figure.pdf").read_bytes().startswith(b"%PDF"))
         metadata = json.loads((output / "metadata.json").read_text())
         self.assertEqual(metadata["source"]["source_result_dir"], "../table3")
         with (output / "summary.csv").open() as stream:
             rows = list(csv.DictReader(stream))
-        self.assertEqual(len(rows), 14)
+        self.assertEqual(len(rows), 28)
         self.assertTrue(all(row["median_us"] == "" for row in rows if row["status"] == "pending"))
+
+    def test_partial_cufftdx_series_use_the_selected_candidate(self):
+        part = FIXTURE.make_part(self.root / "mixed", ((64, "fp16", "register"),),
+                                 libraries=("ThunderFFT", "cuFFTDx"))
+        source, output = self.root / "assembled/table3", self.root / "assembled/figure2"
+        FIXTURE.ASSEMBLE.assemble([part], source, "smoke")
+        result = ASSEMBLE.assemble([source], output, "smoke")
+        self.assertEqual(result["collected_configurations"], 2)
+        with (output / "data.csv").open() as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual({row["candidate"] for row in rows if row["library"] == "cuFFTDx"}, {"block_f4_e4"})
+        with (output / "summary.csv").open() as stream:
+            summary = list(csv.DictReader(stream))
+        matched = next(row for row in summary if row["library"] == "ThunderFFT" and row["N"] == "64" and row["precision"] == "FP16")
+        self.assertEqual(float(matched["speedup_vs_cufftdx"]), 1)
+
+    def test_full_a100_register_matrix_completes_figure(self):
+        configs = [(n, precision, "register") for n in FIXTURE.MEASURE.SIZES for precision in FIXTURE.MEASURE.PRECISIONS]
+        part = FIXTURE.make_part(self.root / "mixed", configs, libraries=("ThunderFFT", "cuFFTDx"))
+        source = self.root / "assembled/table3"
+        FIXTURE.ASSEMBLE.assemble([part], source, "smoke")
+        result = ASSEMBLE.assemble([source], self.root / "assembled/figure2", "smoke")
+        self.assertEqual((result["status"], result["collected_configurations"], result["missing"]), ("complete", 28, []))
+        self.assertFalse(result["full_paper_comparison"])
+
+    def test_figure_regenerates_from_a_transferred_whole_collection(self):
+        collection = self.root / "original"
+        part = FIXTURE.make_part(collection / "parts/a100/table3", libraries=("ThunderFFT", "cuFFTDx"))
+        FIXTURE.ASSEMBLE.assemble([part], collection / "assembled/table3", "smoke")
+        transferred = self.root / "transferred"
+        shutil.copytree(collection, transferred)
+        shutil.rmtree(collection)
+        output = transferred / "assembled/figure2"
+        result = ASSEMBLE.assemble([transferred / "assembled/table3"], output, "smoke")
+        self.assertEqual(result["collected_configurations"], 2)
+        with (output / "data.csv").open() as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual({row["source_part"] for row in rows}, {"../../parts/a100/table3"})
 
     def test_tampering_assembled_data_does_not_bypass_native_validation(self):
         source = self.table3()
@@ -68,7 +107,7 @@ class PartialFigureTests(unittest.TestCase):
     def test_empty_assembly_keeps_all_points_pending_without_a_fake_plot(self):
         output = self.root / "output"
         result = ASSEMBLE.assemble([], output, "smoke")
-        self.assertEqual((result["status"], len(result["missing"])), ("pending", 15))
+        self.assertEqual((result["status"], len(result["missing"])), ("pending", 28))
         self.assertFalse((output / "figure.pdf").exists())
 
     def test_source_hash_or_profile_change_is_rejected(self):

@@ -1,8 +1,8 @@
 # Table 2: A100 theoretical performance model
 
-Owner: unassigned
-
-Status: calculated rows plus the measured cuFFTDx row from Table 3 when it runs in the same batch (A100 paper profile reproduces 1.79 / 55.9%)
+Status: calculated rows plus the measured cuFFTDx row from a completed Table 3
+run or validated collection parts. The documented A100 measurement gives
+relative time 1.79 and utilization 55.9%.
 
 Paper p. 3, Section 3.2: FP16 A100 model. Rows cover ideal CUDA Core FFT,
 measured cuFFTDx, and Tensor Core radix-4/8/16 designs. Columns are engine peak
@@ -12,7 +12,7 @@ load–MMA–store model keeps the twiddle operand in registers and uses shared
 memory for data redistribution. Although mostly theoretical, cuFFTDx utilization
 55.8% and relative time 1.79 are explicitly marked **measured**.
 
-## Starting points and work to assign
+## Run
 
 Table 3 is an optional dependency: `./run.sh table2` alone needs no GPU and
 produces the calculated rows, while `./run.sh table3 table2` (or the default
@@ -69,6 +69,28 @@ Measured 2026-11-04 (A100 80GB PCIe, cuFFTDx 1.5.1, paper profile, Table 3 run
 paper's 2.89 us rounds to 55.8%).
 
 ## Results and completion
+
+Table 2 can also be assembled after collecting Table 3 in independent parts:
+
+```sh
+./run.sh table2 --assemble --collection ae --profile paper
+```
+
+The assembler calculates the four model rows without a GPU, validates collected
+Table 3 native CSVs, commands and device logs, and adds the measured A100 N=64
+FP16/register cuFFTDx row when it is available. Earlier calculated-only Table 2
+parts can be combined with later measurements. The selected row uses the same
+smallest-median candidate rule as Table 3. Missing reference measurements leave
+the result partial; an available validated row completes it without a false
+pending-baseline entry. Other Table 3 sizes and GPU columns need not be complete
+for Table 2 to complete.
+
+Both the single-run producer and collection assembler preserve the source
+Table 3 CSV, metadata and native command logs under `source/table3/`. These
+relative paths and hashes make derived bundles portable when downloaded from a
+cloud instance. Legacy bundles with an absolute source path can be assembled
+alongside an explicitly imported Table 3 bundle with matching data/metadata
+hashes. Changed evidence and overlapping, nonidentical measurements are rejected.
 
 `data.csv` and `table.csv` (identical) have the calculated columns plus
 `N,batch,measured_time_us,ideal_time_us,candidate` for the measured row.

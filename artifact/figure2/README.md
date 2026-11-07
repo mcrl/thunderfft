@@ -1,16 +1,16 @@
 # Figure 2: FFT kernel execution time
 
-Status: ready. Plots ThunderFFT FP16/TF32 always, and cuFFTDx FP16/FP32 when
-the source Table 3 run measured cuFFTDx (`MATHDX_ROOT` set). Without cuFFTDx
-data it produces the explicitly labeled ThunderFFT-only subset; it never
-fabricates the cuFFTDx series. No cuFFTDx Figure 2 has been generated from a
-real measurement yet.
+Status: ready for single-run plotting and partial collection assembly. Plots
+available ThunderFFT FP16/TF32 and cuFFTDx FP16/FP32 Table 3 measurements.
+Missing series and points remain explicit gaps; the four series can be
+collected independently through Table 3.
 
 Paper p. 9, Section 6.2: A100 inputs in registers; FFT sizes
 64/128/256/512/1024/2048/4096; batch 65,536. The original figure compares
 cuFFTDx FP16 against ThunderFFT FP16, and cuFFTDx FP32 against ThunderFFT TF32.
-All series come from exactly the fresh [Table 3](../table3/README.md)
-measurements of the same run, without another GPU timing sweep.
+All series reuse [Table 3](../table3/README.md) measurements without another GPU
+timing sweep. The single-run command uses one completed Table 3 result; offline
+assembly joins compatible, independently collected Table 3 parts.
 
 ## Run
 
@@ -46,7 +46,7 @@ figure is explicitly scoped to A100; H100/B200 measurements are not relabeled.
 
 ## Assemble a partially collected figure
 
-Table 3 can be collected in independent parts using its size, precision and
+Table 3 can be collected in independent parts using its library, size, precision and
 placement selectors; see [split collection](../table3/README.md#collect-independent-parts-and-assemble-later).
 To update Figure 2 from all available parts, without rerunning measurements:
 
@@ -56,7 +56,8 @@ To update Figure 2 from all available parts, without rerunning measurements:
 
 The offline assembler first validates and merges Table 3 evidence, then writes
 the available A100/register points to `assembled/figure2/` in the collection.
-Its `summary.csv` retains all 14 ThunderFFT point positions; uncollected points
+Its `summary.csv` retains all 28 point positions across ThunderFFT FP16/TF32
+and cuFFTDx FP16/FP32; uncollected points
 have blank numeric values and `status=pending`. The PDF contains gaps for these
 points, with no zero fill or connecting line across a gap. With no measured
 points, the CSV and missing list are written and no PDF is fabricated.
@@ -64,17 +65,21 @@ points, the CSV and missing list are written and no PDF is fabricated.
 Every point is checked against the original native CSV, command and device log.
 Source hashes, configuration/trial coverage, positive finite timings,
 differential timing and the numerical gate must agree. Assembly rejects changed
-or incompatible evidence. It preserves the blue TF32 and green FP16 series and
-the legend above the data area. Original measurement files remain unchanged.
+or incompatible evidence. It preserves the existing library colors, precision
+line styles and legend above the data area. Original measurement files remain unchanged.
 
-The assembled figure remains `partial` while the cuFFTDx series are missing.
+The assembled figure remains `partial` while any of its 28 points is missing.
 `complete_declared_subset=true` indicates that all 14 ThunderFFT points exist;
-it does not claim completion of the paper's full comparison. The missing list
-retains the cuFFTDx series even when every ThunderFFT point is present.
+it does not claim completion of the paper's full comparison. Available cuFFTDx
+points use the fastest validated candidate's median and retain its label in the
+summary. Matched speedups appear only where both points exist. Full paper
+comparison requires all 28 points and the paper profile. Partial baseline series
+are supported by this collection workflow; the standalone single-run plotting
+command continues to require complete series.
 
 ## Data and plotting contract
 
-The adapter requires every one of the 7 sizes × 2 precisions and the same set
+The standalone single-run adapter requires every one of the 7 sizes × 2 precisions and the same set
 of trial IDs in every configuration. It selects `gpu=A100` and
 `placement=register`; other Table 3 placements are not plotted.
 

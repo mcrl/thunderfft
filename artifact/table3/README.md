@@ -12,25 +12,28 @@ placements, and sizes. The paper selects the best cuFFTDx launch parameters
 after an exhaustive sweep. [Figure 2](../figure2/README.md) consumes this data's
 A100/register subset.
 
-## Available ThunderFFT measurement
+## Available measurements
 
 The shared source [`sample/bench/paper_fft.cu`](../../sample/bench/paper_fft.cu)
 builds as `thff_paper_fft`. It selects all seven sizes, FP16 or TF32, and register
 or shared input: **28 ThunderFFT configurations per GPU**. It uses the existing
-benchmark kernels in `sample/bench/baseline/thunderfft_bench.h`. This driver
-does not implement the cuFFTDx parameter sweep, matched speedups or complete
-Table 3 reproduction. The unified adapter below completes the ThunderFFT-only
-subset without requiring cuFFTDx/MathDX or other external FFT libraries. cuFFT
-from the CUDA toolkit is used as an FP64 correctness reference, not as a timed
-comparison implementation.
+benchmark kernels in `sample/bench/baseline/thunderfft_bench.h`. With MathDX,
+the same source also builds `thff_paper_fft_cufftdx` and times the default and
+recorded tuned candidates in `sample/bench/baseline/cufftdx_bench.h`. The adapter
+selects each configuration's fastest median candidate and calculates matched
+speedups. It does not rerun an exhaustive parameter search.
+
+ThunderFFT can be collected independently without MathDX or external FFT
+libraries. CUDA Toolkit cuFFT supplies the FP64 correctness reference for both
+libraries and is not a timed Table 3 comparison implementation.
 
 From the repository root:
 
 ```sh
-# All seven N values, FP16/TF32, register/shared: 28 configurations.
+# All seven N values, FP16/TF32, register/shared: 28 configurations per library.
 ./run.sh table3 --profile smoke --device 0
 
-# Paper-sized ThunderFFT measurements for the selected GPU.
+# Paper-sized measurements for the selected GPU and configured libraries.
 ./run.sh table3 --profile paper --device 0
 ```
 
@@ -38,9 +41,9 @@ The adapter configures/builds `thff_paper_fft`, then saves its raw CSV and
 stderr separately for every configuration. Smoke defaults to batch 1024,
 R=256 and two trials; it is a short installation/numerical/timing check, not a
 paper performance comparison. Paper defaults to batch 65536, R=1000 and three
-trials. Results are written to `result/table3/<run_id>/`; neither profile runs
-cuFFTDx or creates baseline speedups/geometric means. Success means the
-selected ThunderFFT configurations completed on one selected GPU.
+trials. Results are written to `result/table3/<run_id>/`. A build configured
+with `MATHDX_ROOT` also collects cuFFTDx and matched speedups by default.
+Success means the selected configurations completed on one selected GPU.
 
 ## Collect independent parts and assemble later
 
@@ -60,11 +63,32 @@ THUNDERFFT_TABLE3_PLACEMENTS=shared \
 ```
 
 `THUNDERFFT_TABLE3_PRECISIONS=fp16` or `tf32` can split each command further.
+`THUNDERFFT_TABLE3_LIBRARIES=ThunderFFT` or `cuFFTDx` collects one library, so
+the baseline can be added after a ThunderFFT-only collection without repeating
+those measurements. The default is both when cuFFTDx is configured, otherwise
+ThunderFFT. Only the selected executable targets are built. For example:
+
+```sh
+THUNDERFFT_TABLE3_LIBRARIES=ThunderFFT ./run.sh table3 \
+  --collection ae --part a100-thunderfft --profile paper
+MATHDX_ROOT=/path/to/mathdx/25.06 THUNDERFFT_ARCHS=80 \
+  THUNDERFFT_TABLE3_LIBRARIES=cuFFTDx ./run.sh table3 \
+  --collection ae --part a100-cufftdx --profile paper
+./run.sh table3 table2 figure2 --assemble --collection ae --profile paper
+```
+
+The precision selector uses ThunderFFT names: `tf32` selects matched cuFFTDx
+`fp32`; `fp16` selects `fp16` for either library. A requested cuFFTDx library
+without a configured MathDX build remains pending.
+
 All three selectors accept nonempty comma-separated lists; omitted selectors
 include all their values. Duplicate or unsupported values fail. Use the same
-profile, batch, R, trial count, source, binary/build and physical GPU for parts
+profile, batch, R, trial count, source and physical GPU for parts
 belonging to the same GPU column. A100, H100 and B200 have separate columns and
 must use the same source revision, while allowing their required architecture/toolkit builds.
+Binary hashes and cuFFTDx version/target-SM evidence must agree within each
+library on one GPU. Build configurations remain in the provenance; adding the
+cuFFTDx executable does not invalidate an earlier ThunderFFT-only part.
 Overlapping configurations
 and incompatible parts are rejected instead of silently averaged. Keep different
 measurement campaigns in different collections.
@@ -74,15 +98,24 @@ If a later configuration fails or the process is interrupted, assembly can
 retain earlier complete configurations after rechecking their successful command
 record, native CSV/log, numerical error and differential timing. Incomplete or
 corrupt trial groups fail validation. Uncollected configurations remain blank
-with `status=pending` in the assembled 84-row ThunderFFT grid. The assembly's
-missing list also records the pending cuFFTDx comparison. Already collected
+with `status=pending` in the assembled 168-row grid: 84 ThunderFFT and 84
+cuFFTDx configurations. Already collected
 values are never replaced with the paper's reference targets.
 
-Assembly writes `data.csv`, `table.csv` and `metadata.json` to the collection's
+Assembly writes `data.csv`, `table.csv`, `cufftdx_candidates.csv`, `speedup.csv`
+and `metadata.json` to the collection's
 `assembled/table3/` directory and derives Figure 2 from its A100/register subset.
-It launches no GPU workloads. Table 3 remains `partial` while cuFFTDx is missing;
+It selects the smallest median cuFFTDx candidate per configuration, retains all
+candidates, and pairs FP16/FP16 and TF32/FP32 for available speedups. Empty
+candidate/speedup files still carry their headers. It launches no GPU workloads.
+Table 3 remains `partial` while any of the 168 configurations is missing;
 `complete_declared_subset=true` means only that all 84 ThunderFFT configurations
-have been collected. Original part outputs remain unchanged.
+have been collected. `full_paper_comparison=true` requires all 168 configurations
+with the paper profile. Original part outputs remain unchanged.
+Source paths in the assembled CSV and metadata are relative to the assembly
+directory. Copy the complete collection, including `parts/`, to preserve native
+evidence and regenerate derived tables/figures after moving it. Historical
+absolute source references remain readable while those originals are available.
 
 Set `CUDACXX` and `THUNDERFFT_ARCHS` for the evaluation GPU/toolkit before
 running, for example:

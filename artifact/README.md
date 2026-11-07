@@ -5,23 +5,23 @@ This branch organizes reproduction work for the supplied PPoPP'27 draft,
 implementation named **ThunderFFT** in this repository. Paper numbers below
 refer to that draft; confirm them if the paper changes.
 
-The folders are independent evaluations; some adapters are still incomplete.
-Each task documents its implemented scope and missing measurements.
+The folders are independent evaluations with separate collection and offline
+assembly. Each task documents its implemented scope and missing measurements.
 Figure 1 is a design diagram
 and Table 1 is a literature survey, so neither has a GPU evaluation task.
 
 | Task | Paper page | Deliverable | Starting point / dependency |
 | --- | ---: | --- | --- |
 | [validation](validation/README.md) | — | FFT correctness and memory guards | Ready: 88 smoke / 500 full cases plus 18 host API checks |
-| [figure2](figure2/README.md) | 9 | A100 FFT kernel time plot | Ready: ThunderFFT series, plus cuFFTDx when this run's Table 3 measured it |
-| [figure3](figure3/README.md) | 10 | End-to-end FFT normalized performance | Ready subset: communication-only, ThunderFFT, cuFFT; cuFFTDx with `MATHDX_ROOT` |
-| [figure4](figure4/README.md) | 10 | A100 1D convolution plot | Ready subset: ThunderFFT and cuDNN gated on the paper workload; FlashFFTConv via backend CSV |
-| [figure5](figure5/README.md) | 10 | H100 2D convolution plot | Ready subset (`MATHDX_ROOT`): cuDNN, cuFFT, tiled cuFFTDx; tiled ThunderFFT via backend CSV |
-| [table2](table2/README.md) | 3 | A100 performance model and measured reference | Ready: calculated rows + measured cuFFTDx row from Table 3 (needs `MATHDX_ROOT`) |
-| [table3](table3/README.md) | 8 | FFT kernel latency matrix | Ready: ThunderFFT 28 configurations/GPU; cuFFTDx comparison with `MATHDX_ROOT`; complete matched three-GPU collection pending |
+| [figure2](figure2/README.md) | 9 | A100 FFT kernel time plot | Four series from validated Table 3 parts; candidate selection, matched speedups and gaps for missing points |
+| [figure3](figure3/README.md) | 10 | End-to-end FFT normalized performance | Communication-only, ThunderFFT, cuFFT and optional cuFFTDx; independent library/size parts and offline normalization |
+| [figure4](figure4/README.md) | 10 | A100 1D convolution plot | Native ThunderFFT, cuDNN and pinned FlashFFTConv; independent library/filter parts and assembly |
+| [figure5](figure5/README.md) | 10 | H100 2D convolution plot | Native cuDNN, cuFFT, tiled cuFFTDx and tiled ThunderFFT artifact implementation; independent parts and assembly |
+| [table2](table2/README.md) | 3 | A100 performance model and measured reference | Calculated rows plus the measured row from an available Table 3 cuFFTDx part; portable source evidence |
+| [table3](table3/README.md) | 8 | FFT kernel latency matrix | Independent ThunderFFT/cuFFTDx parts; 168 library configurations across three GPUs, candidate selection and matched speedups |
 | [table4](table4/README.md) | 8 | MMA and unit-kernel throughput | Ready: unit throughput from Table 3 CSVs + independent ideal MMA benchmark; assemble GPU parts separately |
 | [table5](table5/README.md) | 9 | Numerical accuracy and dynamic range | Ready: measurements and tables; FP16/TF32 ThunderFFT, FP32 cuFFT, optional cuFFTDx FP16 accuracy; seed and input details not stated in the paper |
-| [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | Ready (`MATHDX_ROOT`) |
+| [table6](table6/README.md) | 9 | Prior Tensor Core FFT comparison | All four libraries can be collected separately; only selected dependencies are required; offline speedup calculation |
 | [table7](table7/README.md) | 9 | Optimization ablation and unit-kernel timings | Ready subset: two complete-FFT candidates and two explicitly partial historical kernels; separate collection/assembly, accuracy and operation-coverage labels |
 
 The general paper environment (p. 7) is one GPU with an AMD EPYC-class host:
@@ -60,7 +60,7 @@ the defaults.
 ./run.sh --list
 ./run.sh --dry-run
 ./run.sh                         # available tasks, smoke profile
-./run.sh all                     # also report unfinished tasks as pending
+./run.sh all                     # all evaluations, including optional dependencies
 ./run.sh validation --profile paper
 ./run.sh figure4 table5          # selected tasks
 ./run.sh table3 --profile paper --device 0 --jobs 8
@@ -68,17 +68,18 @@ the defaults.
 ```
 
 By default, `run.sh` selects **validation, Table 2, Table 3, Table 4, Table 5, Table 7 and Figure 2**,
-in dependency order, with no downloaded FFT library or cuFFTDx tuning data.
+in dependency order. External FFT repositories are not required for this batch;
+configured MathDX enables the optional cuFFTDx paths and compiled candidate lists.
 CUDA Toolkit's cuFFT is still used as an FP64 numerical reference and Table 5's
 explicitly labeled FP32 path; no cuFFT performance tuning is required.
-`./run.sh all` includes unfinished assignments; `./run.sh --list` lists every
-assignment, while `./run.sh --dry-run` previews the available default batch.
+`./run.sh all` includes evaluations requiring optional dependencies; `./run.sh --list` lists every
+evaluation, while `./run.sh --dry-run` previews the available default batch.
 
-The runnable Table 2/3/4/7/Figure 2 adapters cover the subsets in the table above.
-Successful execution does not imply that the excluded cuFFTDx comparison or
-the complete multi-GPU paper experiment has been reproduced. Each task's
-`coverage` and `full_paper_comparison=false` are retained in runner status and
-the batch manifest. B200/H100 measurements require their own compatible GPU
+The adapters record the measured scope and remaining cells. Successful
+execution of one part does not establish the complete multi-GPU experiment.
+Offline assembly preserves each adapter's `full_paper_comparison` decision
+only for the paper profile; complete CSV coverage alone does not establish
+paper equivalence. B200/H100 measurements require their own compatible GPU
 and native architecture build; Figure 2 requires A100 source measurements.
 
 `smoke` checks the implemented path with small workloads. `paper` requests the
@@ -107,7 +108,8 @@ MATHDX_ROOT=/path/to/nvidia/mathdx/25.06 THUNDERFFT_ARCHS=90 ./run.sh table3 --p
 MathDX is needed only to configure and build. The runner forwards the variable
 to CMake as `-DMATHDX_ROOT`, which keeps it in the build directory's cache;
 configuration fails if the path lacks `include/cufftdx.hpp`. Later runs with
-the same `--build-dir` keep measuring cuFFTDx without the variable, and
+the same `--build-dir` keep measuring cuFFTDx without the variable unless
+`THUNDERFFT_TABLE3_LIBRARIES` selects another subset, and
 `MATHDX_ROOT=` (empty) clears it. A build directory never configured with
 MathDX measures ThunderFFT only, and the dependent cuFFTDx outputs are omitted. Table 5's
 paper profile uses batch 65536 (the paper's stated evaluation batch) and seed
@@ -221,9 +223,16 @@ ideal-only result can be collected before Table 3 is available. Use
 
 `./run.sh table4 --collection ae-table4 --assemble` combines collected Table 3
 and Table 4 parts using only the CPU. Missing GPU cells remain blank, and
-efficiency requires matching GPU UUIDs. For bundles containing cuFFTDx rows,
-use the separate Table 4 collection described in [Table 4](table4/README.md),
-since the Table 3 assembler does not yet accept mixed-library bundles.
+efficiency requires matching GPU UUIDs. Table 2/3/4 and Figure 2 can share a
+collection containing independent ThunderFFT and cuFFTDx parts. Table 2 derives
+its measured row automatically from the collected A100 N=64 FP16 register data.
+
+Table 6 and Figures 3–5 also support independent library parts through their
+`THUNDERFFT_<TASK>_LIBRARIES` settings. Collect their CSVs separately, then use
+the same `--collection NAME --assemble` command. Missing libraries, sizes or
+filters remain pending; speedups and normalized figures are calculated once
+the corresponding baselines arrive. See each task's README for exact library
+names and examples. The root runner never launches GPU work during assembly.
 
 Table 3 also retains each fully validated configuration as a checkpoint. If a
 later configuration fails or the runner is interrupted, completed configurations
@@ -257,9 +266,11 @@ An invalid assembly preserves the previous assembled output and records
 `assembly-error.json`; that previous output does not incorporate the rejected
 parts. When updating selected evaluations, previously assembled evaluations are
 also refreshed, so existing tables and derived figures are preserved.
-Missing Figure 2 points are gaps, not zero values or interpolated lines.
-Unsupported evaluations and external comparisons remain listed as pending.
-The implemented subset and full-paper completeness are recorded separately.
+Missing figure points are gaps, not zero values or interpolated lines.
+Uncollected libraries, configurations and unsupported legacy result formats
+remain listed as pending. The completed scope and full-paper completeness are
+recorded separately. In particular, the convolution adapters retain their
+declared operation/precision limitations even when all cells have been collected.
 
 ## Adapter contract
 
@@ -303,7 +314,7 @@ selected alone it stays CPU-only.
 
 `completed` describes successful execution and the output contract. The runner
 records `scientific_validation: not_assessed`; the adapter's own validation
-report and the task owner's review establish numerical correctness and faithful
+report and a review of the experiment's evidence establish numerical correctness and faithful
 paper reproduction. It does not infer those claims from exit code zero.
 
 For incremental assembly, provide `artifact/<evaluation>/assemble.py` with
@@ -312,6 +323,8 @@ paths; `output` is an empty staging directory. This function must only read and
 validate collected evidence and write derived files, without GPU queries,
 compilation or measurement. Return `status` (`complete`, `partial`, or `pending`),
 `missing` (objects with `item` and `reason`), and `full_paper_comparison`.
+The collection preserves the adapter's full-comparison flag for paper runs and
+forces it false for smoke runs; `status=complete` is not a replacement for that flag.
 Validate numerical gates, configuration completeness and compatible provenance
 before combining values. Keep output references relative when they point to
 other assembled files because the staging directory is renamed on publication.

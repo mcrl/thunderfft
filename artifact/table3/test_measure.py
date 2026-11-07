@@ -3,8 +3,14 @@
 
 import csv
 import io
+import json
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
+import measure
 from measure import CUFFTDX_RAW_FIELDS, RAW_FIELDS, gpu_name, native_identity, parse_raw, summarize
 
 
@@ -116,6 +122,7 @@ class CufftdxContract(unittest.TestCase):
                  [dict(r, candidate="best") for r in good],             # unknown label
                  [dict(r, library="thunderfft") for r in good],
                  [dict(r, single_fft_relL2=0.01) for r in good],
+                 [good[0], dict(good[1], threads_per_block=128)],
                  [dict(r, threads_per_block=0) for r in good], [])
         for rows in cases:
             with self.subTest(rows=rows), self.assertRaises(ValueError):
@@ -127,6 +134,50 @@ class CufftdxContract(unittest.TestCase):
         self.assertEqual(native_identity("GPU=x\nlibrary=cufftdx cuFFTDx=10501 target_SM=800\n"),
                          {"cufftdx_version": 10501, "cufftdx_target_sm": 800})
         self.assertEqual(native_identity("GPU=x\n"), {})
+
+
+class LibrarySelectionTests(unittest.TestCase):
+    def test_defaults_explicit_selection_and_missing_dependency(self):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(measure.selected_libraries(False), ("ThunderFFT",))
+            self.assertEqual(measure.selected_libraries(True), ("ThunderFFT", "cuFFTDx"))
+        with patch.dict("os.environ", {"THUNDERFFT_TABLE3_LIBRARIES": "cuFFTDx"}):
+            self.assertEqual(measure.selected_libraries(True), ("cuFFTDx",))
+            with self.assertRaises(ValueError):
+                measure.selected_libraries(False)
+        for value in ("", "ThunderFFT,ThunderFFT", "cuFFT", "ThunderFFT,"):
+            with patch.dict("os.environ", {"THUNDERFFT_TABLE3_LIBRARIES": value}), self.assertRaises(ValueError):
+                measure.selected_libraries(True)
+
+    def test_cufftdx_only_run_has_no_thunder_binary_or_speedup_requirement(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / "dx"
+            binary.write_bytes(b"synthetic executable; subprocess mocked")
+            output = root / "output"
+            argv = ["measure.py", "--binary", str(root / "not-built"), "--cufftdx-binary", str(binary),
+                    "--output", str(output), "--build-dir", str(root), "--profile", "smoke"]
+            calls = []
+            contract = CufftdxContract()
+            def execute(command, **kwargs):
+                calls.append(command)
+                kwargs["stdout"].write(contract.raw([contract.row(trial=trial) for trial in (0, 1)]))
+                kwargs["stderr"].write("GPU=NVIDIA A100 compute=8.0 batch=1024 R=256 trials=2\n"
+                                       "library=cufftdx cuFFTDx=10501 target_SM=800\n")
+                return SimpleNamespace(returncode=0)
+            env = {"THUNDERFFT_TABLE3_LIBRARIES": "cuFFTDx", "THUNDERFFT_TABLE3_N_LIST": "64",
+                   "THUNDERFFT_TABLE3_PRECISIONS": "fp16", "THUNDERFFT_TABLE3_PLACEMENTS": "register"}
+            with patch.dict("os.environ", env, clear=True), patch("sys.argv", argv), \
+                    patch.object(measure, "capture", return_value={}), \
+                    patch.object(measure, "source_hashes", return_value={"source.cu": "a" * 64}), \
+                    patch.object(measure.subprocess, "run", side_effect=execute):
+                self.assertEqual(measure.main(), 0)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][1:3], ["--library", "cufftdx"])
+            metadata = json.loads((output / "metadata.json").read_text())
+            self.assertIsNone(metadata["binary_sha256"])
+            self.assertEqual(metadata["coverage"]["selected_thunderfft_configurations"], 0)
+            self.assertEqual((output / "speedup.csv").read_text().strip(), ",".join(measure.SPEEDUP_FIELDS))
 
 
 if __name__ == "__main__":

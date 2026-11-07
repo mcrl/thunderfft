@@ -16,6 +16,9 @@ SPEC = importlib.util.spec_from_file_location("collection_runner_test", HERE / "
 runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)
 collection = runner.collection
+MODEL_SPEC = importlib.util.spec_from_file_location("collection_table2_model", HERE / "table2/model.py")
+MODEL = importlib.util.module_from_spec(MODEL_SPEC)
+MODEL_SPEC.loader.exec_module(MODEL)
 
 
 class CollectionChecks(unittest.TestCase):
@@ -33,6 +36,11 @@ class CollectionChecks(unittest.TestCase):
         (root / "data.csv").write_text("key,value\na,1\n")
         (root / "table.csv").write_text("key,value\na,1\n")
         (root / "metadata.json").write_text('{"origin":"CPU fixture"}\n')
+        if evaluation == "table2":
+            inputs = HERE / "table2/assumptions.json"
+            config = json.loads(inputs.read_text())
+            MODEL.write_outputs(root, config, inputs, MODEL.calculate(config), None, None, profile,
+                                "no Table 3 measurement in CPU model fixture")
         return root
 
     def main(self, *arguments):
@@ -44,9 +52,10 @@ class CollectionChecks(unittest.TestCase):
     def test_import_snapshot_survives_original_edits_and_prevents_overwrite(self):
         source = self.bundle()
         record = collection.add_part(self.directory, "table2", "first", source, "smoke")
+        original_data = (source / "data.csv").read_text()
         source.joinpath("data.csv").write_text("modified original\n")
         copied = self.directory / record["path"]
-        self.assertEqual(copied.joinpath("data.csv").read_text(), "key,value\na,1\n")
+        self.assertEqual(copied.joinpath("data.csv").read_text(), original_data)
         with self.assertRaisesRegex(ValueError, "already exists"):
             collection.add_part(self.directory, "table2", "first", source, "smoke")
 
@@ -86,7 +95,7 @@ class CollectionChecks(unittest.TestCase):
         two = self.bundle("two")
         (two / "data.csv").write_text("key,value\na,2\n")
         collection.add_part(self.directory, "table2", "two", two, "smoke")
-        with self.assertRaisesRegex(ValueError, "conflict"):
+        with self.assertRaisesRegex(ValueError, "CSV header|disagree|conflict"):
             collection.assemble_collection(self.directory, [{"id": "table2"}], "smoke")
         self.assertEqual((self.directory / "assembled/table2/data.csv").read_bytes(), prior)
         self.assertTrue((self.directory / "assembly-error.json").exists())

@@ -11,14 +11,17 @@ fi
 export CUDA_VISIBLE_DEVICES="${selected_device}"
 
 artifact_configure -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 2>&1 | tee "${THUNDERFFT_RESULT_DIR}/configure.log"
-# thff_conv needs MathDX (cuFFTDx and CuTe headers).
-if ! grep -q '^MATHDX_ROOT:PATH=/' "${THUNDERFFT_BUILD_DIR}/CMakeCache.txt"; then
-  artifact_pending "Figure 5 needs MATHDX_ROOT (cuFFTDx/CuTe) to build thff_conv."
+available="cuFFT,ThunderFFT"
+if grep -qx 'THFF_CONV_CUFFTDX_ENABLED:INTERNAL=ON' "${THUNDERFFT_BUILD_DIR}/CMakeCache.txt"; then
+  available="${available},cuFFTDx"
+fi
+if grep -q '^CUDNN_LIB:FILEPATH=/' "${THUNDERFFT_BUILD_DIR}/CMakeCache.txt"; then
+  available="${available},cuDNN"
 fi
 cmake --build "${THUNDERFFT_BUILD_DIR}" --target thff_conv -j "${THUNDERFFT_JOBS}" \
   2>&1 | tee "${THUNDERFFT_RESULT_DIR}/build.log"
 "${THUNDERFFT_PYTHON}" "${TASK_DIR}/measure.py" \
-  --binary "${THUNDERFFT_BUILD_DIR}/sample/conv2d/thff_conv" \
+  --binary "${THUNDERFFT_BUILD_DIR}/sample/conv2d/thff_conv" --available "${available}" \
   --build-dir "${THUNDERFFT_BUILD_DIR}" \
   --output "${THUNDERFFT_RESULT_DIR}" --profile "${THUNDERFFT_PROFILE}"
 exec "${THUNDERFFT_PYTHON}" "${TASK_DIR}/../figure4/plot.py" --output-dir "${THUNDERFFT_RESULT_DIR}" --evaluation figure5

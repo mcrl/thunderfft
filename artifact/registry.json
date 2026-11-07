@@ -44,7 +44,7 @@
       "id": "table2",
       "title": "Theoretical model and measured cuFFTDx utilization",
       "paper_page": 3,
-      "implementation": "ready_subset",
+      "implementation": "ready",
       "owner": null,
       "depends_on": [],
       "optional_depends_on": [
@@ -61,13 +61,13 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "Calculated A100 model rows; measured cuFFTDx row when Table 3 runs in the same batch and measured cuFFTDx (MATHDX_ROOT)"
+      "coverage": "Calculated A100 model rows and measured cuFFTDx row from independently collected Table 3 parts; portable offline assembly"
     },
     {
       "id": "table3",
       "title": "FFT kernel performance across GPUs, precisions and placements",
       "paper_page": 8,
-      "implementation": "ready_subset",
+      "implementation": "ready",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -81,7 +81,7 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "ThunderFFT 28 configurations per GPU; with MATHDX_ROOT also 28 matched cuFFTDx configurations (tuned candidates), selection and speedups; one GPU per run"
+      "coverage": "Independent ThunderFFT/cuFFTDx library and configuration parts; 168 configuration cells across A100/H100/B200 with raw evidence validation, candidate selection and speedups"
     },
     {
       "id": "table4",
@@ -145,7 +145,7 @@
       },
       "available": false,
       "full_paper_comparison": true,
-      "coverage": "A100 N=256 FP16, batch 65536: cuFFTDx, tcFFT, FlashFFTConv and ThunderFFT compute time"
+      "coverage": "A100 N256 FP16 batch65536 four-library comparison; selected-library builds and independent collection, raw CSV/log revalidation and offline speedup assembly"
     },
     {
       "id": "table7",
@@ -173,7 +173,7 @@
       "id": "figure2",
       "title": "A100 register-resident FFT kernel timing",
       "paper_page": 9,
-      "implementation": "ready_subset",
+      "implementation": "ready",
       "owner": null,
       "depends_on": [
         "table3"
@@ -189,13 +189,13 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "A100 register series from this run Table3: ThunderFFT FP16/TF32, plus cuFFTDx FP16/FP32 when Table3 measured them"
+      "coverage": "Four A100 register series derived from assembled Table 3, including selected cuFFTDx candidates; missing sizes remain blank"
     },
     {
       "id": "figure3",
       "title": "FFT performance normalized by communication-only baseline",
       "paper_page": 10,
-      "implementation": "ready_subset",
+      "implementation": "ready",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -209,13 +209,13 @@
       },
       "available": false,
       "full_paper_comparison": false,
-      "coverage": "A100 communication-only (vector/scalar copy) and ThunderFFT, cuFFT (FP32) and cuFFTDx (with MATHDX_ROOT) end-to-end, N=64/256/1024/4096"
+      "coverage": "Independent communication-only, ThunderFFT, cuFFT and cuFFTDx parts; offline normalization and GPU/precision plots"
     },
     {
       "id": "figure4",
       "title": "A100 1D convolution comparison",
       "paper_page": 10,
-      "implementation": "ready_subset",
+      "implementation": "ready",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -229,13 +229,13 @@
       },
       "available": false,
       "full_paper_comparison": false,
-      "coverage": "A100 L=4096,B=64,D=768 depthwise circular conv: ThunderFFT and cuDNN measured after a sampled direct-reference gate; FlashFFTConv joined from THUNDERFFT_FIGURE4_BACKENDS CSVs"
+      "coverage": "Native ThunderFFT, cuDNN and pinned FlashFFTConv L4096 convolution with validation, per-library/filter collection and offline assembly; precision details recorded"
     },
     {
       "id": "figure5",
       "title": "H100 2D convolution comparison",
       "paper_page": 10,
-      "implementation": "ready_subset",
+      "implementation": "ready",
       "owner": null,
       "depends_on": [],
       "required_outputs": {
@@ -249,7 +249,7 @@
       },
       "available": false,
       "full_paper_comparison": false,
-      "coverage": "N=16384 complex FP32 valid 2D correlation, f=3..53: cuDNN (real FP32, as the earlier evaluation), cuFFT full image and tiled cuFFTDx measured after a sampled direct-reference gate; tiled ThunderFFT joined from THUNDERFFT_FIGURE5_BACKENDS CSVs"
+      "coverage": "Native cuDNN, cuFFT, cuFFTDx and tiled64 TF32 ThunderFFT artifact implementation with validation and offline assembly; original paper binary identity unconfirmed"
     }
   ]
 }

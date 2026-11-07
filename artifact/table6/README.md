@@ -11,7 +11,7 @@ MATHDX_ROOT=/path/to/nvidia/mathdx/25.06 THUNDERFFT_ARCHS=80 \
   ./run.sh table6 --backend local --profile paper
 ```
 
-tcFFT and FlashFFTConv are not vendored. On every run the script clones these
+tcFFT and FlashFFTConv are not vendored. When selected, the script clones these
 commits from GitHub into `build_artifact/artifact_table6/`, replacing any
 previous clone, applies the patches and builds the drivers:
 
@@ -22,13 +22,41 @@ previous clone, applies the patches and builds the drivers:
 
 Requirements:
 
-- MathDX for cuFFTDx. Without it the task reports `pending`.
-- Network access to GitHub.
-- PyTorch (headers only) for FlashFFTConv. Set `FLASHFFTCONV_PYTHON` if it is
+- MathDX only when cuFFTDx is selected. Other libraries can be collected independently.
+- Network access to GitHub only when building tcFFT or FlashFFTConv.
+- PyTorch (headers only) only for FlashFFTConv. Set `FLASHFFTCONV_PYTHON` if it is
   not in `python3`.
 
 `paper` uses batch 65536, R=1000 and 3 trials. `smoke` uses batch 4096, R=64
 and 2 trials.
+
+## Collect separately and assemble
+
+Select any subset with `THUNDERFFT_TABLE6_LIBRARIES` (`cufftdx`, `tcfft`,
+`flashfftconv`, `thunderfft`; comma-separated, default `all`). Only selected
+libraries are built: tcFFT-only runs need neither MathDX nor PyTorch;
+ThunderFFT-only runs do not clone external repositories.
+
+```bash
+THUNDERFFT_TABLE6_LIBRARIES=thunderfft,tcfft THUNDERFFT_ARCHS=80 \
+  ./run.sh table6 --profile paper --collection paper-a100 --part local
+FLASHFFTCONV_PYTHON=/path/to/python THUNDERFFT_TABLE6_LIBRARIES=flashfftconv THUNDERFFT_ARCHS=80 \
+  ./run.sh table6 --profile paper --collection paper-a100 --part flash
+MATHDX_ROOT=/path/to/mathdx THUNDERFFT_TABLE6_LIBRARIES=cufftdx THUNDERFFT_ARCHS=80 \
+  ./run.sh table6 --profile paper --collection paper-a100 --part cufftdx
+./run.sh table6 --profile paper --collection paper-a100 --assemble
+```
+
+Assembly runs on CPU and writes `result/collections/paper-a100/assembled/table6/`.
+Missing libraries remain blank/pending. Speedups remain blank until cuFFTDx
+arrives. Parts must use the same physical GPU, driver/CUDA versions, source
+revision and batch/repeat/trial settings. Conflicting or overlapping library
+parts are rejected; use a separate collection for repeated experiments.
+Raw CSVs are parsed again and checked against saved `data.csv`, command
+arguments, device logs and binary/source hashes. Historical README numbers
+without their native CSV/log bundle are not imported as new measurements.
+`THUNDERFFT_TABLE6_BATCH`, `_REPEATS`, `_TRIALS`, and `_TIMEOUT` select workload
+and per-library timeout; paper assembly requires batch 65,536 and R=1,000.
 
 ## Method
 
@@ -66,4 +94,6 @@ Written to the run's result directory:
 - `table.csv`: the table above (time, speedup over cuFFTDx, paper values).
 - `data.csv`: every trial.
 - `metadata.json`: settings, pinned sources and build commands.
+- `raw/<library>.csv` and `.log`: native measurements and device/runtime evidence.
 - `run.log`: console output of the build and every driver.
+- Assembled `table.csv` includes `status`; pending measurements have empty numeric cells.

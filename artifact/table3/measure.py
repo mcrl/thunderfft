@@ -36,6 +36,8 @@ FIELDS = ("gpu", "N", "batch", "placement", "library", "precision", "trial",
           "time_us", "e2e_out_of_place_us", "rel_l2", "passed", "inside_repeats",
           "t_R_us", "t_2R_us", "shared_bytes", "raw_csv",
           "candidate", "ffts_per_block", "elements_per_thread", "threads_per_block")
+SPEEDUP_FIELDS = ("gpu", "placement", "thunderfft_precision", "cufftdx_precision", "N",
+                  "thunderfft_median_us", "cufftdx_median_us", "cufftdx_candidate", "speedup", "paper_speedup")
 
 
 def now():
@@ -134,6 +136,7 @@ def parse_raw(text, *, n, precision, placement, batch, repeats, trials, gpu, raw
         raise ValueError(f"native CSV header does not match the versioned Table 3 {library} contract")
     rows = []
     seen = {}
+    candidate_geometry = {}
     for raw in reader:
         if None in raw or any(value is None for value in raw.values()):
             raise ValueError("malformed native CSV row")
@@ -171,6 +174,10 @@ def parse_raw(text, *, n, precision, placement, batch, repeats, trials, gpu, raw
         # cuFFTDx thread FFTs legitimately use no dynamic shared memory.
         if shared < 0 or (shared == 0 and not extra["candidate"].startswith("thread_")):
             raise ValueError("invalid shared-memory workspace size")
+        if cufftdx:
+            geometry = (*[extra[key] for key in CUFFTDX_EXTRA[2:]], shared)
+            if candidate_geometry.setdefault(extra["candidate"], geometry) != geometry:
+                raise ValueError("cuFFTDx candidate geometry changes across trials")
         rows.append(dict(zip(FIELDS, (gpu, n, batch, placement, library, precision, trial,
                          compute, e2e, rel_l2, "true", repeats, t_r, t_2r, shared, raw_csv,
                          extra["candidate"], extra["ffts_per_block"], extra["elements_per_thread"],
@@ -299,6 +306,11 @@ def selection_env(name, allowed, convert=str):
     return values
 
 
+def selected_libraries(cufftdx_available):
+    available = ("ThunderFFT", "cuFFTDx") if cufftdx_available else ("ThunderFFT",)
+    return selection_env("THUNDERFFT_TABLE3_LIBRARIES", available)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
@@ -311,7 +323,11 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     raw = args.output / "raw"
     raw.mkdir(exist_ok=True)
-    cufftdx = args.cufftdx_binary is not None
+    try:
+        libraries = selected_libraries(args.cufftdx_binary is not None)
+    except ValueError as error:
+        parser.error(str(error))
+    cufftdx = "cuFFTDx" in libraries
     settings = {"batch": positive_env("THUNDERFFT_TABLE3_BATCH", 1024 if args.profile == "smoke" else 65536),
                 "repeats": positive_env("THUNDERFFT_TABLE3_REPEATS", 256 if args.profile == "smoke" else 1000),
                 "trials": positive_env("THUNDERFFT_TABLE3_TRIALS", 2 if args.profile == "smoke" else 3),
@@ -333,7 +349,8 @@ def main():
     selected_count = math.prod(len(values) for values in selection.values())
     # The selection names ThunderFFT precisions; cuFFTDx runs the matched ones.
     jobs = [("ThunderFFT", n, precision, placement) for n in selection["N"]
-            for precision in selection["precisions"] for placement in selection["placements"]]
+            for precision in selection["precisions"] for placement in selection["placements"]
+            if "ThunderFFT" in libraries]
     if cufftdx:
         jobs += [("cuFFTDx", n, MATCHED_PRECISION[precision], placement) for n in selection["N"]
                  for precision in selection["precisions"] for placement in selection["placements"]]
@@ -342,12 +359,11 @@ def main():
         binaries["cuFFTDx"] = args.cufftdx_binary.resolve()
     metadata = {"schema_version": 2, "evaluation": "table3", "profile": args.profile,
                 "started_at": now(), "status": "running", "settings": settings,
-                "selection": selection,
-                "scope": ("ThunderFFT and matched cuFFTDx on one GPU" if cufftdx
-                          else "ThunderFFT-only; cuFFTDx tuning and comparison excluded"),
+                "selection": {**selection, "libraries": libraries},
+                "scope": ", ".join(libraries) + " on one GPU; complete cross-library comparison requires matched parts",
                 "full_paper_comparison_complete": False,
                 "coverage": {"expected_thunderfft_configurations": 28, "measured_thunderfft_configurations": 0,
-                             "selected_thunderfft_configurations": selected_count,
+                             "selected_thunderfft_configurations": selected_count if "ThunderFFT" in libraries else 0,
                              "expected_cufftdx_configurations": 28 if cufftdx else 0,
                              "selected_cufftdx_configurations": selected_count if cufftdx else 0,
                              "cufftdx_configurations": 0, "cufftdx_candidates": 0,
@@ -371,7 +387,7 @@ def main():
                 "git": capture(["git", "rev-parse", "HEAD"]),
                 "worktree": capture(["git", "status", "--porcelain"]),
                 "source_sha256": source_hashes(), "build_configuration": build_evidence(args.build_dir),
-                "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest(),
+                "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest() if "ThunderFFT" in libraries else None,
                 "cufftdx_binary_sha256": hashlib.sha256(args.cufftdx_binary.read_bytes()).hexdigest()
                   if cufftdx else None,
                 "gpu_inventory_before": capture(["nvidia-smi", "--query-gpu=index,uuid,name,driver_version,memory.total,clocks.sm,clocks.mem,power.limit", "--format=csv,noheader"]),
@@ -444,7 +460,7 @@ def main():
         write_csv(args.output / "table.csv", table, tuple(table[-1]))
         if cufftdx:
             write_csv(args.output / "cufftdx_candidates.csv", candidates, tuple(candidates[0]))
-            write_csv(args.output / "speedup.csv", speedups, tuple(speedups[0]))
+            write_csv(args.output / "speedup.csv", speedups, SPEEDUP_FIELDS)
         metadata.update(status="completed", numerical_and_timing_gates_passed=True)
     except (OSError, ValueError, RuntimeError) as error:
         metadata.update(status="failed", error=str(error), numerical_and_timing_gates_passed=False)
@@ -456,7 +472,8 @@ def main():
     cufftdx_note = (f" and {selected_count}/28 cuFFTDx configurations "
                     f"({metadata['coverage']['cufftdx_candidates']} candidates)" if cufftdx
                     else "; cuFFTDx comparison excluded")
-    print(f"Completed {selected_count}/28 ThunderFFT configurations{cufftdx_note} on this GPU. "
+    thunder_count = selected_count if "ThunderFFT" in libraries else 0
+    print(f"Completed {thunder_count}/28 ThunderFFT configurations{cufftdx_note} on this GPU. "
           f"Results: {args.output}")
     return 0
 

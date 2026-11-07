@@ -134,6 +134,15 @@ def run_jobs(root, request, output, deadline):
         if not (mathdx_root / "include/cufftdx.hpp").is_file():
             raise ValueError("requested MathDx was not installed by bootstrap")
         environment["MATHDX_ROOT"] = str(mathdx_root)
+    if request.get("cudnn"):
+        cudnn_root = root.parent / "cudnn"
+        if not (cudnn_root / "include/cudnn.h").is_file() or not (cudnn_root / "lib/libcudnn.so").is_file():
+            raise ValueError("requested cuDNN was not installed by bootstrap")
+        environment["CUDNN_HOME"] = str(cudnn_root)
+        environment["LD_LIBRARY_PATH"] = str(cudnn_root / "lib") + (
+            os.pathsep + environment["LD_LIBRARY_PATH"] if environment.get("LD_LIBRARY_PATH") else "")
+    if request.get("torch_headers"):
+        environment["FLASHFFTCONV_PYTHON"] = sys.executable
     states = []
     atomic_json(output / "jobs.json", states)
     with (output / "jobs.log").open("w") as log:

@@ -8,6 +8,7 @@ from contextlib import ExitStack, redirect_stdout, redirect_stderr
 import copy
 import io
 import json
+import time
 from pathlib import Path
 import subprocess
 import sys
@@ -334,6 +335,36 @@ class CoordinatorTests(unittest.TestCase):
         self.assertTrue(state["cleanup_confirmed"])
         self.assertTrue((folder / "billing.json").is_file())
 
+
+
+class DependencyBootstrapTests(unittest.TestCase):
+    def test_bootstrap_scripts_match_cuda_major_and_pin_download_hashes(self):
+        from artifact.cloud.config import CUDNN_ARCHIVES
+        script = "\n".join(coordinator.cudnn_script())
+        for major, (url, digest) in CUDNN_ARCHIVES.items():
+            self.assertIn(major + ") url=", script)
+            self.assertIn(url, script)
+            self.assertIn(digest, script)
+        self.assertIn("sha256sum -c -", script)
+        self.assertIn("exit 1", script)
+        completed = subprocess.run(["bash", "-n"], input="set -euo pipefail\n" + script,
+                                   text=True, capture_output=True)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_bootstrap_only_installs_requested_dependencies(self):
+        ssh = mock.Mock()
+        coordinator.bootstrap(ssh, "/workspace/test run", time.time() + 900,
+                              mathdx=False, cudnn=True, torch_headers=True)
+        script = ssh.run.call_args.args[0][2]
+        self.assertIn("cd -- '/workspace/test run'", script)
+        self.assertIn("cudnn.tar.xz", script)
+        self.assertIn("torch==2.8.0", script)
+        self.assertIn("https://download.pytorch.org/whl/cpu", script)
+        self.assertNotIn("mathdx.tar.gz", script)
+        self.assertIn("python3-dev", script)
+        self.assertIn("patch", script)
+        completed = subprocess.run(["bash", "-n"], input=script, text=True, capture_output=True)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
 
 if __name__ == "__main__":
     unittest.main()

@@ -152,13 +152,13 @@ cmake --build build --target benchmark thff_conv1d thff_conv1d_fullfft4096 -j2
 ```
 
 `benchmark` is an FFT timing experiment. Full-length 1D convolution enforces a
-relative L2 correctness threshold when validation is enabled; the tiled 1D and
-2D programs still print diagnostic errors without a numerical failure gate.
-See the sample guide before using their timing output.
+relative L2 correctness threshold when validation is enabled. The 2D `thff_conv`
+driver checks a direct reference before timing; the earlier tiled 1D sample
+prints diagnostic errors. See the sample guide for each program's validation scope.
 
-The 2D target `thff_conv` additionally needs NVIDIA MathDX with cuFFTDx and bundled
-CUTLASS/CuTe headers; configure with `-DMATHDX_ROOT=/path/to/nvidia/mathdx/25.06`.
-A build of all targets includes this dependency. The optional native
+The 2D target `thff_conv` builds cuFFT and tiled ThunderFFT paths with the CUDA
+Toolkit. Its optional cuFFTDx path needs NVIDIA MathDX and bundled CUTLASS/CuTe
+headers; configure with `-DMATHDX_ROOT=/path/to/nvidia/mathdx/25.06`. The optional native
 `thff_conv1d_compare` target needs cuDNN's library and development headers.
 
 ## Repository layout
@@ -174,32 +174,39 @@ A build of all targets includes this dependency. The optional native
 
 ## Artifact experiments
 
-See the [artifact task guide](artifact/README.md) for the ten paper assignments,
+See the [artifact task guide](artifact/README.md) for the ten paper evaluations,
 the correctness task, paper settings and implementation status. The supplied
 paper calls 1D convolution Figure 4 and 2D convolution Figure 5.
 
 ```bash
-./run.sh --list                 # inspect assignments and dependencies
+./run.sh --list                 # inspect evaluations and dependencies
 ./run.sh --dry-run              # preview available tasks without GPU work
 ./run.sh                        # validation, Table 2/3/4/5/7 and Figure 2 smoke checks
-./run.sh all                    # include unfinished assignments as pending
+./run.sh all                    # include evaluations with optional dependencies
 ./run.sh table5                 # run one evaluation
 ./run.sh table3 --profile paper # request the paper workload
 ```
 
 New outputs go to `result/<evaluation>/<run_id>/`; batch manifests and summaries
-go to `result/runs/<run_id>/`. Task folders include owner placeholders, required
-work and completion criteria. The default batch uses CUDA Toolkit and Python;
+go to `result/runs/<run_id>/`. Task folders document workloads, dependencies,
+measurement contracts and completion criteria. The default batch uses CUDA Toolkit and Python;
 install the plotting dependency with `python3 -m pip install -r artifact/requirements.txt`.
 The scripts require Python 3.9 or newer; set `PYTHON=/path/to/python3` if `python3` is older.
 It produces correctness results, Table 2's calculated rows, all 28 ThunderFFT
 Table 3 configurations, Table 4's unit throughput derived from those CSVs and
 independently measured ideal MMA rate, the corresponding A100 Figure 2 subset,
-and Table 5 accuracy/range measurements. The excluded cuFFTDx comparisons and external FFT
-libraries remain explicit in the output metadata. FP32 in Table 5 is cuFFT.
-`./run.sh all` also visits unfinished tasks, which return 78; the batch returns
-2 for pending-only work and 1 for actual failures. See each task's README for
-profile settings and exact scope. `bash artifact/check.sh` runs CPU checks.
+Table 5 accuracy/range measurements and the available Table 7 ablation variants.
+When MathDX is configured, Table 3 also supplies cuFFTDx comparisons and the
+corresponding Table 2/Figure 2 results. Table 6 and Figures 3–5 support individual
+library measurements, including native FlashFFTConv for Figure 4 and tiled
+ThunderFFT for Figure 5. Missing dependencies or measurements remain explicit
+in the output metadata. FP32 in Table 5 is cuFFT.
+
+Use `--collection NAME --part PART` to collect separate result bundles, then
+`--collection NAME --assemble` to combine them without GPU work. Missing cells
+remain blank until compatible measurements arrive. The batch returns 2 for
+pending-only work and 1 for actual failures. See each task's README for profile
+settings and exact scope. `bash artifact/check.sh` runs CPU checks.
 
 Existing checked-in CSVs remain historical local outputs. They have not been
 revalidated as paper reference results. Numerical correctness and equivalent

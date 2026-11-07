@@ -17,6 +17,7 @@ import json
 import math
 import os
 from pathlib import Path
+import shutil
 import statistics
 import sys
 
@@ -185,6 +186,34 @@ def check_table3_selection(directory, reference, best):
                 raise ValueError("cuFFTDx selection disagrees with Table 3 cufftdx_candidates.csv")
 
 
+def snapshot_source(output, directory, provenance):
+    """Keep the native source with a derived result so downloads are portable."""
+    directory = directory.resolve()
+    relative = Path("source/table3")
+    snapshot = output / relative
+    snapshot.mkdir(parents=True, exist_ok=True)
+    names = {name for name in ("data.csv", "status.json", "metadata.json", "cufftdx_candidates.csv")
+             if (directory / name).is_file()}
+    if (directory / "metadata.json").is_file():
+        metadata = json.loads((directory / "metadata.json").read_text())
+        for command in metadata.get("commands", []):
+            names.update(command[key] for key in ("stdout", "stderr")
+                         if isinstance(command.get(key), str) and (directory / command[key]).is_file())
+    hashes = {}
+    for name in sorted(names):
+        source = (directory / name).resolve()
+        target = snapshot / name
+        if not source.is_relative_to(directory) or not target.resolve().is_relative_to(snapshot.resolve()):
+            raise ValueError("Table 3 snapshot evidence path escapes its result directory")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if source != target.resolve():
+            shutil.copy2(source, target)
+        hashes[name] = sha256(target)
+    return {**provenance, "original_source_result_dir": str(directory),
+            "source_result_dir": relative.as_posix(), "source_file": (relative / "data.csv").as_posix(),
+            "snapshot_sha256": hashes}
+
+
 def write_outputs(output, config, inputs, rows, measured, provenance, profile, pending):
     for name in ("data.csv", "table.csv"):
         with (output / name).open("w", newline="") as stream:
@@ -217,7 +246,7 @@ def write_outputs(output, config, inputs, rows, measured, provenance, profile, p
     (output / "table.md").write_text("\n".join(lines) + "\n")
     metadata = {"schema_version": 2, "evaluation": "table2", "profile": profile,
                 "scope": "calculated rows and measured cuFFTDx row" if measured else "calculated rows only",
-                "full_paper_comparison": bool(measured),
+                "full_paper_comparison": bool(measured) and profile == "paper",
                 "excluded": [] if measured else ["measured cuFFTDx row"],
                 "excluded_reason": None if measured else pending,
                 "assumptions": config, "assumptions_sha256": sha256(inputs),
@@ -264,6 +293,7 @@ def main():
                 time_us, batch, candidate, provenance = read_measurement(directory, config, args.profile)
                 measured = measured_row(config, time_us, batch, candidate)
                 rows.insert(1, measured)
+                provenance = snapshot_source(args.output, directory, provenance)
             except Pending as error:
                 pending = str(error)
         write_outputs(args.output, config, inputs, rows, measured, provenance, args.profile, pending)

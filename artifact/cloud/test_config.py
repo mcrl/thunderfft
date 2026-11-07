@@ -63,6 +63,31 @@ class ConfigurationTests(unittest.TestCase):
         values = {"THUNDERFFT_TABLE7_TIMING_ONLY": "1", "THUNDERFFT_TABLE7_TRIALS": "1"}
         self.assertEqual(config.measurement_environment(values), values)
 
+    def test_library_and_figure_workloads_are_forwarded_without_host_paths(self):
+        values = {"THUNDERFFT_TABLE6_LIBRARIES": "tcfft", "THUNDERFFT_TABLE6_TRIALS": "2",
+                  "THUNDERFFT_FIGURE3_LIBRARIES": "copy,cufft", "THUNDERFFT_FIGURE3_BATCH": "1024",
+                  "THUNDERFFT_FIGURE4_LIBRARIES": "FlashFFTConv", "THUNDERFFT_FIGURE4_FILTERS": "3,9",
+                  "THUNDERFFT_FIGURE4_VALIDATE_CHANNELS": "16", "THUNDERFFT_FIGURE5_N": "128",
+                  "THUNDERFFT_FIGURE5_LIBRARIES": "ThunderFFT", "THUNDERFFT_FIGURE5_TRIALS": "1"}
+        self.assertEqual(config.measurement_environment(values), values)
+        for key in ("THUNDERFFT_FIGURE4_BACKENDS", "THUNDERFFT_FIGURE5_BACKENDS", "FLASHFFTCONV_PYTHON"):
+            with self.assertRaises(ValueError):
+                config.measurement_environment({key: "/local/path"})
+
+    def test_dependencies_follow_selected_jobs_not_other_baselines(self):
+        def dependencies(evaluation, libraries, mathdx=True):
+            return config.required_dependencies([{"evaluations": [evaluation], "environment": {
+                "THUNDERFFT_" + evaluation.upper() + "_LIBRARIES": libraries}}], mathdx=mathdx)
+        self.assertEqual(dependencies("table6", "tcfft"), dict(mathdx=False, cudnn=False, torch_headers=False))
+        self.assertEqual(dependencies("table6", "flashfftconv"), dict(mathdx=False, cudnn=False, torch_headers=True))
+        self.assertEqual(dependencies("figure4", "ThunderFFT"), dict(mathdx=False, cudnn=False, torch_headers=False))
+        self.assertEqual(dependencies("figure4", "all"), dict(mathdx=False, cudnn=True, torch_headers=True))
+        self.assertEqual(dependencies("figure4", "auto"), dependencies("figure4", "all"))
+        self.assertEqual(dependencies("figure5", "all"), dict(mathdx=True, cudnn=True, torch_headers=False))
+        self.assertEqual(dependencies("figure5", "auto"), dependencies("figure5", "all"))
+        self.assertEqual(dependencies("table3", "ThunderFFT"), dict(mathdx=False, cudnn=False, torch_headers=False))
+        self.assertFalse(dependencies("table3", "all", False)["mathdx"])
+
     def test_cloud_preview_requires_no_credentials_and_creates_no_results(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "result"

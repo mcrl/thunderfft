@@ -35,6 +35,7 @@
 #endif
 
 using Gate = std::function<bool(const float2*)>;
+std::vector<float> thunder_tiled64_convolution(const float2*, const float2*, int, int, const Gate&, int, int, int);
 
 // Implemented in cufftdx.cu: tiled (64) cuFFTDx pipeline; one time per trial, none if the gate fails.
 template <int f>
@@ -231,8 +232,12 @@ static double sampled_rel_l2(const std::vector<float2>& x, const std::vector<flo
     coords.erase(std::unique(coords.begin(), coords.end()), coords.end());
     // Every boundary row against a strided subset of columns, and vice versa:
     // checking all boundary pairs would cost ~1e10 operations at 16384^2.
+    if (N <= 256) {
+        coords.clear();
+        for (int i=0; i<out; ++i) coords.push_back(i);
+    }
     std::vector<int> subset;
-    const size_t stride = std::max<size_t>(1, coords.size() / 64);
+    const size_t stride = N <= 256 ? 1 : std::max<size_t>(1, coords.size() / 64);
     for (size_t k = 0; k < coords.size(); ++k)
         if (k % stride == 0 || k + 2 >= coords.size()) subset.push_back(coords[k]);
     std::vector<std::pair<int, int>> points;
@@ -261,6 +266,7 @@ static double sampled_rel_l2(const std::vector<float2>& x, const std::vector<flo
     return std::sqrt(num / den);
 }
 
+#ifdef THFF_WITH_CUFFTDX
 template <int f>
 static std::vector<float> dispatch_cufftdx(const float2* x, const float2* h, int N, const Gate& gate, int warmup,
                                            int runs, int trials) {
@@ -283,9 +289,11 @@ static std::vector<float> run_cufftdx(int f, const float2* x, const float2* h, i
     }
 }
 
+#endif
+
 int main(int argc, char** argv) {
     if (argc < 4) {
-        std::cerr << "usage: " << argv[0] << " N f[,f...] cufft|cufftdx|cudnn [warmup=5] [runs=20] [trials=1] [device=0]\n";
+        std::cerr << "usage: " << argv[0] << " N f[,f...] cufft|cufftdx|cudnn|thunderfft [warmup=5] [runs=20] [trials=1] [device=0]\n";
         return 2;
     }
     const int N = std::atoi(argv[1]);
@@ -301,7 +309,7 @@ int main(int argc, char** argv) {
     const int trials = argc >= 7 ? std::atoi(argv[6]) : 1;
     const int device = argc >= 8 ? std::atoi(argv[7]) : 0;
     const bool bad_filter = filters.empty() || std::any_of(filters.begin(), filters.end(), [](int f) { return f < 1 || f > 63; });
-    if (bad_filter || trials <= 0 || N < 64 || warmup < 0 || runs <= 0 || (library != "cufft" && library != "cufftdx" && library != "cudnn")) {
+    if (bad_filter || trials <= 0 || N < 64 || warmup < 0 || runs <= 0 || (library != "cufft" && library != "cufftdx" && library != "cudnn" && library != "thunderfft")) {
         std::cerr << "invalid arguments\n";
         return 2;
     }
@@ -336,8 +344,15 @@ int main(int argc, char** argv) {
         std::vector<float> times;
         if (library == "cufft") {
             times = cufft_convolution(x.data(), h.data(), N, f, gate, warmup, runs, trials);
+        } else if (library == "thunderfft") {
+            times = thunder_tiled64_convolution(x.data(), h.data(), N, f, gate, warmup, runs, trials);
         } else if (library == "cufftdx") {
+#ifdef THFF_WITH_CUFFTDX
             times = run_cufftdx(f, x.data(), h.data(), N, gate, warmup, runs, trials);
+#else
+            std::cerr << "built without cuFFTDx; configure MATHDX_ROOT\n";
+            return 78;
+#endif
         } else {
 #ifdef THFF_WITH_CUDNN
             times = cudnn_convolution(x.data(), h.data(), N, f, gate, warmup, runs, trials);

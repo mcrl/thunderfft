@@ -28,6 +28,7 @@ def module(name, path):
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+SELECTION = module("table6_selection", HERE / "selection.py")
 TABLE3 = module("table6_table3_measure", HERE.parent / "table3/measure.py")
 N = 256
 NATIVE_FIELDS = ("N", "precision", "input", "placement", "batch", "inside_repeats", "trial", "t_R_us",
@@ -80,6 +81,8 @@ def parse_native(text, *, library, batch, repeats, trials, gpu, revision):
         actual = (int(raw["N"]), raw["precision"], int(raw["batch"]), int(raw["inside_repeats"]), raw["library"])
         if actual != (N, "fp16", batch, repeats, library):
             raise ValueError(f"native CSV configuration mismatch: {actual}")
+        if raw["placement"] != "register_fragments":
+            raise ValueError("invalid Table 6 placement")
         candidate = raw["candidate"]
         if library == "tcfft":
             if candidate != "layer_256_0_A100" or raw["input"] != "complex" or raw["e2e_mode"] != "in_place":
@@ -172,15 +175,17 @@ def summarize(rows):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--thunderfft-binary", type=Path, required=True)
-    parser.add_argument("--cufftdx-binary", type=Path, required=True)
-    parser.add_argument("--table6-build", type=Path, required=True, help="artifact_table6/build.json")
+    parser.add_argument("--thunderfft-binary", type=Path)
+    parser.add_argument("--cufftdx-binary", type=Path)
+    parser.add_argument("--table6-build", type=Path, help="artifact_table6/build.json")
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--profile", choices=("smoke", "paper"), required=True)
+    parser.add_argument("--libraries", help="Comma-separated library subset")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     try:
+        selected = SELECTION.libraries(args.libraries)
         settings = {"batch": TABLE3.positive_env("THUNDERFFT_TABLE6_BATCH", 4096 if args.profile == "smoke" else 65536),
                     "repeats": TABLE3.positive_env("THUNDERFFT_TABLE6_REPEATS", 64 if args.profile == "smoke" else 1000),
                     "trials": TABLE3.positive_env("THUNDERFFT_TABLE6_TRIALS", 2 if args.profile == "smoke" else 3),
@@ -189,9 +194,14 @@ def main():
         parser.error(str(error))
     if settings["batch"] % 512:
         parser.error("THUNDERFFT_TABLE6_BATCH must be a positive multiple of 512")
-    if args.profile == "paper" and settings["batch"] != 65536:
-        parser.error("paper profile requires batch=65536; use smoke for custom checks")
-    build = json.loads(args.table6_build.read_text())
+    if args.profile == "paper" and (settings["batch"] != 65536 or settings["repeats"] != 1000):
+        parser.error("paper profile requires batch=65536 and R=1000; use smoke for custom checks")
+    build = json.loads(args.table6_build.read_text()) if args.table6_build else {"binaries": {}}
+    binaries = {"thunderfft": args.thunderfft_binary, "cufftdx": args.cufftdx_binary}
+    binaries.update({name: Path(record["path"]) for name, record in build.get("binaries", {}).items()})
+    for name in selected:
+        if not binaries.get(name) or not binaries[name].is_file():
+            parser.error(f"selected library {name} requires its built executable")
     cache = (args.build_dir / "CMakeCache.txt").read_text() if (args.build_dir / "CMakeCache.txt").is_file() else ""
     mathdx = re.search(r"^MATHDX_ROOT:\w+=(.*)$", cache, re.MULTILINE)
     git = TABLE3.capture(["git", "rev-parse", "HEAD"])
@@ -199,11 +209,12 @@ def main():
     revisions = {
         "thunderfft": thunderfft_revision,
         "cufftdx": None,  # filled from the native log (cuFFTDx=<version>)
-        "tcfft": f"tcFFT {build['tcfft']['pinned_commit'][:12]} + {Path(build['tcfft']['patch']['path']).name}",
-        "flashfftconv": f"FlashFFTConv {build['flashfftconv']['pinned_commit'][:12]} + {Path(build['flashfftconv']['patch']['path']).name}",
     }
-    metadata = {"schema_version": 1, "evaluation": "table6", "profile": args.profile, "started_at": TABLE3.now(),
-                "status": "running", "settings": settings, "N": N, "precision": "fp16", "direction": "forward",
+    for name in selected:
+        if name in ("tcfft", "flashfftconv"):
+            revisions[name] = f"{name} {build[name]['pinned_commit'][:12]} + {Path(build[name]['patch']['path']).name}"
+    metadata = {"schema_version": 2, "evaluation": "table6", "profile": args.profile, "started_at": TABLE3.now(),
+                "status": "running", "settings": settings, "selection": {"libraries": selected}, "N": N, "precision": "fp16", "direction": "forward",
                 "timing": "(t_2R - t_R) / R, median over trials; speedup = cuFFTDx / implementation",
                 "correctness": "FP64 DFT on 64 FFTs before timing, relL2 <= 0.005",
                 "paper_reference": {library: {"time_ms": value[0], "speedup": value[1]}
@@ -216,22 +227,29 @@ def main():
                     str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                     for path in sorted(HERE.rglob("*")) if path.is_file() and "__pycache__" not in path.parts}),
                 "build_configuration": TABLE3.build_evidence(args.build_dir),
-                "binary_sha256": {"thunderfft": hashlib.sha256(args.thunderfft_binary.read_bytes()).hexdigest(),
-                                  "cufftdx": hashlib.sha256(args.cufftdx_binary.read_bytes()).hexdigest()},
+                "binary_sha256": {name: hashlib.sha256(binaries[name].read_bytes()).hexdigest() for name in selected},
                 "gpu_inventory_before": TABLE3.capture(["nvidia-smi", "--query-gpu=index,uuid,name,driver_version,memory.total,clocks.sm,clocks.mem,power.limit", "--format=csv,noheader"]),
                 "commands": []}
     common = [str(settings["repeats"]), str(settings["trials"]), str(settings["batch"])]
     paper_fft = ["256", "fp16", "register"]
-    jobs = [("cufftdx", [str(args.cufftdx_binary.resolve()), "--library", "cufftdx",
-                         "--candidate", CUFFTDX_CANDIDATE] + paper_fft + common),
-            ("tcfft", [build["binaries"]["tcfft"]["path"]] + common),
-            ("flashfftconv", [build["binaries"]["flashfftconv"]["path"]] + common),
-            ("thunderfft", [str(args.thunderfft_binary.resolve())] + paper_fft + common)]
+    jobs = []
+    for name in selected:
+        command = [str(binaries[name].resolve())]
+        if name == "cufftdx":
+            command += ["--library", "cufftdx", "--candidate", CUFFTDX_CANDIDATE] + paper_fft
+        elif name == "thunderfft":
+            command += paper_fft
+        jobs.append((name, command + common))
+    raw = args.output / "raw"
+    raw.mkdir(exist_ok=True)
     rows, identity = [], None
     TABLE3.atomic_json(args.output / "metadata.json", metadata)
     try:
         for label, command in jobs:
-            record = {"argv": command, "started_at": TABLE3.now()}
+            csv_path, log_path = raw / f"{label}.csv", raw / f"{label}.log"
+            record = {"argv": command, "library": label, "revision": revisions[label],
+                      "stdout": csv_path.relative_to(args.output).as_posix(),
+                      "stderr": log_path.relative_to(args.output).as_posix(), "started_at": TABLE3.now()}
             metadata["commands"].append(record)
             print(f"Table 6 [{label}] batch={settings['batch']} R={settings['repeats']}", flush=True)
             try:
@@ -241,6 +259,8 @@ def main():
                 record["exit_code"] = 124
                 raise RuntimeError(f"{label}: timed out")
             record.update(exit_code=process.returncode, finished_at=TABLE3.now())
+            csv_path.write_text(process.stdout)
+            log_path.write_text(process.stderr)
             log = process.stderr
             print(log, end="", flush=True)
             if process.returncode:
@@ -255,6 +275,7 @@ def main():
             if library == "cufftdx":
                 version = re.search(r"cuFFTDx=(\d+)", log)
                 revisions["cufftdx"] = f"cuFFTDx {version.group(1) if version else 'unknown'}"
+                record["revision"] = revisions["cufftdx"]
             options = dict(library=library, batch=settings["batch"], repeats=settings["repeats"],
                            trials=settings["trials"], gpu=identity[0], revision=revisions[library])
             parse = parse_paper_fft if library in ("thunderfft", "cufftdx") else parse_native
@@ -267,7 +288,8 @@ def main():
         metadata["missing"] = [f"{library}/{variant}" for (library, variant) in VARIANTS
                                if (library, variant) not in present]
         metadata["paper_configuration"] = identity[0] == "A100" and settings["batch"] == 65536
-        metadata.update(status="completed", numerical_and_timing_gates_passed=True)
+        metadata.update(status="completed", numerical_and_timing_gates_passed=True,
+                        full_paper_comparison=not metadata["missing"] and metadata["paper_configuration"])
     except (OSError, ValueError, RuntimeError, KeyError) as error:
         metadata.update(status="failed", error=str(error), numerical_and_timing_gates_passed=False)
         print(f"Table 6 failed: {error}", file=sys.stderr)

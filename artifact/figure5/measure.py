@@ -32,7 +32,8 @@ FIGURE5 = {
                  "tile 64 for tiled paths",
     "precision": "fp32",
     "truncate": ("cuDNN",),
-    "notes": {"cuDNN": "as in the earlier evaluation: real FP32 single channel (real parts of x and h), "
+    "libraries": ("cuFFT", "cuFFTDx", "ThunderFFT", "cuDNN"),
+    "notes": {"ThunderFFT": "artifact implementation: complex FP32 storage, current public N=64 TF32 tensor-core FFT arithmetic, cuFFT filter FFT timed; original paper binary identity is unconfirmed", "cuDNN": "as in the earlier evaluation: real FP32 single channel (real parts of x and h), "
                        "CUDNN_CROSS_CORRELATION, fastest of the top three cudnnGetConvolutionForwardAlgorithm_v7 candidates (cudnnFind exhausts host memory at f>=31); no filter transform"},
 }
 
@@ -65,15 +66,17 @@ def parse(stdout):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True, help="thff_conv")
+    parser.add_argument("--available", default="cuFFT,ThunderFFT", help="compiled backend names")
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--profile", choices=("smoke", "paper"), required=True)
     args = parser.parse_args()
     if args.profile == "paper" and size("paper") != 16384:
         parser.error("paper profile requires N=16384; use smoke for custom sizes")
-    runners = [(library, args.binary, command(library.lower()), parse, "true") for library in ("cuFFT", "cuFFTDx")]
-    runners.append(("cuDNN", args.binary, command("cudnn"), parse, "n/a"))
-    sources = [ROOT / "sample/conv2d/main.cu", ROOT / "sample/conv2d/cufftdx.cu",
+    available = tuple(args.available.split(","))
+    runners = [(library, args.binary, command(library.lower()), parse, "n/a" if library == "cuDNN" else "true")
+               for library in FIGURE5["libraries"] if library in available]
+    sources = [*ROOT.glob("include/**/*.cuh"), ROOT / "sample/utils.h", ROOT / "sample/conv2d/main.cu", ROOT / "sample/conv2d/cufftdx.cu", ROOT / "sample/conv2d/thunder_tiled64.cu",
                ROOT / "sample/conv2d/CMakeLists.txt", *HERE.glob("*.py"), HERE / "run.sh",
                HERE.parent / "figure4/measure.py"]
     try:
