@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -174,13 +175,22 @@ float run_thunder_ms(const std::string& thff_bin, int L, int K, int device, int 
 // than with CUDNN_CONVOLUTION), using the fastest found algorithm.
 int run_figure4(int argc, char** argv) {
     if (argc < 9) {
-        std::cerr << "usage: " << argv[0] << " --figure4 L K B D warmup runs validate_channels [device=0]\n";
+        std::cerr << "usage: " << argv[0]
+                  << " --figure4 L K[,K...] B D warmup runs validate_channels [trials=1] [device=0]\n";
         return EXIT_FAILURE;
     }
-    const int L = std::atoi(argv[2]), K = std::atoi(argv[3]), B = std::atoi(argv[4]), D = std::atoi(argv[5]);
+    const int L = std::atoi(argv[2]), B = std::atoi(argv[4]), D = std::atoi(argv[5]);
     const int warmup = std::atoi(argv[6]), runs = std::atoi(argv[7]), validate_channels = std::atoi(argv[8]);
-    const int device = argc >= 10 ? std::atoi(argv[9]) : 0;
-    if (L <= 0 || K < 1 || K > L || B <= 0 || D <= 0 || warmup < 0 || runs <= 0 || validate_channels < 0) {
+    const int trials = argc >= 10 ? std::atoi(argv[9]) : 1;
+    const int device = argc >= 11 ? std::atoi(argv[10]) : 0;
+    std::vector<int> filters;
+    for (std::stringstream list(argv[3]); list.good();) {
+        std::string item;
+        std::getline(list, item, ',');
+        filters.push_back(std::atoi(item.c_str()));
+    }
+    const bool bad_filter = std::any_of(filters.begin(), filters.end(), [&](int k) { return k < 1 || k > L; });
+    if (L <= 0 || bad_filter || B <= 0 || D <= 0 || warmup < 0 || runs <= 0 || validate_channels < 0 || trials <= 0) {
         std::cerr << "invalid arguments\n";
         return EXIT_FAILURE;
     }
@@ -195,12 +205,20 @@ int run_figure4(int argc, char** argv) {
     std::cerr << "GPU=" << prop.name << " compute=" << prop.major << "." << prop.minor
               << " batch=" << B * D << " seed=42 cuDNN=" << cudnnGetVersion() << "\n";
 
-    const int batch_count = B * D, Lp = L + K - 1;
-    std::srand(42);
-    std::vector<half> h_x(size_t(batch_count) * L), h_xp(size_t(batch_count) * Lp), h_w(size_t(D) * K);
-    std::vector<float> x(h_x.size()), w(h_w.size());
-    for (size_t i = 0; i < x.size(); ++i) { h_x[i] = __float2half(std::rand() / float(RAND_MAX)); x[i] = __half2float(h_x[i]); }
-    for (size_t i = 0; i < w.size(); ++i) { h_w[i] = __float2half(std::rand() / float(RAND_MAX)); w[i] = __half2float(h_w[i]); }
+    // The signal is generated once (seed 42) and reused for every K; each filter
+    // is drawn from seed 42+K, as in thff_conv1d_fullfft4096.
+    const int batch_count = B * D;
+    std::minstd_rand rng(42);
+    std::vector<half> h_x(size_t(batch_count) * L);
+    std::vector<float> x(h_x.size());
+    for (size_t i = 0; i < x.size(); ++i) { h_x[i] = __float2half(float(rng()) / float(rng.max())); x[i] = __half2float(h_x[i]); }
+  for (const int K : filters) {
+    std::cout << "Filter size: " << K << "\n";
+    const int Lp = L + K - 1;
+    std::minstd_rand rng(42 + K);
+    std::vector<half> h_xp(size_t(batch_count) * Lp), h_w(size_t(D) * K);
+    std::vector<float> w(h_w.size());
+    for (size_t i = 0; i < w.size(); ++i) { h_w[i] = __float2half(float(rng()) / float(rng.max())); w[i] = __half2float(h_w[i]); }
     for (int bd = 0; bd < batch_count; ++bd)
         for (int j = 0; j < Lp; ++j)
             h_xp[size_t(bd) * Lp + j] = h_x[size_t(bd) * L + (j - (K - 1) + L) % L];
@@ -274,9 +292,10 @@ int run_figure4(int argc, char** argv) {
               << "Circular convolution validation: " << (passed ? "PASS" : "FAIL") << " (relative L2 limit=0.005)\n";
     if (!passed) return EXIT_FAILURE;
 
-    const float ms = measure_cuda_ms(forward, &c, warmup, runs);
-    std::cout << "cuDNN algorithm: " << int(c.algo) << " workspace_bytes=" << c.ws_bytes << "\n"
-              << "cuDNN depthwise circular conv1d (N=" << L << ") time: " << ms << " ms\n";
+    std::cout << "cuDNN algorithm: " << int(c.algo) << " workspace_bytes=" << c.ws_bytes << "\n";
+    for (int t = 0; t < trials; ++t)
+        std::cout << "cuDNN depthwise circular conv1d (N=" << L << ", K=" << K << ", trial=" << t
+                  << ") time: " << measure_cuda_ms(forward, &c, warmup, runs) << " ms\n";
 
     if (c.ws) CHECK_CUDA(cudaFree(c.ws));
     CHECK_CUDNN(cudnnDestroyConvolutionDescriptor(c.convDesc));
@@ -287,6 +306,7 @@ int run_figure4(int argc, char** argv) {
     CHECK_CUDA(cudaFree(d_x));
     CHECK_CUDA(cudaFree(d_w));
     CHECK_CUDA(cudaFree(d_y));
+  }
     return 0;
 }
 

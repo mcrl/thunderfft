@@ -55,3 +55,12 @@ float measure_execution_ms(Kernel &&kernel, const unsigned int warm_up_runs,
     CHECK_CUDA(cudaEventDestroy(stopEvent));
     return time / runs;
 }
+// Timed launches per measurement: enough for about 0.2 s of work, at least 3 and at
+// most max_runs, so slow cases (e.g. cuDNN at large 2D filters) do not dominate
+// the run time. One untimed call estimates the per-launch time.
+template <typename Kernel>
+unsigned int adaptive_runs(Kernel &&kernel, const unsigned int max_runs) {
+    const float once = measure_execution_ms(kernel, 0, 1);
+    const unsigned int wanted = once > 0.0f ? static_cast<unsigned int>(200.0f / once) + 1 : max_runs;
+    return wanted < 3 ? 3 : (wanted > max_runs ? max_runs : wanted);
+}

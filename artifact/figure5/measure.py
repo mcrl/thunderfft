@@ -10,7 +10,6 @@ import importlib.util
 import os
 from pathlib import Path
 import re
-import sys
 
 
 def module(name, path):
@@ -29,8 +28,10 @@ FIGURE5 = {
     "filters": {"smoke": (3, 33, 53), "paper": tuple(range(3, 54, 2))},
     "allowed_filters": tuple(range(3, 60, 2)),
     "operation": "complex fp32 valid 2D cross-correlation y[i][j]=sum_{a,b<f} x[i+a][j+b] h[a][b], "
-                 "(N-f+1)^2 outputs, seed 42 U[0,1] parts, filter FFT timed, tile 64 for tiled paths",
+                 "(N-f+1)^2 outputs, U[0,1] parts (x: minstd seed 42, h: seed 42+f), filter FFT timed, "
+                 "tile 64 for tiled paths",
     "precision": "fp32",
+    "truncate": ("cuDNN",),
     "notes": {"cuDNN": "as in the earlier evaluation: real FP32 single channel (real parts of x and h), "
                        "CUDNN_CROSS_CORRELATION, fastest of the top three cudnnGetConvolutionForwardAlgorithm_v7 candidates (cudnnFind exhausts host memory at f>=31); no filter transform"},
 }
@@ -41,21 +42,24 @@ def size(profile):
 
 
 def command(library):
-    def build(binary, filter_size, profile):
+    def build(binary, sizes, profile, trials):
         n = size(profile)
-        return [str(binary), str(n), str(filter_size), library, "5", "20"], f"N={n}"
+        return [str(binary), str(n), ",".join(map(str, sizes)), library, "5", "20", str(trials)], f"N={n}"
     return build
 
 
-def parse(stdout):
-    """Return (time_ms, rel_l2, validated) from the thff_conv output."""
-    if "Convolution validation: PASS" not in stdout:
+def gate(block):
+    if "Convolution validation: PASS" not in block:
         raise ValueError("native 2D convolution correctness gate did not pass")
-    rel = re.search(r"vs direct reference: L2_rel=(\S+) samples=(\d+)", stdout)
-    time = re.search(r"time: (\S+) ms$", stdout, re.MULTILINE)
-    if not (rel and time):
-        raise ValueError("native output lacks validation or timing lines")
-    return float(time.group(1)), float(rel.group(1)), f"{rel.group(2)} sampled outputs"
+    rel = re.search(r"vs direct reference: L2_rel=(\S+) samples=(\d+)", block)
+    if not rel:
+        raise ValueError("native output lacks validation lines")
+    return float(rel.group(1)), f"{rel.group(2)} sampled outputs"
+
+
+def parse(stdout):
+    """Per-filter (size, trial, time_ms, rel_l2, validated) from the thff_conv output."""
+    return SWEEP.parse_blocks(stdout, gate)
 
 
 def main():

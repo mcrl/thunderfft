@@ -36,3 +36,11 @@ if(CUDNN_LIB)
   set_target_properties(thff_conv PROPERTIES BUILD_RPATH "${CUDAToolkit_LIBRARY_DIR}")
   target_compile_definitions(thff_conv PRIVATE THFF_WITH_CUDNN=1)
 endif()
+
+# Optional: OpenMP parallelizes the sampled CPU reference check over all cores.
+# Without it the check runs on one thread with the same result.
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(thff_conv PRIVATE OpenMP::OpenMP_CXX)
+  target_compile_options(thff_conv PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>)
+endif()

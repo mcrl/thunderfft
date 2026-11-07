@@ -123,11 +123,12 @@ __global__ void conv_kernel_thread(cufftdx::complex<real_type> *d_input,
     }
 }
 
-// Returns the mean time per run (filter FFT + tiled kernel), or -1 if gate rejects
-// the output of an untimed first run.
+// Returns one mean time per trial (filter FFT + tiled kernel), or nothing if gate
+// rejects the output of an untimed first run.
 template <int f>
-float cufftdx_convolution(const float2* h_input, const float2* h_filter, int N,
-                          const std::function<bool(const float2*)>& gate, int warmup_runs, int runs) {
+std::vector<float> cufftdx_convolution(const float2* h_input, const float2* h_filter, int N,
+                                       const std::function<bool(const float2*)>& gate, int warmup_runs,
+                                       int runs, int trials) {
     using complex_type = cufftdx::complex<float>;
     using fft_c2c = decltype(Thread() + Precision<float>() + SM<THFF_CONV_SM>() + Size<64>() + Type<fft_type::c2c>());
     using fft_c2c_forward = decltype(fft_c2c() + Direction<fft_direction::forward>());
@@ -226,43 +227,49 @@ float cufftdx_convolution(const float2* h_input, const float2* h_filter, int N,
     CHECK_CUDA(cudaGetLastError());
     std::vector<float2> h_output(size_t(output_size) * output_size);
     CHECK_CUDA(cudaMemcpy(h_output.data(), d_output, sizeof(float2) * h_output.size(), cudaMemcpyDeviceToHost));
-    const float ms = gate(h_output.data()) ? measure_execution_ms(kernel, warmup_runs, runs) : -1.0f;
+    std::vector<float> times;
+    if (gate(h_output.data())) {
+        const unsigned timed = adaptive_runs(kernel, runs);
+        // Warm up once before the first trial; later trials follow back to back.
+        for (int t = 0; t < trials; ++t)
+            times.push_back(measure_execution_ms(kernel, t == 0 ? std::min<unsigned>(warmup_runs, (timed + 2) / 3) : 0, timed));
+    }
 
     CHECK_CUDA(cudaFree(d_input));
     CHECK_CUDA(cudaFree(d_filter_spatial));
     CHECK_CUDA(cudaFree(d_filter));
     CHECK_CUDA(cudaFree(d_output));
     CHECK_CUFFT(cufftDestroy(plan_forward));
-    return ms;
+    return times;
 }
 
 // Template instantiations for odd filter sizes 3 to 59
-template float cufftdx_convolution<3>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<5>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<7>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<9>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<11>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<13>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<15>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<17>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<19>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<21>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<23>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<25>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<27>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<29>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<31>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<33>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<35>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<37>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<39>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<41>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<43>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<45>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<47>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<49>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<51>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<53>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<55>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<57>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
-template float cufftdx_convolution<59>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int);
+template std::vector<float> cufftdx_convolution<3>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<5>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<7>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<9>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<11>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<13>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<15>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<17>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<19>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<21>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<23>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<25>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<27>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<29>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<31>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<33>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<35>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<37>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<39>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<41>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<43>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<45>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<47>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<49>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<51>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<53>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<55>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<57>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);
+template std::vector<float> cufftdx_convolution<59>(const float2*, const float2*, int, const std::function<bool(const float2*)>&, int, int, int);

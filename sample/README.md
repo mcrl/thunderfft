@@ -272,7 +272,7 @@ rebuild; it is not another command-line argument.
 The executable retains its historical name but accepts three FFT lengths:
 
 ```text
-thff_conv1d_fullfft4096 [N=4096] [K=9] [device=0] [B=1] [D=1] [warmup=5] [runs=30] [include_filter_fft=1] [validate=1] [real_input=1] [real_filter=1] [validate_channels=0]
+thff_conv1d_fullfft4096 [N=4096] [K=9] [device=0] [B=1] [D=1] [warmup=5] [runs=30] [include_filter_fft=1] [validate=1] [real_input=1] [real_filter=1] [validate_channels=0] [trials=1]
 ```
 
 For a small diagnostic run:
@@ -293,6 +293,7 @@ For a small diagnostic run:
 | `real_input` | Must be 1; the complex-input path is unavailable |
 | `real_filter` | Must be 1; complex filters are rejected because output is real-only |
 | `validate_channels` | 0 validates every `(b, d)` sequence; a positive value validates that many sequences spread over `b` and `d`, plus the last one |
+| `trials` | Timed repetitions after one correctness gate; `K` may also be a comma-separated list, measured in one process with the signal generated once (seed 42) and each filter from seed `42+K` |
 
 Input and output have contiguous real-half shape `[B][D][N]`, with one filter
 per channel shared across batches. Filter storage has padded complex shape
@@ -374,8 +375,8 @@ cmake --build build --target thff_conv -j
 ./build/sample/conv2d/thff_conv 2048 33 cufftdx
 ```
 
-The arguments are `N f cufft|cufftdx|cudnn [warmup=5] [runs=20] [device=0]`; `f`
-is odd from 3 to 59 for `cufftdx`. One library runs per invocation on seeded
+The arguments are `N f[,f...] cufft|cufftdx|cudnn [warmup=5] [runs=20] [trials=1] [device=0]`;
+`f` is odd from 3 to 59 for `cufftdx`, and a comma-separated list is measured in one process. One library runs per invocation on seeded
 input, passes a sampled direct-reference relL2 ≤ 5e-3 gate (including tile
 boundaries), and then prints its mean time. cuDNN is available when CMake finds
 it. cuDNN uses the real parts only (real FP32), the FFT paths complex FP32; see

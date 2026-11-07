@@ -17,6 +17,10 @@ storage, which is the default here (ThunderFFT TF32, cuFFT/cuFFTDx FP32).
 MATHDX_ROOT=/path/to/nvidia/mathdx/25.06 ./run.sh figure3 --profile paper
 ```
 
+The paper profile takes about 15 seconds on the A100: only the single-pass e2e
+timing is used, so the in-kernel R/2R loop runs with R=16
+(`THUNDERFFT_FIGURE3_REPEATS`).
+
 `THUNDERFFT_FIGURE3_PRECISIONS=tf32,fp16` adds FP16 storage (ThunderFFT FP16,
 cuFFTDx FP16; cuFFT is FP32 only). `THUNDERFFT_FIGURE3_N_LIST`,
 `_BATCH`, `_REPEATS` and `_TRIALS` override the smoke settings; the paper

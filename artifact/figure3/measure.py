@@ -125,7 +125,9 @@ def main():
     raw.mkdir(exist_ok=True)
     try:
         settings = {"batch": TABLE3.positive_env("THUNDERFFT_FIGURE3_BATCH", 1024 if args.profile == "smoke" else 65536),
-                    "repeats": TABLE3.positive_env("THUNDERFFT_FIGURE3_REPEATS", 64 if args.profile == "smoke" else 1000),
+                    # Figure 3 uses only the separate single-pass e2e timing; the in-kernel R/2R loop
+                    # (Table 3's compute time) just has to satisfy the native contract.
+                    "repeats": TABLE3.positive_env("THUNDERFFT_FIGURE3_REPEATS", 16),
                     "trials": TABLE3.positive_env("THUNDERFFT_FIGURE3_TRIALS", 2 if args.profile == "smoke" else 3),
                     "timeout_seconds_per_configuration": TABLE3.positive_env("THUNDERFFT_FIGURE3_TIMEOUT", 300)}
         selection = {"N": TABLE3.selection_env("THUNDERFFT_FIGURE3_N_LIST", SIZES, int),

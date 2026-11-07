@@ -24,7 +24,7 @@ cuFFTDx is compiled for the first `THUNDERFFT_ARCHS` entry. Overrides:
 ## Operation
 
 Valid 2D cross-correlation `y[i][j] = sum_{a,b<f} x[i+a][j+b] h[a][b]`,
-`(N-f+1)^2` outputs, row-major `x` (N x N) and `h` (f x f) from `srand(42)` with
+`(N-f+1)^2` outputs, row-major `x` (N x N) and `h` (f x f) from `std::minstd_rand` (seed 42 for `x`, `42+f` for `h`) with
 `U[0,1]` real and imaginary parts. As in the earlier evaluation:
 
 | Library | Input | Pipeline |
@@ -39,10 +39,11 @@ follows the earlier evaluation code (its sheet labels cuFFT "c2c", but the code
 is R2C, and only R2C matches its timing). Every timed FFT iteration includes the filter FFT; the
 zero-padded, flipped spatial filter layout and cuFFT plans are prepared once.
 
-`thff_conv N f cufft|cufftdx|cudnn` checks finite relL2 ≤ 5e-3 against a direct
+`thff_conv N f[,f...] cufft|cufftdx|cudnn [warmup] [runs] [trials]` checks finite relL2 ≤ 5e-3 against a direct
 double-precision reference before timing. The checked outputs cover every
 corner, the last row/column and both sides of every tile boundary (crossed with
-a strided subset). Timing is the mean of 20 runs after 5 warmups; the median of
+a strided subset). Each trial is the mean of 3–20 launches (about 0.2 s of work) after up to 5
+warmups; the median of
 3 trials is plotted.
 
 ## Backend CSVs (tiled ThunderFFT)
@@ -57,10 +58,31 @@ check, and include the filter FFT in its timing.
 The paper figure is H100. A100 results show the trends only; compare absolute
 values with the paper on H100.
 
-## Reference results (A100 80GB PCIe, CUDA 12.9, cuDNN 9.12, 2026-11-05)
+## Run time and optional truncation
 
-Paper profile, N=16384, 234 gated runs (max relL2 8.2e-7, trial spread ≤0.9%).
+One native process per library sweeps every filter size: the input is generated
+once (`std::minstd_rand`, seed 42; each filter from seed `42+f`), each size is
+gated once, and the trials then run back to back. On the A100 the paper profile
+takes about 4 minutes (cuFFT 54 s, cuFFTDx 54 s, cuDNN 143 s).
+Each trial times enough launches for about 0.2 s of work (3 to 20 launches), so
+slow cuDNN sizes do not dominate. The CPU reference check uses OpenMP when CMake
+finds it and otherwise runs on one thread with the same result.
+
+`THUNDERFFT_FIGURE5_SLOW_RATIO=r` (default `0`, off) stops cuDNN after the first
+size at which its median exceeds `r` times the fastest other library; larger
+sizes are then left empty in the plot and listed in `metadata.json` `truncated`.
+
+## Reference results (A100 80GB PCIe, CUDA 12.9, cuDNN 9.12, 2026-11-07)
+
+Paper profile, N=16384, 234 gated measurements (max relL2 8.2e-7, trial spread ≤3%).
 Against the earlier H100 evaluation: cuFFT 14.75 ms at every f (H100 15.68 ms,
-0.94x; R2C is bandwidth-bound and both GPUs have about 2 TB/s); cuDNN 3.07 →
-548.5 ms (1.28–1.71x H100); cuFFTDx 6.70 → 95.0 ms (1.48–1.90x H100). The trends
+0.94x; R2C is bandwidth-bound and both GPUs have about 2 TB/s); cuDNN 3.19 →
+554.2 ms (1.28–1.71x H100); cuFFTDx 6.71 → 94.9 ms (1.48–1.90x H100). The trends
 match; the compute-bound paths need an H100 run for an absolute comparison.
+
+Run-order sensitivity: for f ≤ 19 the tiled cuFFTDx time depends on what ran
+before it on the GPU. Directly after the cuFFT sweep (the order `run.sh` uses)
+it measured 5.8–6.4 ms; started on an idle GPU, 6.7–7.5 ms. Both are stable within
+a run (spread < 1%) and a longer time-based warmup did not change either, so the
+difference is not clock ramp-up; large filters (f ≥ 21) agree. Keep the default
+order when comparing runs, and recheck on H100.

@@ -4,6 +4,7 @@
 
 #include <cstdlib>
 #include <cmath>
+#include <random>
 #include <iomanip>
 #include <iostream>
 #include <vector>
@@ -361,7 +362,8 @@ float run_case(int K,
                int validate,
                int real_input,
                int real_filter,
-               int validate_channels) {
+               int validate_channels,
+               int trials) {
     constexpr int BPB = thunderfft::batch_per_block<N>;
     constexpr int WPB = thunderfft::warp_per_block<N>;
 
@@ -380,21 +382,29 @@ float run_case(int K,
     const int filt_elems = D * N;
     const int filt_elems_fft = D_fft * N;
 
-    std::vector<cpx_h> h_x(sig_elems);
-    std::vector<half> h_x_real(sig_elems, __float2half(0.0f));
+    // The signal depends only on (B, D, N): generate it once per process from seed 42
+    // and reuse it for every filter length; each filter is drawn from seed 42+K.
+    static std::vector<cpx_h> h_x;
+    static std::vector<half> h_x_real;
     std::vector<float2> h_h_time(filt_elems, make_float2(0.f, 0.f));
     std::vector<cpx_h> h_h_half_padded;
 
-    for (int i = 0; i < sig_elems; ++i) {
-        float re = std::rand() / float(RAND_MAX);
-        float im = 0.0f;
-        h_x[i] = __floats2half2_rn(re, im);
-        h_x_real[i] = __float2half(re);
+    if (h_x.size() != size_t(sig_elems)) {
+        std::minstd_rand rng(42);
+        h_x.resize(sig_elems);
+        h_x_real.resize(sig_elems);
+        for (int i = 0; i < sig_elems; ++i) {
+            float re = float(rng()) / float(rng.max());
+            float im = 0.0f;
+            h_x[i] = __floats2half2_rn(re, im);
+            h_x_real[i] = __float2half(re);
+        }
     }
+    std::minstd_rand rng(42 + K);
     for (int d = 0; d < D; ++d) {
         for (int k = 0; k < K; ++k) {
-            float re = (std::rand() / float(RAND_MAX)) / float(N);
-            float im = real_filter ? 0.0f : ((std::rand() / float(RAND_MAX)) / float(N));
+            float re = (float(rng()) / float(rng.max())) / float(N);
+            float im = real_filter ? 0.0f : ((float(rng()) / float(rng.max())) / float(N));
             h_h_time[d * N + k] = make_float2(re, im);
         }
     }
@@ -485,7 +495,10 @@ float run_case(int K,
         CHECK_CUDA(cudaGetLastError());
     };
 
-    float ms = measure_execution_ms(run_once, unsigned(warmup), unsigned(runs));
+    // Correctness gate on the output of an untimed run, then the timed trials.
+    run_once();
+    CHECK_CUDA(cudaDeviceSynchronize());
+    float ms = -1.0f;
 
     bool validation_passed = true;
     if (validate) {
@@ -564,6 +577,13 @@ float run_case(int K,
                   << " (raw/N relative L2 limit=" << relative_l2_limit << ")\n";
     }
 
+    for (int t = 0; validation_passed && t < trials; ++t) {
+        ms = measure_execution_ms(run_once, unsigned(warmup), unsigned(runs));
+        std::cout << std::fixed << std::setprecision(6) << "ThunderFFT full FFT-Conv (N=" << N
+                  << ", include_filter_fft=" << include_filter_fft << ", K=" << K << ", trial=" << t
+                  << ") time: " << ms << " ms\n" << std::defaultfloat;
+    }
+
     thunderfft::ThunderFFTFinalize<half>();
     CHECK_CUFFT(cufftDestroy(plan_h));
     CHECK_CUDA(cudaFree(d_H));
@@ -594,9 +614,20 @@ int main(int argc, char** argv) {
     int real_input = 1;
     int real_filter = 1;
     int validate_channels = 0;
+    int trials = 1;
+    std::vector<int> filters;
 
     if (argc >= 2) N = std::atoi(argv[1]);
-    if (argc >= 3) K = std::atoi(argv[2]);
+    // K may be a comma-separated list: one process measures every length.
+    if (argc >= 3) {
+        for (const char* p = argv[2]; *p; ++p) {
+            filters.push_back(std::atoi(p));
+            while (*p && *p != ',') ++p;
+            if (!*p) break;
+        }
+    } else {
+        filters.push_back(K);
+    }
     if (argc >= 4) device = std::atoi(argv[3]);
     if (argc >= 5) B = std::atoi(argv[4]);
     if (argc >= 6) D = std::atoi(argv[5]);
@@ -607,16 +638,19 @@ int main(int argc, char** argv) {
     if (argc >= 11) real_input = std::atoi(argv[10]);
     if (argc >= 12) real_filter = std::atoi(argv[11]);
     if (argc >= 13) validate_channels = std::atoi(argv[12]);
+    if (argc >= 14) trials = std::atoi(argv[13]);
 
     if (!(N == 256 || N == 1024 || N == 4096)) {
         std::cerr << "N must be one of {256, 1024, 4096}\n";
         return EXIT_FAILURE;
     }
-    if (K < 1 || K > N) {
-        std::cerr << "K must be in [1, " << N << "]\n";
-        return EXIT_FAILURE;
+    for (int k : filters) {
+        if (k < 1 || k > N) {
+            std::cerr << "K must be in [1, " << N << "]\n";
+            return EXIT_FAILURE;
+        }
     }
-    if (argc > 13 || validate_channels < 0 || device < 0 || B <= 0 || D <= 0 || warmup < 0 || runs <= 0 ||
+    if (argc > 14 || trials <= 0 || validate_channels < 0 || device < 0 || B <= 0 || D <= 0 || warmup < 0 || runs <= 0 ||
         (include_filter_fft != 0 && include_filter_fft != 1) ||
         (validate != 0 && validate != 1) || real_input != 1 || real_filter != 1) {
         std::cerr << "Require a valid device, positive B/D/runs, nonnegative warmup, "
@@ -629,24 +663,21 @@ int main(int argc, char** argv) {
     CHECK_CUDA(cudaGetDeviceProperties(&prop, device));
     std::cerr << "GPU=" << prop.name << " compute=" << prop.major << "." << prop.minor
               << " batch=" << B * D << " seed=42\n";
-    std::srand(42);
 
-    float ms = -1.0f;
-    if (N == 256) {
-        ms = run_case<256>(K, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter,
-                                validate_channels);
-    } else if (N == 1024) {
-        ms = run_case<1024>(K, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter,
-                                validate_channels);
-    } else {
-        ms = run_case<4096>(K, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter,
-                                validate_channels);
+    for (int k : filters) {
+        std::cout << "Filter size: " << k << "\n";
+        float ms = -1.0f;
+        if (N == 256) {
+            ms = run_case<256>(k, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter,
+                               validate_channels, trials);
+        } else if (N == 1024) {
+            ms = run_case<1024>(k, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter,
+                                validate_channels, trials);
+        } else {
+            ms = run_case<4096>(k, B, D, warmup, runs, include_filter_fft, validate, real_input, real_filter,
+                                validate_channels, trials);
+        }
+        if (ms < 0.0f) return EXIT_FAILURE;
     }
-    if (ms < 0.0f) return EXIT_FAILURE;
-
-    std::cout << std::fixed << std::setprecision(6)
-              << "ThunderFFT full FFT-Conv (N=" << N
-              << ", include_filter_fft=" << include_filter_fft
-              << ") time: " << ms << " ms\n";
     return 0;
 }

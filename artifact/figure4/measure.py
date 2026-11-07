@@ -44,36 +44,55 @@ FIGURE4 = {
     "filters": {"smoke": (3, 9, 53), "paper": tuple(range(3, 54, 2))},
     "allowed_filters": tuple(range(1, 4097)),
     "operation": "depthwise circular convolution y[n]=sum_k x[(n-k) mod L] h[k], filter not flipped, "
-                 "full L outputs, real fp16 input/filter/output, seed 42 x,h~U[0,1]",
+                 "full L outputs, real fp16 input/filter/output, x~U[0,1] (minstd seed 42), h~U[0,1] (seed 42+K)",
     "precision": "fp16",
+    "truncate": ("cuDNN",),
 }
 
 
-def figure4_command(binary, filter_size, profile):
+# Each native invocation sweeps a comma-separated filter list with in-process trials,
+# so the input is generated once per process and each filter is gated once.
+def figure4_command(binary, sizes, profile, trials):
     batch, channels = (64, 768) if profile == "paper" else (4, 64)
     sample = os.environ.get("THUNDERFFT_FIGURE4_VALIDATE_CHANNELS", "1024")
-    # N K device B D warmup runs include_filter_fft validate real_input real_filter validate_channels
-    return [str(binary), "4096", str(filter_size), "0", str(batch), str(channels), "5", "30", "1", "1", "1", "1",
-            sample], f"L=4096,B={batch},D={channels}"
+    # N K-list device B D warmup runs include_filter_fft validate real_input real_filter validate_channels trials
+    return [str(binary), "4096", ",".join(map(str, sizes)), "0", str(batch), str(channels), "5", "30",
+            "1", "1", "1", "1", sample, str(trials)], f"L=4096,B={batch},D={channels}"
 
 
-def figure4_cudnn_command(binary, filter_size, profile):
+def figure4_cudnn_command(binary, sizes, profile, trials):
     batch, channels = (64, 768) if profile == "paper" else (4, 64)
     sample = os.environ.get("THUNDERFFT_FIGURE4_VALIDATE_CHANNELS", "1024")
-    return [str(binary), "--figure4", "4096", str(filter_size), str(batch), str(channels), "5", "30",
-            sample], f"L=4096,B={batch},D={channels}"
+    return [str(binary), "--figure4", "4096", ",".join(map(str, sizes)), str(batch), str(channels), "5", "30",
+            sample, str(trials)], f"L=4096,B={batch},D={channels}"
+
+
+def parse_blocks(stdout, gate):
+    """Split native output at "Filter size: f" lines; gate(block) returns
+    (rel_l2, validated) or raises. Yields (size, trial, time_ms, rel_l2, validated)."""
+    blocks = re.split(r"^Filter size: (\d+)$", stdout, flags=re.MULTILINE)
+    results = []
+    for size, block in zip(blocks[1::2], blocks[2::2]):
+        rel_l2, validated = gate(block)
+        times = re.findall(r"trial=(\d+)\) time: (\S+) ms$", block, re.MULTILINE)
+        if not times:
+            raise ValueError(f"f={size}: native output has no timing lines")
+        results += [(int(size), int(trial), float(ms), rel_l2, validated) for trial, ms in times]
+    return results
+
+
+def figure4_gate(block):
+    if "Circular convolution validation: PASS" not in block:
+        raise ValueError("native circular-convolution correctness gate did not pass")
+    rel = re.search(r"direct circular conv \((?:raw/N|cuDNN)\): L2_rel=(\S+)", block)
+    checked = re.search(r"^Validation sequences: (\d+) of (\d+)$", block, re.MULTILINE)
+    if not (rel and checked):
+        raise ValueError("native output lacks validation lines")
+    return float(rel.group(1)), f"{checked.group(1)}/{checked.group(2)} sequences"
 
 
 def figure4_parse(stdout):
-    """Return (time_ms, rel_l2, validated) from either native diagnostic output."""
-    if "Circular convolution validation: PASS" not in stdout:
-        raise ValueError("native circular-convolution correctness gate did not pass")
-    rel = re.search(r"direct circular conv \((?:raw/N|cuDNN)\): L2_rel=(\S+)", stdout)
-    checked = re.search(r"^Validation sequences: (\d+) of (\d+)$", stdout, re.MULTILINE)
-    time = re.search(r"time: (\S+) ms$", stdout, re.MULTILINE)
-    if not (rel and checked and time):
-        raise ValueError("native output lacks validation or timing lines")
-    return float(time.group(1)), float(rel.group(1)), f"{checked.group(1)}/{checked.group(2)} sequences"
+    return parse_blocks(stdout, figure4_gate)
 
 
 def check_row(row):
@@ -124,6 +143,18 @@ def summarize(rows):
     return summary
 
 
+def diverged(rows, library, size, ratio):
+    """True when `library` is more than `ratio` times slower than the fastest other
+    library measured at this filter size (median over trials)."""
+    medians = {}
+    for row in rows:
+        if int(row["filter"]) == size:
+            medians.setdefault(row["library"], []).append(float(row["time_ms"]))
+    others = [statistics.median(v) for name, v in medians.items() if name != library]
+    return ratio > 0 and library in medians and bool(others) and \
+        statistics.median(medians[library]) > ratio * min(others)
+
+
 def collect(spec, runners, build_dir, output, profile, sources):
     """Run one native invocation per (filter, library, trial); write data/summary/metadata.
 
@@ -138,10 +169,16 @@ def collect(spec, runners, build_dir, output, profile, sources):
     filters = (TABLE3.selection_env(f"{env}_FILTERS", spec["allowed_filters"], int)
                if f"{env}_FILTERS" in os.environ else spec["filters"][profile])
     backends = [Path(path) for path in os.environ.get(f"{env}_BACKENDS", "").split(",") if path]
+    # Stop timing a direct baseline once it is far slower than the FFT paths and
+    # still growing with the filter; the plot leaves the remaining sizes empty.
+    slow_ratio = float(os.environ.get(f"{env}_SLOW_RATIO", "0"))
+    truncated = {}
     metadata = {"schema_version": 1, "evaluation": spec["evaluation"], "profile": profile,
                 "started_at": TABLE3.now(), "status": "running", "operation": spec["operation"],
                 "notes": spec.get("notes"),
-                "settings": {"trials": trials, "filters": list(filters), "timeout_seconds": timeout},
+                "settings": {"trials": trials, "filters": list(filters), "timeout_seconds": timeout,
+                             "slow_ratio": slow_ratio, "truncatable": list(spec.get("truncate", ()))},
+                "truncated": truncated,
                 "scope": f"{', '.join(r[0] for r in runners)} measured here; other libraries from {env}_BACKENDS",
                 "full_paper_comparison_complete": False,
                 "timing": {"metric": "native mean over its timed launches per trial",
@@ -161,49 +198,62 @@ def collect(spec, runners, build_dir, output, profile, sources):
     rows, identity, shape = [], None, None
     TABLE3.atomic_json(output / "metadata.json", metadata)
     try:
-        for size in filters:
-            for library, binary, command, parse, filter_fft in runners:
-                for trial in range(trials):
-                    argv, shape = command(binary.resolve(), size, profile)
-                    label = f"f{size}-{library.lower()}-t{trial}"
-                    out_path, log_path = raw / f"{label}.out", raw / f"{label}.log"
-                    record = {"argv": argv, "stdout": str(out_path.relative_to(output)), "started_at": TABLE3.now()}
-                    metadata["commands"].append(record)
-                    with (output / "commands.txt").open("a") as stream:
-                        stream.write(shlex.join(argv) + "\n")
-                    print(f"{spec['title']} [{label}] {shape}", flush=True)
-                    # Shared exclusive-process GPUs: another user may hold the device between
-                    # runs. Only that start-up failure is retried; nothing is timed concurrently.
-                    for attempt in range(BUSY_RETRIES + 1):
-                        with out_path.open("w") as stdout, log_path.open("w") as stderr:
-                            try:
-                                process = subprocess.run(argv, cwd=ROOT, stdout=stdout, stderr=stderr,
-                                                         timeout=timeout, check=False)
-                            except subprocess.TimeoutExpired:
-                                record["exit_code"] = 124
-                                raise RuntimeError(f"{label}: timed out; see {log_path}")
-                        busy = "busy or unavailable" in out_path.read_text() + log_path.read_text()
-                        if not (process.returncode and busy) or attempt == BUSY_RETRIES:
-                            break
-                        record["busy_retries"] = attempt + 1
-                        time.sleep(30)
-                    record.update(exit_code=process.returncode, finished_at=TABLE3.now())
-                    if process.returncode:
-                        raise RuntimeError(f"{label}: executable exited {process.returncode}; see {out_path}")
-                    this_identity = TABLE3.gpu_name(log_path.read_text())
-                    if identity is not None and this_identity != identity:
-                        raise ValueError("CUDA device identity changed during the sweep")
-                    identity = this_identity
-                    metadata.update(gpu=identity[0], gpu_name=identity[1], compute_capability=identity[2])
-                    time_ms, rel_l2, validated = parse(out_path.read_text())
+        for library, binary, command, parse, filter_fft in runners:
+            # One process per library for the whole sweep; a truncatable library runs
+            # one size per process so it can stop once it diverges.
+            cut = library in spec.get("truncate", ()) and slow_ratio > 0
+            for group in ([[size] for size in filters] if cut else [list(filters)]):
+                if library in truncated:
+                    break
+                argv, shape = command(binary.resolve(), group, profile, trials)
+                label = f"{library.lower()}-f{group[0]}" + (f"-f{group[-1]}" if len(group) > 1 else "")
+                out_path, log_path = raw / f"{label}.out", raw / f"{label}.log"
+                record = {"argv": argv, "stdout": str(out_path.relative_to(output)), "started_at": TABLE3.now()}
+                metadata["commands"].append(record)
+                with (output / "commands.txt").open("a") as stream:
+                    stream.write(shlex.join(argv) + "\n")
+                print(f"{spec['title']} [{label}] {shape} trials={trials}", flush=True)
+                # Shared exclusive-process GPUs: another user may hold the device between
+                # runs. Only that start-up failure is retried; nothing is timed concurrently.
+                for attempt in range(BUSY_RETRIES + 1):
+                    with out_path.open("w") as stdout, log_path.open("w") as stderr:
+                        try:
+                            process = subprocess.run(argv, cwd=ROOT, stdout=stdout, stderr=stderr,
+                                                     timeout=timeout, check=False)
+                        except subprocess.TimeoutExpired:
+                            record["exit_code"] = 124
+                            raise RuntimeError(f"{label}: timed out; see {log_path}")
+                    busy = "busy or unavailable" in out_path.read_text() + log_path.read_text()
+                    if not (process.returncode and busy) or attempt == BUSY_RETRIES:
+                        break
+                    record["busy_retries"] = attempt + 1
+                    time.sleep(30)
+                record.update(exit_code=process.returncode, finished_at=TABLE3.now())
+                if process.returncode:
+                    raise RuntimeError(f"{label}: executable exited {process.returncode}; see {out_path}")
+                this_identity = TABLE3.gpu_name(log_path.read_text())
+                if identity is not None and this_identity != identity:
+                    raise ValueError("CUDA device identity changed during the sweep")
+                identity = this_identity
+                metadata.update(gpu=identity[0], gpu_name=identity[1], compute_capability=identity[2])
+                results = parse(out_path.read_text())
+                if sorted((size, trial) for size, trial, *_ in results) != \
+                        sorted((size, trial) for size in group for trial in range(trials)):
+                    raise ValueError(f"{label}: expected {trials} trials for f={group}")
+                for size, trial, time_ms, rel_l2, validated in results:
                     row = {"gpu": identity[0], "shape": shape, "filter": size, "library": library,
                            "precision": spec["precision"], "repeat": trial, "time_ms": time_ms,
                            "filter_fft_included": filter_fft, "rel_l2": rel_l2, "validated": validated,
                            "passed": "true", "operation": spec["operation"], "source": record["stdout"]}
                     check_row(row)
                     rows.append(row)
-                    TABLE3.write_csv(output / "data.csv", rows, FIELDS)
-                    TABLE3.atomic_json(output / "metadata.json", metadata)
+                TABLE3.write_csv(output / "data.csv", rows, FIELDS)
+                if cut and diverged(rows, library, group[0], slow_ratio):
+                    truncated[library] = {"last_measured_filter": group[0],
+                                          "rule": f"median > {slow_ratio:g}x the fastest other library"}
+                    print(f"{spec['title']}: {library} is over {slow_ratio:g}x slower at f={group[0]}; "
+                          "larger filters are not measured", flush=True)
+                TABLE3.atomic_json(output / "metadata.json", metadata)
         backend_rows, metadata["backend_sha256"] = read_backends(backends, spec, identity[0], shape, filters,
                                                                  tuple(r[0] for r in runners))
         rows += backend_rows

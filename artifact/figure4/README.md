@@ -24,13 +24,13 @@ cuDNN is measured when CMake finds it (`thff_conv1d_compare`). Overrides:
 
 Depthwise circular convolution `y[b][d][n] = sum_k x[b][d][(n-k) mod L] h[d][k]`
 over all `L` outputs, filter not flipped, real FP16 input/filter/output. Inputs
-come from `srand(42)` in the same order in both drivers: `x ~ U[0,1]`, then
-`h ~ U[0,1]`.
+are identical in both drivers: `x ~ U[0,1]` from `std::minstd_rand` seed 42 and
+`h ~ U[0,1]` from seed `42+K`.
 
 | Library | Native | Notes |
 | --- | --- | --- |
-| ThunderFFT | `thff_conv1d_fullfft4096 4096 K 0 64 768 5 30 1 1 1 1 1024` | stores `h/L` to absorb the unnormalized inverse; filter FFT included in every timed iteration |
-| cuDNN | `thff_conv1d_compare --figure4 4096 K 64 768 5 30 1024` | C++ cuDNN API, groups=D, reversed filter with `CUDNN_CROSS_CORRELATION` (the mode PyTorch `F.conv1d` uses), fastest `cudnnFind` algorithm; the circularly wrapped input (`L+K-1`) is built once before timing |
+| ThunderFFT | `thff_conv1d_fullfft4096 4096 3,5,…,53 0 64 768 5 30 1 1 1 1 1024 3` | stores `h/L` to absorb the unnormalized inverse; filter FFT included in every timed iteration |
+| cuDNN | `thff_conv1d_compare --figure4 4096 3,5,…,53 64 768 5 30 1024 3` | C++ cuDNN API, groups=D, reversed filter with `CUDNN_CROSS_CORRELATION` (the mode PyTorch `F.conv1d` uses), fastest `cudnnFind` algorithm; the circularly wrapped input (`L+K-1`) is built once before timing |
 
 Both drivers check finite relative L2 ≤ 5e-3 against a direct double-precision
 reference on 1025 `(b, d)` sequences spread over `b` and `d` (plus the last one)
@@ -44,10 +44,22 @@ Columns `gpu,shape,filter,library,repeat,time_ms,rel_l2,passed,operation`, with
 `FIGURE4["operation"]`. Rows with another operation, GPU, shape, a failed gate
 or a library measured here are rejected.
 
-## Reference results (A100 80GB PCIe, CUDA 12.9, cuDNN 9.12, 2026-11-05)
+## Run time and optional truncation
 
-ThunderFFT averages 1.810 ms over K=3…53 (paper: 1.86 ms, −2.7%; earlier
-evaluation: 1.834–1.867 ms).
+One native process per library sweeps every filter size: the input is generated
+once (`std::minstd_rand`, seed 42; each filter from seed `42+f`), each size is
+gated once, and the trials then run back to back. On the A100 the paper profile
+takes about 1.5 minutes (ThunderFFT 33 s, cuDNN 64 s).
+
+`THUNDERFFT_FIGURE4_SLOW_RATIO=r` (default `0`, off) stops cuDNN after the first
+size at which its median exceeds `r` times the fastest other library; larger
+sizes are then left empty in the plot and listed in `metadata.json` `truncated`.
+
+## Reference results (A100 80GB PCIe, CUDA 12.9, cuDNN 9.12, 2026-11-07)
+
+ThunderFFT: 1.861–1.868 ms over K=3…53 (paper average: 1.86 ms; earlier
+evaluation: 1.834–1.867 ms). cuDNN: 2.117 → 9.719 ms (earlier evaluation
+2.127 → 9.705 ms).
 
 The earlier evaluation measured cuDNN through PyTorch `F.conv1d` (fp16,
 `cudnn.benchmark=True`), which runs cuDNN's `conv2d_grouped_direct_kernel` in
