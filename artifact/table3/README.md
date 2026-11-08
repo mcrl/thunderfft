@@ -7,6 +7,9 @@ PCIe and B200 columns; one run measures one GPU.
 
 ## Run
 
+Run locally on an A100 80GB PCIe GPU; H100 and B200 run on
+Vast.ai (`--backend vast`).
+
 ```sh
 # Local GPU
 ./run.sh table3                    # smoke: batch 1024, R=256, 2 trials

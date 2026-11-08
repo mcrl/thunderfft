@@ -7,13 +7,11 @@ register results. Selecting `figure2` runs `table3` first and plots its result.
 
 ## Run
 
+Run locally on an A100 80GB PCIe GPU.
+
 ```bash
 ./run.sh figure2                    # smoke (runs table3, then plots)
 ./run.sh figure2 --profile paper    # paper (runs table3, then plots)
-
-# Without a local A100
-./run.sh figure2 --backend vast --gpu A100
-./run.sh figure2 --profile paper --backend vast --gpu A100
 ```
 
 In a collection, Figure 2 is produced only by `--assemble` from the collected

@@ -7,6 +7,9 @@ candidate for A100, FP16, register input, N=64.
 
 ## Run
 
+The calculated rows need no GPU; the measured row runs locally on an A100 80GB
+PCIe GPU (or on a rented A100 with `--backend vast`).
+
 ```sh
 ./run.sh table2                          # calculated rows only; no GPU
 ./run.sh table3 table2 --profile paper   # on an A100: also the measured cuFFTDx row

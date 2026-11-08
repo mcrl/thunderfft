@@ -33,10 +33,10 @@ The Vast API key needs the permission categories `misc`, `user_read`,
 ## Usage
 
 ```bash
-./run.sh figure5 --backend vast --gpu H100 --profile smoke --dry-run       # offline preview
-./run.sh figure5 --backend vast --gpu H100 --profile smoke --cloud-plan    # offer and cost, no rental
-./run.sh figure5 --backend vast --gpu H100 --profile smoke                 # rent, run, download, destroy
-./run.sh figure5 --backend vast --gpu H100 --profile paper --collection fig5 --part h100
+./run.sh table3 --backend vast --gpu H100 --profile smoke --dry-run       # offline preview
+./run.sh table3 --backend vast --gpu H100 --profile smoke --cloud-plan    # offer and cost, no rental
+./run.sh table3 --backend vast --gpu H100 --profile smoke                 # rent, run, download, destroy
+./run.sh table3 --backend vast --gpu H100 --profile paper --collection ae --part h100
 ```
 
 A100 and H100 offers are restricted to the PCIe 80GB models. Add

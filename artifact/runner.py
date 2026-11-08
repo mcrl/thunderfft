@@ -110,6 +110,13 @@ def select_tasks(requested, entries, parser):
     return ordered
 
 
+def require_backend(entries, backend, parser):
+    unsupported = [entry["id"] for entry in entries if backend not in entry.get("backends", ("local", "vast"))]
+    if unsupported:
+        parser.error(f"--backend {backend} is not supported for: " + ", ".join(unsupported))
+    return entries
+
+
 def stop_process(process):
     if process.poll() is not None:
         return
@@ -254,8 +261,13 @@ def main():
         # Derived figures are regenerated offline from the collection's sources.
         entries = [e for e in entries if e["id"] != "figure2"]
     if args.backend == "vast" and not args.list:
+        require_backend(entries, args.backend, parser)
+
+        def select_for_backend(requested_ids, all_entries, task_parser):
+            return require_backend(select_tasks(requested_ids, all_entries, task_parser), args.backend, task_parser)
+
         try:
-            return cloud.run(args, entries, registry, ROOT, collection, select_tasks, parser)
+            return cloud.run(args, entries, registry, ROOT, collection, select_for_backend, parser)
         except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as error:
             print(f"Cloud error: {error}", file=sys.stderr)
             return 1

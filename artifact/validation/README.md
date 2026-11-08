@@ -7,6 +7,8 @@ This is not a numbered paper result; any supported GPU can run it.
 
 ## Run
 
+Run locally on any NVIDIA GPU.
+
 ```sh
 ./run.sh validation                   # smoke: 88 cases + 18 host API checks
 ./run.sh validation --profile paper   # paper: 500 cases + 18 host API checks

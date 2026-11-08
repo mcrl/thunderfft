@@ -56,7 +56,17 @@ def make_plot(rows, output, evaluation):
     axis.set_xticks(filters[::2] if len(filters) > 14 else filters)
     axis.set_xlabel(xlabel)
     axis.set_ylabel("Time (ms)")
-    axis.set_ylim(bottom=0)
+    finite = [v for v in values.values() if math.isfinite(v) and v > 0]
+    if evaluation == "figure5" and finite:
+        # Direct convolution grows quadratically with the filter; a log axis keeps the FFT paths readable.
+        from matplotlib.ticker import NullLocator, ScalarFormatter
+        axis.set_yscale("log")
+        axis.set_yticks([y for y in (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)
+                         if min(finite) / 1.5 <= y <= max(finite) * 1.5])
+        axis.yaxis.set_major_formatter(ScalarFormatter())
+        axis.yaxis.set_minor_locator(NullLocator())
+    else:
+        axis.set_ylim(bottom=0)
     axis.grid(axis="y", color="#d7d7d7", linewidth=0.6)
     axis.set_axisbelow(True)
     figure.legend(*axis.get_legend_handles_labels(), loc="upper center", ncol=len(libraries), frameon=False)

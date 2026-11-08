@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Collect Figure 5: correctness-gated 2D convolution (cuDNN, cuFFT full image,
-tiled cuFFTDx) over a filter-size sweep, joined with backend CSVs (tiled ThunderFFT).
+"""Collect Figure 5: correctness-gated 2D convolution (cuDNN, full-image cuFFT, tiled cuFFTDx,
+tiled ThunderFFT) over a filter-size sweep.
 
 Uses the shared sweep collector in artifact/figure4/measure.py.
 """
@@ -24,17 +24,22 @@ ROOT = HERE.parents[1]
 SWEEP = module("figure5_sweep", HERE.parent / "figure4/measure.py")
 FIGURE5 = {
     "evaluation": "figure5", "title": "Figure 5", "env": "THUNDERFFT_FIGURE5",
-    # The earlier H100 evaluation used a 16384 x 16384 image and odd f = 3..53.
+    # Paper workload: a 16384 x 16384 image and odd f = 3..53.
     "filters": {"smoke": (3, 33, 53), "paper": tuple(range(3, 54, 2))},
     "allowed_filters": tuple(range(3, 60, 2)),
-    "operation": "complex fp32 valid 2D cross-correlation y[i][j]=sum_{a,b<f} x[i+a][j+b] h[a][b], "
-                 "(N-f+1)^2 outputs, U[0,1] parts (x: minstd seed 42, h: seed 42+f), filter FFT timed, "
+    "operation": "real fp32 valid 2D cross-correlation y[i][j]=sum_{a,b<f} x[i+a][j+b] h[a][b], "
+                 "(N-f+1)^2 outputs, U[0,1] inputs (x: minstd seed 42, h: seed 42+f), filter FFT timed, "
                  "tile 64 for tiled paths",
     "precision": "fp32",
     "truncate": ("cuDNN",),
     "libraries": ("cuFFT", "cuFFTDx", "ThunderFFT", "cuDNN"),
-    "notes": {"ThunderFFT": "artifact implementation: complex FP32 storage, current public N=64 TF32 tensor-core FFT arithmetic, cuFFT filter FFT timed; original paper binary identity is unconfirmed", "cuDNN": "as in the earlier evaluation: real FP32 single channel (real parts of x and h), "
-                       "CUDNN_CROSS_CORRELATION, fastest of the top three cudnnGetConvolutionForwardAlgorithm_v7 candidates (cudnnFind exhausts host memory at f>=31); no filter transform"},
+    "notes": {"ThunderFFT": "64x64 tiles, 64-point TF32 Tensor Core C2C FFTs (ThunderFFT device API) with a zero "
+                            "imaginary part, real input/output, cuFFT filter FFT timed",
+              "cuFFTDx": "64x64 tiles, thread-level FP32 cuFFTDx 64-point C2C FFTs with a zero imaginary part, "
+                         "real input/output, cuFFT filter FFT timed",
+              "cuFFT": "full-image FP32 R2C/C2R of the input and the zero-padded filter",
+              "cuDNN": "FP32 single channel, CUDNN_CROSS_CORRELATION, fastest of the top three "
+                       "cudnnGetConvolutionForwardAlgorithm_v7 candidates; no filter transform"},
 }
 
 
@@ -59,13 +64,13 @@ def gate(block):
 
 
 def parse(stdout):
-    """Per-filter (size, trial, time_ms, rel_l2, validated) from the thff_conv output."""
+    """Per-filter (size, trial, time_ms, rel_l2, validated) from the thff_conv2d output."""
     return SWEEP.parse_blocks(stdout, gate)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, required=True, help="thff_conv")
+    parser.add_argument("--binary", type=Path, required=True, help="thff_conv2d")
     parser.add_argument("--available", default="cuFFT,ThunderFFT", help="compiled backend names")
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -76,9 +81,8 @@ def main():
     available = tuple(args.available.split(","))
     runners = [(library, args.binary, command(library.lower()), parse, "n/a" if library == "cuDNN" else "true")
                for library in FIGURE5["libraries"] if library in available]
-    sources = [*ROOT.glob("include/**/*.cuh"), ROOT / "sample/utils.h", ROOT / "sample/conv2d/main.cu", ROOT / "sample/conv2d/cufftdx.cu", ROOT / "sample/conv2d/thunder_tiled64.cu",
-               ROOT / "sample/conv2d/CMakeLists.txt", *HERE.glob("*.py"), HERE / "run.sh",
-               HERE.parent / "figure4/measure.py"]
+    sources = [*ROOT.glob("include/**/*.cuh"), *HERE.glob("conv2d/*"), HERE / "CMakeLists.txt",
+               *HERE.glob("*.py"), HERE / "run.sh", HERE.parent / "figure4/measure.py"]
     try:
         return SWEEP.collect(FIGURE5, runners, args.build_dir, args.output, args.profile, sources)
     except ValueError as error:

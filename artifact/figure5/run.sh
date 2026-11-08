@@ -10,18 +10,27 @@ if ! selected_device="$("${THUNDERFFT_PYTHON}" "${TASK_DIR}/../table5/select_dev
 fi
 export CUDA_VISIBLE_DEVICES="${selected_device}"
 
-artifact_configure -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 2>&1 | tee "${THUNDERFFT_RESULT_DIR}/configure.log"
+FIGURE5_BUILD="${THUNDERFFT_BUILD_DIR}/figure5"
+arch="${THUNDERFFT_ARCHS:-80}"
+args=(-S "${TASK_DIR}" -B "${FIGURE5_BUILD}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      "-DCMAKE_CUDA_ARCHITECTURES=${arch%%[,;]*}")
+if [[ -n "${CUDACXX:-${NVCC:-}}" ]]; then args+=("-DCMAKE_CUDA_COMPILER=${CUDACXX:-${NVCC}}"); fi
+if [[ -n "${CUDAToolkit_ROOT:-}" ]]; then args+=("-DCUDAToolkit_ROOT=${CUDAToolkit_ROOT}"); fi
+if [[ -n "${MATHDX_ROOT+x}" ]]; then args+=("-DMATHDX_ROOT=${MATHDX_ROOT}"); fi
+if [[ -n "${CUDNN_HOME:-}" ]]; then args+=("-DCUDNN_ROOT=${CUDNN_HOME}"); fi
+if [[ -n "${CUDNN_ROOT:-}" ]]; then args+=("-DCUDNN_ROOT=${CUDNN_ROOT}"); fi
+cmake "${args[@]}" 2>&1 | tee "${THUNDERFFT_RESULT_DIR}/configure.log"
 available="cuFFT,ThunderFFT"
-if grep -qx 'THFF_CONV_CUFFTDX_ENABLED:INTERNAL=ON' "${THUNDERFFT_BUILD_DIR}/CMakeCache.txt"; then
+if grep -qx 'THFF_CONV2D_CUFFTDX:INTERNAL=ON' "${FIGURE5_BUILD}/CMakeCache.txt"; then
   available="${available},cuFFTDx"
 fi
-if grep -q '^CUDNN_LIB:FILEPATH=/' "${THUNDERFFT_BUILD_DIR}/CMakeCache.txt"; then
+if grep -qx 'THFF_CONV2D_CUDNN:INTERNAL=ON' "${FIGURE5_BUILD}/CMakeCache.txt"; then
   available="${available},cuDNN"
 fi
-cmake --build "${THUNDERFFT_BUILD_DIR}" --target thff_conv -j "${THUNDERFFT_JOBS}" \
+cmake --build "${FIGURE5_BUILD}" --target thff_conv2d -j "${THUNDERFFT_JOBS}" \
   2>&1 | tee "${THUNDERFFT_RESULT_DIR}/build.log"
 "${THUNDERFFT_PYTHON}" "${TASK_DIR}/measure.py" \
-  --binary "${THUNDERFFT_BUILD_DIR}/sample/conv2d/thff_conv" --available "${available}" \
-  --build-dir "${THUNDERFFT_BUILD_DIR}" \
+  --binary "${FIGURE5_BUILD}/thff_conv2d" --available "${available}" \
+  --build-dir "${FIGURE5_BUILD}" \
   --output "${THUNDERFFT_RESULT_DIR}" --profile "${THUNDERFFT_PROFILE}"
 exec "${THUNDERFFT_PYTHON}" "${TASK_DIR}/../figure4/plot.py" --output-dir "${THUNDERFFT_RESULT_DIR}" --evaluation figure5

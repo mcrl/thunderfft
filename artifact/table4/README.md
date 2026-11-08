@@ -9,6 +9,9 @@ H100 or B200.
 
 ## Run
 
+Run locally on an A100 80GB PCIe GPU; H100 and B200 run on
+Vast.ai (`--backend vast`).
+
 ```sh
 # Ideal MMA only; the unit-kernel and efficiency cells stay blank
 ./run.sh table4

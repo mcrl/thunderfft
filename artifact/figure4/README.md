@@ -8,6 +8,8 @@ reference before it is timed.
 
 ## Run
 
+Run locally on an A100 80GB PCIe GPU.
+
 ```bash
 ./run.sh figure4 --profile smoke   # batch 4, 64 channels, K = 3, 9, 53, 1 trial
 ./run.sh figure4 --profile paper   # batch 64, 768 channels, K = 3, 5, ..., 53, 3 trials

@@ -9,13 +9,11 @@ exponents `0..127`.
 
 ## Run
 
+Run locally on an A100 80GB PCIe GPU.
+
 ```bash
 ./run.sh table5                    # smoke
 ./run.sh table5 --profile paper    # paper
-
-# Without a local A100
-./run.sh table5 --backend vast --gpu A100
-./run.sh table5 --profile paper --backend vast --gpu A100
 ```
 
 The paper profile can be collected in parts (by phase or size) and assembled

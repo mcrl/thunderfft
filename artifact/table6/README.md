@@ -16,15 +16,13 @@ during the run, so network access is required:
 
 ## Run
 
+Run locally on an A100 80GB PCIe GPU.
+
 Table 6 is not in the default `./run.sh` set; name it explicitly.
 
 ```bash
 ./run.sh table6                    # smoke
 ./run.sh table6 --profile paper    # paper
-
-# Without a local A100
-./run.sh table6 --backend vast --gpu A100
-./run.sh table6 --profile paper --backend vast --gpu A100
 ```
 
 Libraries can be collected in separate parts and assembled without a GPU:

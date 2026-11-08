@@ -8,6 +8,8 @@ FP32 complex storage (ThunderFFT TF32, cuFFT and cuFFTDx FP32).
 
 ## Run
 
+Run locally on an A100 80GB PCIe GPU.
+
 ```bash
 ./run.sh figure3 --profile smoke
 ./run.sh figure3 --profile paper

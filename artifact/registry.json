@@ -108,6 +108,7 @@
     },
     {
       "id": "table5",
+      "backends": ["local"],
       "title": "Numerical accuracy and finite dynamic range",
       "paper_page": 9,
       "implementation": "ready",
@@ -128,6 +129,7 @@
     },
     {
       "id": "table6",
+      "backends": ["local"],
       "title": "Comparison with prior Tensor Core FFT libraries",
       "paper_page": 9,
       "implementation": "ready",
@@ -149,6 +151,7 @@
     },
     {
       "id": "table7",
+      "backends": ["local"],
       "title": "64-point optimization ablation",
       "paper_page": 9,
       "implementation": "ready_subset",
@@ -171,6 +174,7 @@
     },
     {
       "id": "figure2",
+      "backends": ["local"],
       "title": "A100 register-resident FFT kernel timing",
       "paper_page": 9,
       "implementation": "ready",
@@ -233,7 +237,8 @@
     },
     {
       "id": "figure5",
-      "title": "H100 2D convolution comparison",
+      "backends": ["local"],
+      "title": "A100 2D convolution comparison",
       "paper_page": 10,
       "implementation": "ready",
       "owner": null,
@@ -249,7 +254,7 @@
       },
       "available": false,
       "full_paper_comparison": false,
-      "coverage": "Native cuDNN, cuFFT, cuFFTDx and tiled64 TF32 ThunderFFT artifact implementation with validation and offline assembly; original paper binary identity unconfirmed"
+      "coverage": "Native cuDNN, full-image cuFFT, tiled64 cuFFTDx C2C and tiled64 TF32 ThunderFFT C2C (real FP32 input/output) with validation and offline assembly"
     }
   ]
 }

@@ -22,16 +22,14 @@ be collected and stay blank in the assembled `table.csv`.
 
 ## Run
 
+Run locally on an A100 80GB PCIe GPU.
+
 ```bash
 ./run.sh table7                    # smoke: register_branch, register_uniform (validated)
 ./run.sh table7 --profile paper    # paper: register_branch, register_uniform (validated)
 
 # All four available kernels, timing-only
 THUNDERFFT_TABLE7_TIMING_ONLY=1 ./run.sh table7 --profile paper
-
-# Without a local A100
-./run.sh table7 --backend vast --gpu A100
-THUNDERFFT_TABLE7_TIMING_ONLY=1 ./run.sh table7 --profile paper --backend vast --gpu A100
 ```
 
 To get the paper-shaped table with the missing stages as blank rows, collect

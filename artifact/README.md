@@ -15,7 +15,7 @@ the paper is ThunderFFT in this repository.
 | [figure2](figure2/README.md) | Figure 2, p. 9 | A100 | local |
 | [figure3](figure3/README.md) | Figure 3, p. 10 | A100 | local |
 | [figure4](figure4/README.md) | Figure 4, p. 10 | A100 | local |
-| [figure5](figure5/README.md) | Figure 5, p. 10 | H100 | vast |
+| [figure5](figure5/README.md) | Figure 5, p. 10 | A100 | local |
 
 Figure 1 and Table 1 have no evaluation.
 
@@ -68,9 +68,9 @@ check each path; `paper` uses the paper's settings. Other options: `--device N`,
 GPUs the machine does not have are rented per command:
 
 ```bash
-./run.sh figure5 --backend vast --gpu H100 --profile paper --cloud-plan        # offer and cost only
-./run.sh figure5 --backend vast --gpu H100 --profile paper --collection fig5 --part h100
-./run.sh figure5 --assemble --collection fig5 --profile paper
+./run.sh table3 --backend vast --gpu H100 --profile paper --cloud-plan        # offer and cost only
+./run.sh table3 --backend vast --gpu H100 --profile paper --collection ae --part h100
+./run.sh table3 --assemble --collection ae --profile paper
 ```
 
 The worker installs the dependencies and sets `MATHDX_ROOT`, `CUDNN_HOME` and
