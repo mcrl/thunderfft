@@ -12,6 +12,7 @@ DEFAULTS = {
     "disk_gb": 32, "startup_seconds": 900, "execution_seconds": 3600,
     "download_seconds": 120, "cleanup_seconds": 120, "billing_delay_seconds": 360,
     "upload_gb": 10, "download_gb": 1,
+    "exclude_machine_ids": [], "max_startup_attempts": 2, "ssh_auth_failure_seconds": 90,
     "images": {"A100": "nvidia/cuda:12.9.1-devel-ubuntu22.04",
                "H100": "nvidia/cuda:13.0.2-devel-ubuntu24.04",
                "B200": "nvidia/cuda:13.0.2-devel-ubuntu24.04"},
@@ -101,14 +102,23 @@ def load_config(path=None):
     for field in ("api_key_file", "ssh_key_file", "ssh_public_key_file"):
         result[field] = str(Path(result[field]).expanduser().absolute())
     for field in ("budget_usd", "reserve_usd", "disk_gb", "startup_seconds", "execution_seconds",
-                  "download_seconds", "cleanup_seconds", "billing_delay_seconds", "upload_gb", "download_gb"):
+                  "download_seconds", "cleanup_seconds", "billing_delay_seconds", "upload_gb", "download_gb",
+                  "max_startup_attempts", "ssh_auth_failure_seconds"):
         value = result[field]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
             raise ValueError(f"{field} must be a positive finite number")
-    for field in ("disk_gb", "startup_seconds", "execution_seconds", "download_seconds", "cleanup_seconds", "billing_delay_seconds"):
+    for field in ("disk_gb", "startup_seconds", "execution_seconds", "download_seconds", "cleanup_seconds", "billing_delay_seconds",
+                  "max_startup_attempts", "ssh_auth_failure_seconds"):
         if int(result[field]) != result[field]:
             raise ValueError(f"{field} must be an integer")
         result[field] = int(result[field])
+    if result["max_startup_attempts"] > 3:
+        raise ValueError("max_startup_attempts must be between 1 and 3; all attempts share one budget")
+    excluded = result["exclude_machine_ids"]
+    if (not isinstance(excluded, list) or any(isinstance(value, bool) or not isinstance(value, int) or value <= 0
+                                            for value in excluded)):
+        raise ValueError("exclude_machine_ids must be a list of positive integer machine IDs")
+    result["exclude_machine_ids"] = sorted(set(excluded))
     ceiling = 50.0
     if result["reserve_usd"] < .25:
         raise ValueError("reserve_usd must be at least 0.25")

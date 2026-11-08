@@ -69,8 +69,14 @@ Table 3 configurations was -2.78% to +6.61% versus the paper on A100, and
 +4.38% to +15.98% on H100.
 The H100 gap remains unresolved; full paper performance reproduction is not
 established. These results apply to the tested inputs and configurations.
-B200 has a native CUDA 13/SM 100 build but remains
-unmeasured because no suitable single-GPU rental was available.
+On 2026-11-09, paper-profile Table 3 and Table 4 completed on a rented
+H100 80GB PCIe and B200, including all 28 ThunderFFT/cuFFTDx comparison
+configurations per GPU and the benchmarks' correctness gates. Measured
+cuFFTDx/ThunderFFT speedups were 1.20--3.34x on H100 and 1.10--3.54x on B200.
+ThunderFFT latency differed from the stored paper references by up to about
+19% and 12%, respectively. These measurements establish those benchmark
+paths, not full validation-matrix coverage or exact paper timing reproduction
+on either GPU.
 
 On 2026-11-03, reusing the initialized twiddle table for the SM80 float N=1024
 path reduced matched A100 TF32 register-input latency from `137.24` to
@@ -177,7 +183,25 @@ evaluations locally or on Vast.ai, and assembling results:
 
 ```bash
 bash artifact/setup.sh
-source ~/.thunderfft_env
-./run.sh --list
-./run.sh --profile paper --jobs 8
+./run.sh
 ```
+
+After setup, `run.sh` loads `~/.thunderfft_env` and runs the complete
+paper-profile workflow: validation and every runnable table/figure on an
+A100, Table 3 and Table 4 on rented H100 80GB PCIe and B200 GPUs, then
+automatic assembly of the results. `./run.sh all` does the same. The cloud
+steps use the evaluator account's credentials in `~/cloud_key/thunderfft/`
+and incur rental charges. By default, the workflow waits up to 120 seconds
+for the local A100, then rents an A100 if it remains unavailable. Use
+`--a100-backend local` to require the local A100, or `--a100-backend vast`
+to choose a rented A100 directly. Final tables and Figure 2--5 PDFs are written to
+`result/collections/<collection>/assembled/`; the generated collection name
+is printed during the run.
+
+Use `./run.sh all --cloud-plan` to check the required offers and combined
+cost without starting measurements or renting a GPU.
+`./run.sh all --backend local --profile paper` runs all A100 evaluations only.
+Named evaluations retain their local smoke defaults, for example
+`./run.sh validation table3`.
+Table 7 records its unavailable historical stages as missing; generating
+all outputs does not establish those missing paper measurements.

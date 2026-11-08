@@ -12,6 +12,9 @@
   "reserve_usd": 0.25,
   "upload_gb": 10,
   "download_gb": 1,
+  "exclude_machine_ids": [],
+  "max_startup_attempts": 2,
+  "ssh_auth_failure_seconds": 90,
   "images": {
     "A100": "nvidia/cuda:12.9.1-devel-ubuntu22.04",
     "H100": "nvidia/cuda:13.0.2-devel-ubuntu24.04",

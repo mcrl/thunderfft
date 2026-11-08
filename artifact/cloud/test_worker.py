@@ -110,6 +110,15 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(self.run_fixture(), 0)
         self.assertEqual((self.root / "result/fixture/data.csv").read_text(), str(self.parent / "mathdx/nvidia/mathdx/25.06"))
 
+    def test_all_worker_job_explicitly_selects_local_backend_without_recursive_rental(self):
+        self.request["jobs"][0]["evaluations"] = ["all"]
+        self.write_request()
+        self.assertEqual(self.run_fixture(), 0)
+        record = json.loads((self.root / "result/cloud-worker/jobs.log").read_text().splitlines()[0])
+        command = record["command"]
+        self.assertIn("all", command)
+        self.assertEqual(command[command.index("--backend") + 1], "local")
+
     def test_source_tampering_prevents_any_job_and_preserves_error(self):
         (self.root / "run.sh").write_text("changed\n")
         self.assertEqual(self.run_fixture(), 1)
@@ -271,7 +280,7 @@ class ModelRoundTripTests(unittest.TestCase):
             temporary = Path(name)
             source = temporary / "source"
             source.mkdir()
-            selected = ["run.sh", "artifact/runner.py", "artifact/collection.py",
+            selected = ["run.sh", "artifact/runner.py", "artifact/full_pipeline.py", "artifact/collection.py",
                         "artifact/common.sh", "artifact/registry.json"]
             selected += [str(path.relative_to(repository))
                          for directory in (repository / "artifact/cloud", repository / "artifact/table2",

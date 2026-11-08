@@ -264,6 +264,44 @@ class DerivationTests(unittest.TestCase):
         state = ASSEMBLE.assemble([a, h, self.output], self.root / "merged", "smoke")
         self.assertEqual(state["collected_unit_gpus"], 2)
 
+    def test_collection_location_does_not_conflict_with_same_run_snapshot(self):
+        source = make_part(self.root / "source")
+        collected = self.root / "collected"
+        shutil.copytree(source, collected)
+        status = DERIVE.read_json(source / "status.json")
+        status["collection_part"] = "parts/table3/a100"
+        DERIVE.write_json(source / "status.json", status)
+        DERIVE.generate([source], self.output, "smoke")
+        before = (collected / "status.json").read_bytes()
+        snapshot = self.output / "inputs/table3-000/status.json"
+        snapshot_before = snapshot.read_bytes()
+        self.assertNotEqual(before, snapshot_before)
+        state = ASSEMBLE.assemble([collected, self.output], self.root / "merged", "smoke")
+        self.assertEqual(state["collected_unit_gpus"], 1)
+        self.assertEqual(len(rows(self.root / "merged/data.csv")), 2)
+        self.assertEqual((collected / "status.json").read_bytes(), before)
+        self.assertEqual(snapshot.read_bytes(), snapshot_before)
+        metadata = DERIVE.read_json(self.root / "merged/metadata.json")
+        retained = metadata["sources"][0]
+        for filename, digest in retained["sha256"].items():
+            self.assertEqual(DERIVE.sha256(self.root / "merged" / retained["snapshot"] / filename), digest)
+
+    def test_collection_location_exception_does_not_hide_real_source_conflicts(self):
+        source = make_part(self.root / "source")
+        for filename, field, value in (("status.json", "run_id", "different-run"),
+                                       ("metadata.json", "gpu_uuid", UUIDS["A100"])):
+            with self.subTest(filename=filename):
+                other = self.root / filename
+                shutil.copytree(source, other)
+                status = DERIVE.read_json(other / "status.json")
+                status["collection_part"] = "parts/table3/another-label"
+                DERIVE.write_json(other / "status.json", status)
+                record = DERIVE.read_json(other / filename)
+                record[field] = value
+                DERIVE.write_json(other / filename, record)
+                with self.assertRaisesRegex(ValueError, "conflicting A100"):
+                    DERIVE.generate([source, other], self.root / "merged", "smoke")
+
     def test_assembly_rejects_tampered_snapshot_and_derived_csv(self):
         part = make_part(self.root / "part")
         for index, relative in enumerate(("inputs/table3-000/data.csv", "table.csv")):

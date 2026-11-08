@@ -24,6 +24,7 @@ REGISTRY = Path(__file__).with_name("registry.json")
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from artifact.cloud import coordinator as cloud
+from artifact import full_pipeline
 from artifact.cloud import transport as cloud_transport
 
 # Also works when CPU tests load this file by path rather than as a module.
@@ -202,11 +203,11 @@ def write_summary(directory, states):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("evaluations", nargs="*",
-                        help="evaluation IDs, available (default), or all including optional-library evaluations")
+                        help="evaluation IDs or available; omitted/all runs the complete A100/H100/B200 pipeline")
     parser.add_argument("--list", action="store_true", help="list work items without running")
     parser.add_argument("--dry-run", action="store_true", help="show plan without creating results or querying GPUs")
     parser.add_argument("--profile", choices=["smoke", "paper"], default=None,
-                        help="default: collection profile if it exists, otherwise smoke")
+                        help="default: paper for the complete pipeline; otherwise collection profile or smoke")
     parser.add_argument("--result-dir", type=Path, default=ROOT / "result")
     parser.add_argument("--build-dir", type=Path, default=ROOT / "build_artifact")
     parser.add_argument("--device", type=nonnegative, default=0,
@@ -221,7 +222,20 @@ def main():
     parser.add_argument("--import-result", action="append", default=[], metavar="EVALUATION=DIR",
                         help="import a completed result bundle with CSVs and metadata; no GPU execution")
     cloud.add_arguments(parser)
+    full_pipeline.add_arguments(parser)
     args = parser.parse_args()
+    complete = args.backend == "all" or (
+        args.backend is None and args.evaluations in ([], ["all"]) and not
+        (args.list or args.assemble or args.import_result or args.cloud_batch or args.cloud_recover)
+        and args.gpu == "A100")
+    if complete and not args.list:
+        registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
+        try:
+            return full_pipeline.run(args, registry, ROOT, collection, select_tasks, parser, stop_process)
+        except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as error:
+            print(f"Complete pipeline error: {error}", file=sys.stderr)
+            return 1
+    args.backend = args.backend or "local"
     if args.cloud_plan or args.cloud_recover:
         args.backend = "vast"
     if args.backend == "local" and (args.cloud_config or args.cloud_batch or args.cloud_allow_dirty):

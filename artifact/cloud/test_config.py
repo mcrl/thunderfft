@@ -17,7 +17,7 @@ class ConfigurationTests(unittest.TestCase):
     def load(self, overrides):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "config.json"
-            path.write_text(json.dumps(overrides))
+            path.write_text(json.dumps({"budget_usd": 1.5, **overrides}))
             return config.load_config(path)
 
     def test_example_tracks_defaults(self):
@@ -49,6 +49,18 @@ class ConfigurationTests(unittest.TestCase):
             self.load({"environment": {"THUNDERFFT_TABLE3_PRECISIONS": "fp16\nsecret"}})
         with self.assertRaises(ValueError):
             self.load({"mathdx": "yes"})
+
+    def test_startup_attempts_and_machine_exclusions_are_bounded(self):
+        for overrides in ({"max_startup_attempts": 0}, {"max_startup_attempts": 4},
+                          {"max_startup_attempts": 1.5}, {"max_startup_attempts": True},
+                          {"ssh_auth_failure_seconds": 0}, {"exclude_machine_ids": "81035"},
+                          {"exclude_machine_ids": [True]}, {"exclude_machine_ids": [-1]},
+                          {"exclude_machine_ids": ["81035"]}):
+            with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                self.load(overrides)
+        settings = self.load({"max_startup_attempts": 1, "exclude_machine_ids": [81035, 81035]})
+        self.assertEqual(settings["exclude_machine_ids"], [81035])
+        self.assertEqual(settings["max_startup_attempts"], 1)
 
     def test_table4_measurement_controls_forward_without_local_source_paths(self):
         values = {"THUNDERFFT_TABLE4_ITERATIONS": "1024", "THUNDERFFT_TABLE4_TRIALS": "5",
@@ -92,7 +104,7 @@ class ConfigurationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "result"
             configuration = Path(folder) / "config.json"
-            configuration.write_text(json.dumps({"api_key_file": str(Path(folder) / "absent")}))
+            configuration.write_text(json.dumps({"api_key_file": str(Path(folder) / "absent"), "budget_usd": 1.5}))
             run = subprocess.run([str(ROOT / "run.sh"), "table3", "--backend", "vast", "--dry-run",
                                   "--result-dir", str(output), "--cloud-config", str(configuration)],
                                  text=True, capture_output=True, timeout=10)

@@ -153,6 +153,29 @@ class CollectionChecks(unittest.TestCase):
         statuses = json.loads((self.directory / "assembled/manifest.json").read_text())["evaluations"]
         self.assertEqual({state["evaluation"] for state in statuses}, {"table2", "table4"})
 
+    def test_table3_collection_and_same_run_table4_assemble_without_status_rewrite(self):
+        spec = importlib.util.spec_from_file_location("table4_collection_annotation_fixture", HERE / "table4/test_derive.py")
+        fixture = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fixture)
+        source = fixture.make_part(self.root / "table3-source", profile="paper")
+        record = collection.add_part(self.directory, "table3", "a100", source, "paper")
+        # Reproduce runner order: collect Table 3, annotate its live status,
+        # then let the dependent Table 4 retain that annotated source snapshot.
+        status = json.loads((source / "status.json").read_text())
+        status["collection_part"] = record["path"]
+        fixture.DERIVE.write_json(source / "status.json", status)
+        derived = self.root / "table4-source"
+        fixture.DERIVE.generate([source], derived, "paper")
+        fixture.DERIVE.write_json(derived / "status.json", {"evaluation": "table4", "profile": "paper",
+                                  "status": "completed", "exit_code": 0})
+        collection.add_part(self.directory, "table4", "a100", derived, "paper")
+        before = collection.file_hashes(self.directory / "parts")
+        self.assertEqual(self.main("--collection", "test", "--assemble", "table4"), 2)
+        state = json.loads((self.directory / "assembled/table4/status.json").read_text())
+        self.assertEqual((state["status"], state["collected_unit_gpus"]), ("partial", 1))
+        self.assertEqual(collection.file_hashes(self.directory / "parts"), before)
+        self.assertFalse((self.directory / "assembly-error.json").exists())
+
     def test_table4_separate_ideal_parts_complete_with_three_matching_units(self):
         spec = importlib.util.spec_from_file_location("table4_full_collection_fixture", HERE / "table4/test_derive.py")
         fixture = importlib.util.module_from_spec(spec)

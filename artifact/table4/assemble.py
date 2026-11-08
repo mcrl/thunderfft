@@ -57,6 +57,6 @@ def assemble(parts, output, profile):
                 raise ValueError(f"{part}: derived {name} hash mismatch")
         sources.extend(snapshot_inputs(part, metadata.get("sources")))
         ideals.extend(snapshot_inputs(part, metadata.get("ideal_sources", []), ideal=True))
-    # generate() deduplicates exact source fingerprints, whether imported
-    # directly or through one or several derived bundle snapshots.
+    # generate() deduplicates measurement identities, whether imported directly
+    # or through derived snapshots; exact evidence hashes remain verified above.
     return DERIVE.generate(sources, output, profile, ideal_dirs=ideals)

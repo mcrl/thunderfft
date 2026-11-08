@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """CPU checks of task selection and fail-closed result handling."""
 import argparse
+from contextlib import redirect_stdout
 import importlib.util
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -15,6 +17,55 @@ SPEC.loader.exec_module(runner)
 
 
 class RunnerChecks(unittest.TestCase):
+    def dry_plan(self, *arguments):
+        output = io.StringIO()
+        with patch("sys.argv", ["run.sh", *arguments, "--dry-run"]), redirect_stdout(output), \
+             patch.object(runner, "capture", side_effect=AssertionError("dry plan queried hardware")), \
+             patch.object(runner, "execute", side_effect=AssertionError("dry plan executed a benchmark")), \
+             patch.object(runner.cloud, "run", side_effect=AssertionError("dry plan dispatched a rental")), \
+             patch.object(runner.full_pipeline, "preflight", side_effect=AssertionError("dry plan queried provider")), \
+             patch.object(runner.full_pipeline, "inventory", side_effect=AssertionError("dry plan queried GPU")):
+            self.assertEqual(runner.main(), 0)
+        return output.getvalue()
+
+    def test_no_arguments_and_all_dispatch_complete_paper_pipeline(self):
+        for arguments in ((), ("all",), ("--backend", "all")):
+            with self.subTest(arguments=arguments):
+                output = self.dry_plan(*arguments)
+                self.assertIn("Complete pipeline; profile: paper", output)
+                self.assertIn("H100 PCIe 80GB: table3, table4; B200: table3, table4", output)
+                self.assertIn("Then assemble all tables and figures automatically", output)
+                for evaluation in ("table5", "table6", "table7", "figure3", "figure4", "figure5"):
+                    self.assertIn(evaluation, output)
+
+    def test_explicit_local_all_keeps_single_machine_smoke_default(self):
+        output = self.dry_plan("all", "--backend", "local")
+        self.assertNotIn("Complete pipeline", output)
+        self.assertIn("Profile: smoke; device: 0; sequential execution", output)
+        self.assertIn("table6", output)
+        self.assertIn("figure5", output)
+
+    def test_named_tasks_keep_local_smoke_default(self):
+        output = self.dry_plan("validation", "table3")
+        self.assertNotIn("Complete pipeline", output)
+        self.assertIn("Profile: smoke; device: 0; sequential execution", output)
+        self.assertIn("validation", output)
+        self.assertIn("table3", output)
+        self.assertNotIn("figure5", output)
+
+    def test_cloud_worker_expanded_full_task_list_does_not_start_nested_pipeline(self):
+        registry = json.loads(runner.REGISTRY.read_text())
+        # The coordinator expands 'all' before passing the named tasks to the
+        # worker. The worker intentionally has no cloud credentials/backend flag.
+        tasks = [entry["id"] for entry in runner.select_tasks(["all"], registry["evaluations"],
+                                                              argparse.ArgumentParser())
+                 if entry["id"] != "figure2"]
+        with patch.object(runner.full_pipeline, "run", side_effect=AssertionError("worker attempted nested pipeline")):
+            output = self.dry_plan(*tasks, "--profile", "paper", "--collection", "worker-fixture", "--part", "a100")
+        self.assertIn("Profile: paper; device: 0; sequential execution", output)
+        for evaluation in tasks:
+            self.assertIn(evaluation, output)
+
     def test_available_default_omits_unfinished_and_orders_dependencies(self):
         entries = [{"id": "figure", "available": True, "depends_on": ["data"]},
                    {"id": "external", "available": False},

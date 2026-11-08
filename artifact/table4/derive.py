@@ -325,8 +325,16 @@ def load_source(directory, profile):
                            unit_tflops=throughput))
     if len(seen) != trials:
         raise ValueError(f"incomplete Table 3 trials: expected {trials}, got {len(seen)}")
+    hashes = {name: sha256(path) for name, path in paths.items()}
+    # The runner snapshots Table 3 into its collection before adding the
+    # collection_part location to the live status. Table 4 then snapshots that
+    # annotated status from the same run. This location is not a measurement
+    # identity: accept either copy while retaining and verifying its exact bytes.
+    # All other status fields, and all data/metadata bytes, must still agree.
+    identity = {"data_sha256": hashes["data.csv"], "metadata_sha256": hashes["metadata.json"],
+                "status": {key: value for key, value in status.items() if key != "collection_part"}}
     return {"directory": directory, "rows": sorted(parsed, key=lambda row: row["trial"]),
-            "gpu_uuid": unit_gpu_uuid(metadata), "sha256": {name: sha256(path) for name, path in paths.items()}}
+            "gpu_uuid": unit_gpu_uuid(metadata), "sha256": hashes, "identity": identity}
 
 
 def preload(source):
@@ -367,8 +375,8 @@ def generate(source_dirs, output, profile, ideal_dirs=()):
             continue
         gpu = source["rows"][0]["gpu"]
         if gpu in by_gpu:
-            if source["sha256"] == by_gpu[gpu]["sha256"]:
-                unused.append({"path": str(directory), "reason": "identical Table 3 evidence already selected"})
+            if source["identity"] == by_gpu[gpu]["identity"]:
+                unused.append({"path": str(directory), "reason": "identical Table 3 measurement already selected"})
                 continue
             raise ValueError(f"conflicting {gpu} Table 3 sources; retain one source per GPU")
         by_gpu[gpu] = source

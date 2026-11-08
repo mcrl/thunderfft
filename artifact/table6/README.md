@@ -18,7 +18,8 @@ during the run, so network access is required:
 
 Run locally on an A100 80GB PCIe GPU.
 
-Table 6 is not in the default `./run.sh` set; name it explicitly.
+Table 6 is included in the complete `./run.sh` workflow. Name it explicitly
+to run only this comparison on the local A100.
 
 ```bash
 ./run.sh table6                    # smoke

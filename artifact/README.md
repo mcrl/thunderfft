@@ -3,19 +3,19 @@
 Evaluations for *xFFT: Accelerating FFT with Tensor Cores* (PPoPP'27). xFFT in
 the paper is ThunderFFT in this repository.
 
-| Evaluation | Paper | GPU | On a machine with an A100 |
+| Evaluation | Paper | GPU | Complete workflow |
 | --- | --- | --- | --- |
-| [validation](validation/README.md) | correctness | any | local |
-| [table2](table2/README.md) | Table 2, p. 3 | CPU, A100 for the measured row | local |
-| [table3](table3/README.md) | Table 3, p. 8 | A100, H100, B200 | local (A100), vast (H100, B200) |
-| [table4](table4/README.md) | Table 4, p. 8 | A100, H100, B200 | local (A100), vast (H100, B200) |
-| [table5](table5/README.md) | Table 5, p. 9 | A100 | local |
-| [table6](table6/README.md) | Table 6, p. 9 | A100 | local |
-| [table7](table7/README.md) | Table 7, p. 9 | A100 | local |
-| [figure2](figure2/README.md) | Figure 2, p. 9 | A100 | local |
-| [figure3](figure3/README.md) | Figure 3, p. 10 | A100 | local |
-| [figure4](figure4/README.md) | Figure 4, p. 10 | A100 | local |
-| [figure5](figure5/README.md) | Figure 5, p. 10 | A100 | local |
+| [validation](validation/README.md) | correctness | any | A100 stage |
+| [table2](table2/README.md) | Table 2, p. 3 | CPU, A100 for the measured row | A100 stage |
+| [table3](table3/README.md) | Table 3, p. 8 | A100, H100, B200 | all three GPU stages |
+| [table4](table4/README.md) | Table 4, p. 8 | A100, H100, B200 | all three GPU stages |
+| [table5](table5/README.md) | Table 5, p. 9 | A100 | A100 stage |
+| [table6](table6/README.md) | Table 6, p. 9 | A100 | A100 stage |
+| [table7](table7/README.md) | Table 7, p. 9 | A100 | A100 stage |
+| [figure2](figure2/README.md) | Figure 2, p. 9 | A100 | A100 stage |
+| [figure3](figure3/README.md) | Figure 3, p. 10 | A100 | A100 stage |
+| [figure4](figure4/README.md) | Figure 4, p. 10 | A100 | A100 stage |
+| [figure5](figure5/README.md) | Figure 5, p. 10 | A100 | A100 stage |
 
 Figure 1 and Table 1 have no evaluation.
 
@@ -48,20 +48,73 @@ and sources it from `~/.bashrc`. `CUDA_HOME`, `THUNDERFFT_ARCHS`,
 (local archive or directory) override the defaults. `check.sh` runs CPU-only
 tests.
 
-## Run locally
+## Complete reproduction with one command
 
 ```bash
-export CUDA_VISIBLE_DEVICES=0            # the GPU THUNDERFFT_ARCHS was detected for
+./run.sh                               # complete paper-profile workflow
+# Equivalent: ./run.sh all
+```
+
+The launcher loads `~/.thunderfft_env` when present. With no evaluation names,
+or with `all`, it uses the paper profile and runs these stages in order:
+
+1. Run validation, Tables 2--7 and Figures 2--5 on an A100, using the local GPU
+   when available and a rented A100 80GB PCIe otherwise.
+2. Rent an H100 80GB PCIe for Tables 3 and 4, download its results and destroy it.
+3. Rent a B200 for Tables 3 and 4, download its results and destroy it.
+4. Assemble the collected measurements into the final tables and figures.
+
+Table 3 runs before the evaluations that reuse it. The workflow creates a
+collection automatically; `--collection NAME` chooses its name. Final output
+is under `result/collections/<name>/assembled/`. No manual import, status-file
+editing or separate assembly command is needed.
+
+Cloud stages require the evaluator account's Vast.ai credentials and incur
+charges. The combined planned cost of all rentals, including an A100 fallback
+and any retries, must fit the cloud configuration's budget. Preview the
+workflow or current offers with:
+
+```bash
+./run.sh --dry-run                      # offline; no API calls or measurements
+./run.sh --cloud-plan                   # required offers and combined cost; no rental
+./run.sh --profile smoke --jobs 8        # all stages with smaller diagnostic workloads
+```
+
+The local GPU defaults to device 0. Use `--device N` or `CUDA_VISIBLE_DEVICES`
+to select the A100 if needed. By default, `--a100-backend auto` waits up to
+`--local-wait-seconds 120` for the local GPU, then rents an A100 if it is still
+unavailable or busy. All A100 evaluations use that one selected GPU. Choose
+`--a100-backend local` to require the local GPU or `--a100-backend vast` to
+rent one directly. The workflow does not terminate other users' jobs. Paper
+timings require exclusive use throughout the run.
+
+The full workflow allows up to 1,200 seconds of build/run time for each H100
+and B200 stage and 3,600 seconds for a rented A100 stage. Use
+`--cloud-stage-seconds` and `--a100-stage-seconds` to change these limits;
+the cloud configuration's `execution_seconds` remains an upper bound.
+Startup, download, cleanup and delayed-billing reserves are accounted for
+separately. If an affordable compatible offer is unavailable, the workflow
+reports the stage and does not rent an incompatible GPU.
+
+Every runnable evaluation produces its output, but Table 7 still has two
+unavailable historical paper stages. Its assembled table retains blank cells
+and coverage metadata for them; successful execution does not fill missing
+historical measurements.
+
+## Run selected evaluations locally
+
+```bash
 ./run.sh --list
-./run.sh --jobs 8                        # default batch, smoke profile
-./run.sh --profile paper --jobs 8        # default batch, paper profile
+./run.sh all --backend local --profile paper --jobs 8  # all A100 evaluations
+./run.sh validation table2 table3 --jobs 8   # named evaluations default to local smoke
 ./run.sh table6 figure3 figure4 --profile paper --jobs 8
 ```
 
-The default batch is validation, table2, table3, table4, table5, table7 and
-figure2; `all` selects every evaluation. `smoke` runs small workloads that
-check each path; `paper` uses the paper's settings. Other options: `--device N`,
-`--timeout SECONDS`, `--result-dir DIR`, `--build-dir DIR`, `--dry-run`.
+`smoke` checks paths with small workloads; `paper` uses the paper's settings.
+Explicit `--backend local` runs default to `smoke`; add `--profile paper`
+for paper measurements.
+Other options include `--timeout SECONDS`, `--result-dir DIR` and
+`--build-dir DIR`.
 
 ## Run on Vast.ai
 
@@ -74,14 +127,17 @@ GPUs the machine does not have are rented per command:
 ```
 
 The worker installs the dependencies and sets `MATHDX_ROOT`, `CUDNN_HOME` and
-`THUNDERFFT_ARCHS` itself. `--gpu` has no effect without `--backend vast`. See
+`THUNDERFFT_ARCHS` itself. `--gpu` selects the GPU for a single `--backend vast`
+invocation; the complete workflow selects H100 and B200 automatically. See
 [Vast.ai backend](cloud/README.md) for credentials and configuration.
 
 ## Collect per GPU and assemble
 
-Runs with `--collection NAME --part PART` are stored as separate parts; `--assemble`
-combines them into tables and figures without GPU work. Table 3 and Table 4 put
-A100, H100 and B200 results into one table:
+The complete workflow already collects and assembles all GPU stages. The
+following commands are available when collecting selected parts independently.
+Runs with `--collection NAME --part PART` are stored as separate parts;
+`--assemble` combines them into tables and figures without GPU work. Table 3
+and Table 4 put A100, H100 and B200 results into one table:
 
 ```bash
 ./run.sh table3 table4 --profile paper --collection ae --part a100
@@ -100,17 +156,24 @@ Results from another account or machine are added with
 ```text
 result/<evaluation>/<run_id>/                  data.csv, table.csv or figure.pdf, logs, metadata.json
 result/runs/<run_id>/summary.csv               status of each evaluation
+result/pipelines/<run_id>/pipeline.json        complete-workflow stages and results
+result/pipelines/<run_id>/summary.csv          complete-workflow stage summary
 result/collections/<name>/assembled/<evaluation>/
 result/collections/<name>/assembled/missing.csv
 ```
 
-`run.sh` returns 0 when every selected evaluation completed, 1 on a failure,
-2 when something is pending or blocked, and 130 when interrupted.
+`run.sh` reports the stage results and assembly coverage. A complete workflow
+requires all runnable measurements and their expected output files; known
+unavailable historical Table 7 stages remain explicit in the coverage report.
+Named evaluation runs return 0 when every selected evaluation completed,
+1 on a failure, 2 when something is pending or blocked, and 130 when interrupted.
 
 ## Troubleshooting
 
 - `CUDA-capable device(s) is/are busy or unavailable`: the GPU is in
-  exclusive-process mode and used by another process.
+  exclusive-process mode and used by another process. The complete workflow's
+  automatic mode waits for availability and then uses a rented A100. Select
+  `--a100-backend local` when only the local GPU should be used.
 - CMake older than 3.18 on `PATH`: set `THUNDERFFT_CMAKE=/path/to/cmake`.
 - Toolkit not found: set `CUDACXX=/path/to/nvcc` and `CUDAToolkit_ROOT=/path/to/cuda`.
 

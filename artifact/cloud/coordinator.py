@@ -1,9 +1,10 @@
-"""One bounded rental, several sequential AE jobs, fetched immutable evidence."""
+"""Budgeted AE jobs with bounded startup retries and immutable evidence."""
 import fcntl
 import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -18,7 +19,8 @@ from .watchdog import destroy_owned, write_json
 
 
 def add_arguments(parser):
-    parser.add_argument("--backend", choices=("local", "vast"), default="local")
+    parser.add_argument("--backend", choices=("local", "vast", "all"), default=None,
+                        help="execution backend; no evaluations or 'all' defaults to the complete local/cloud pipeline")
     parser.add_argument("--gpu", choices=tuple(ARCHS), default="A100", help="Vast GPU SKU: PCIe 80GB A100/H100 or B200")
     parser.add_argument("--cloud-config", type=Path, help="non-secret JSON settings; default ~/cloud_key/thunderfft/config.json")
     parser.add_argument("--cloud-plan", action="store_true", help="read-only account/offer/cost check; never create an instance")
@@ -65,6 +67,11 @@ def plan(client, config, gpu):
     keys = ("disk_gb", "startup_seconds", "execution_seconds", "download_seconds", "cleanup_seconds",
             "billing_delay_seconds", "upload_gb", "download_gb", "budget_usd", "reserve_usd")
     for offer in client.search_offers(gpu, config["disk_gb"]):
+        # A known machine ID is required to exclude failed hosts on retry.
+        if (not isinstance(offer.get("machine_id"), int) or isinstance(offer["machine_id"], bool)
+                or offer["machine_id"] <= 0 or offer["machine_id"] in config["exclude_machine_ids"]):
+            rejected += 1
+            continue
         try:
             cost = plan_cost(offer, **{k: config[k] for k in keys})
         except ProviderError:
@@ -134,7 +141,13 @@ def remaining(deadline, maximum=30):
     return max(.1, min(left, maximum))
 
 
+class StartupUnavailable(TimeoutError):
+    """A rental never reached authenticated SSH; safe to retry after cleanup."""
+
+
 def wait_ssh(client, state, config, folder, root, deadline):
+    first_auth_failure = None
+    attempts = 0
     while time.time() < deadline:
         for row in client.instances():
             if int(row["id"]) != state["instance_id"]:
@@ -143,13 +156,26 @@ def wait_ssh(client, state, config, folder, root, deadline):
             if host and port and row.get("actual_status") == "running":
                 ssh = SSH(host, int(port), "root", Path(config["ssh_key_file"]), folder / "known_hosts", repo_root=root)
                 try:
-                    ssh.run(["true"], timeout=remaining(deadline, 12))
+                    ssh.run(["true"], timeout=max(.1, min(deadline - time.time(), 12)))
                     write_json(folder / "endpoint.json", {"host": host, "port": port, "user": "root"})
                     return ssh
-                except (OSError, RuntimeError, subprocess.SubprocessError):
-                    pass
-        time.sleep(min(3, remaining(deadline, 3)))
-    raise TimeoutError("Instance startup/SSH deadline exceeded")
+                except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+                    attempts += 1
+                    # Keep only a classification: stderr may contain host or
+                    # provider text, so it is never copied into the audit.
+                    stderr = getattr(error, "stderr", "") or ""
+                    if isinstance(stderr, bytes):
+                        stderr = stderr.decode("utf-8", errors="replace")
+                    auth_rejected = "permission denied (publickey" in stderr.lower()
+                    if auth_rejected and first_auth_failure is None:
+                        first_auth_failure = time.time()
+                    write_json(folder / "ssh-readiness.json", {"attempts": attempts,
+                               "last_error_type": type(error).__name__, "publickey_rejected": auth_rejected,
+                               "observed_at": time.time()})
+                    if first_auth_failure is not None and time.time() - first_auth_failure >= config["ssh_auth_failure_seconds"]:
+                        raise StartupUnavailable("SSH public-key authentication remained unavailable") from None
+        time.sleep(max(0, min(3, deadline - time.time())))
+    raise StartupUnavailable("Instance startup/SSH deadline exceeded")
 
 
 def mathdx_script():
@@ -327,7 +353,133 @@ def recover(folder):
     return 0 if clean else 1
 
 
+def attempt_cost(proposal, state, folder):
+    """Reserve delayed billing and full transfer bounds after verified deletion.
+
+    This is a conservative planning bound, never a provider-enforced cap or a
+    declaration of settled charges. Unconfirmed cleanup cannot release budget.
+    """
+    cost = proposal["cost"]
+    if not state["create_attempted"] and state["instance_id"] is None:
+        return {"reserved_total_usd": 0.0, "observed_charge_usd": 0.0,
+                "billing_settlement_verified": False, "basis": "no rental created"}
+    cleanup_path = folder / "cleanup.json"
+    cleanup = json.loads(cleanup_path.read_text()) if cleanup_path.exists() else {}
+    confirmed = state["cleanup_confirmed"] and cleanup.get("confirmed")
+    ended = cleanup.get("observed_at", time.time()) if confirmed else time.time()
+    elapsed = max(0, ended - state["created_at"])
+    billed_seconds = elapsed + cost["billing_delay_seconds"]
+    usage = ((cost["compute_usd_per_hour"] + cost["storage_usd_per_hour"])
+             * billed_seconds / 3600 + cost["network_usd"])
+    billing_path = folder / "billing.json"
+    samples = json.loads(billing_path.read_text()).get("samples", []) if billing_path.exists() else []
+    observed = max([0.0] + [float(sample.get("observed_charge_usd", 0.0) or 0.0) for sample in samples])
+    reserved = max(usage, observed) + cost["reserve_usd"]
+    if not confirmed:
+        reserved = max(reserved, cost["planned_total_usd"])
+    return {"reserved_total_usd": reserved, "observed_charge_usd": observed,
+            "lifetime_seconds": elapsed, "billing_delay_seconds": cost["billing_delay_seconds"],
+            "network_bound_usd": cost["network_usd"], "reserve_usd": cost["reserve_usd"],
+            "billing_settlement_verified": False,
+            "basis": "elapsed lifetime plus billing delay and full transfer bounds" if confirmed else "cleanup unconfirmed"}
+
+
+def run_attempt(args, root, collection_module, jobs, dependencies, client, config,
+                public, lock, label, folder, proposal):
+    created = time.time()
+    state = {"label": label, "api_key_file": config["api_key_file"], "created_at": created,
+             "deadline": created + config["startup_seconds"] + config["execution_seconds"] + config["download_seconds"],
+             "instance_id": None, "create_attempted": False, "cleanup_confirmed": False, "finished": False}
+    write_json(folder / "state.json", state)
+    watchdog = arm_watchdog(folder, lock)
+    ssh, fetched, code = None, None, 1
+    retryable = False
+    remote = "/workspace/" + label
+    try:
+        # Do not overlap this account's artifact execution batches.
+        if any(str(row.get("label", "")).startswith("thunderfft-ae-") for row in client.instances()):
+            raise ProviderError("An existing ThunderFFT rental needs cleanup before another execution")
+        print(f"[{label}] {args.gpu}; all-in plan ${proposal['cost']['planned_total_usd']:.4f}; budget ${config['budget_usd']:.2f}", flush=True)
+        state["create_attempted"] = True
+        write_json(folder / "state.json", state)
+        try:
+            state["instance_id"] = client.create_instance(proposal["offer"]["id"], image=proposal["image"],
+                disk_gb=config["disk_gb"], label=label, onstart=onstart_script(label, state["deadline"]))
+        except CreateRejected:
+            state["create_attempted"] = False
+            write_json(folder / "state.json", state)
+            raise
+        write_json(folder / "state.json", state)
+        client.attach_ssh_key(state["instance_id"], public)
+        startup_deadline = created + config["startup_seconds"]
+        ssh = wait_ssh(client, state, config, folder, root, startup_deadline)
+        ssh.run(["mkdir", "-p", remote], timeout=remaining(startup_deadline))
+        ssh.run(["bash", "-c", "command -v python3 >/dev/null || (apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -y --no-install-recommends python3)"],
+                timeout=remaining(startup_deadline, 300))
+        ssh.upload(folder / "source.tar.gz", remote + "/source.tar.gz", timeout=remaining(startup_deadline, 180))
+        ssh.upload(folder / "request.json", remote + "/request.json", timeout=remaining(startup_deadline, 30))
+        print(f"[{label}] preparing remote CUDA build environment", flush=True)
+        bootstrap(ssh, remote, startup_deadline, **dependencies)
+        status = ssh.run(["cat", "/tmp/thunderfft-watchdog/status"], timeout=remaining(startup_deadline), check=False)
+        write_json(folder / "remote-watchdog.json", {"status": status.stdout.strip(), "credential_source": "provider container-scoped credential"})
+        print(f"[{label}] executing {len(jobs)} job(s); results: {folder}", flush=True)
+        outcome = execute_worker(ssh, remote, config)
+        code = outcome if outcome in (0, 2, 124, 130) else 1
+    except StartupUnavailable as error:
+        retryable = ssh is None and state["instance_id"] is not None
+        write_json(folder / "error.json", {"error_type": type(error).__name__, "error": str(error)})
+        print(f"[{label}] startup failed; cleanup must finish before an alternate host is considered", flush=True)
+    except KeyboardInterrupt:
+        code = 130
+        write_json(folder / "error.json", {"error": "Execution interrupted"})
+    except Exception as error:
+        # Provider/transport exceptions sanitize response bodies. Never log
+        # environment dumps or arbitrary exception tracebacks.
+        write_json(folder / "error.json", {"error_type": type(error).__name__, "error": str(error)[:1000]})
+        print(f"Cloud execution failed ({type(error).__name__}); audit: {folder}", file=sys.stderr, flush=True)
+    finally:
+        # The detached watchdog remains active throughout interrupted cleanup.
+        # Stop the remote runner before archiving terminal checkpoints.
+        if ssh is not None:
+            try:
+                stop_worker(ssh, remote)
+                fetched = fetch_results(ssh, remote, folder, config, state["deadline"])
+                print(f"Results downloaded: {fetched}", flush=True)
+            except Exception as error:
+                write_json(folder / "download-error.json", {"error_type": type(error).__name__, "error": str(error)[:1000]})
+                code = 1
+        print(f"[{label}] destroying instance and recording billing", flush=True)
+        clean = cleanup_and_bill(client, state, folder, config["cleanup_seconds"])
+        state["finished"] = True
+        write_json(folder / "state.json", state)
+        if clean or not state["create_attempted"]:
+            try:
+                watchdog.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass  # It also observes the terminal state independently.
+        else:
+            print("Cleanup remains unresolved; detached watchdog is still active. Use --cloud-recover with this session directory.", file=sys.stderr)
+            code = 1
+    if fetched:
+        try:
+            imported = register_results(args, jobs, fetched, collection_module)
+            write_json(folder / "imported.json", imported)
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            print(f"Result import failed: {error}; downloaded evidence retained at {fetched}", file=sys.stderr)
+            code = 1
+    cost = attempt_cost(proposal, state, folder)
+    write_json(folder / "cost.json", cost)
+    write_json(folder / "status.json", {"exit_code": code, "startup_retryable": retryable, "cleanup_confirmed": state["cleanup_confirmed"],
+               "results_retrieved": fetched is not None, "billing_settlement_verified": False})
+    print(f"Cloud audit: {folder}; billing settlement is unconfirmed.", flush=True)
+    return {"folder": str(folder), "instance_id": state["instance_id"],
+            "machine_id": proposal["offer"]["machine_id"], "exit_code": code,
+            "cleanup_confirmed": bool(state["cleanup_confirmed"]),
+            "startup_retryable": retryable, **cost}
+
+
 def run(args, entries, registry, root, collection_module, select_tasks, parser):
+    args.cloud_execution_summary = None
     if args.cloud_recover:
         return recover(args.cloud_recover)
     if args.assemble or args.import_result:
@@ -387,83 +539,43 @@ def run(args, entries, registry, root, collection_module, select_tasks, parser):
         # inside the execution lock immediately before arming and creating.
         proposal = plan(client, config, args.gpu)
         write_json(folder / "plan.json", proposal)
-        created = time.time()
-        state = {"label": label, "api_key_file": config["api_key_file"], "created_at": created,
-                 "deadline": created + config["startup_seconds"] + config["execution_seconds"] + config["download_seconds"],
-                 "instance_id": None, "create_attempted": False, "cleanup_confirmed": False, "finished": False}
-        write_json(folder / "state.json", state)
-        watchdog = arm_watchdog(folder, lock)
-        ssh, fetched, code = None, None, 1
-        remote = "/workspace/" + label
-        try:
-            # Do not overlap this account's artifact execution batches.
-            if any(str(row.get("label", "")).startswith("thunderfft-ae-") for row in client.instances()):
-                raise ProviderError("An existing ThunderFFT rental needs cleanup before another execution")
-            print(f"[{label}] {args.gpu}; all-in plan ${proposal['cost']['planned_total_usd']:.4f}; budget ${config['budget_usd']:.2f}", flush=True)
-            state["create_attempted"] = True
-            write_json(folder / "state.json", state)
+        execution_folder = folder
+        first_source = folder / "source.tar.gz"
+        attempts = []
+        execution_budget = config["budget_usd"]
+        for index in range(config["max_startup_attempts"]):
+            outcome = run_attempt(args, root, collection_module, jobs, dependencies, client,
+                                  config, public, lock, label, folder, proposal)
+            attempts.append(outcome)
+            reserved = sum(item["reserved_total_usd"] for item in attempts)
+            summary = {"gpu": args.gpu, "budget_usd": execution_budget, "attempts": attempts,
+                       "reserved_total_usd": reserved, "remaining_budget_usd": max(0, execution_budget - reserved),
+                       "cleanup_confirmed": all(item["cleanup_confirmed"] for item in attempts),
+                       "billing_settlement_verified": False, "exit_code": outcome["exit_code"],
+                       "audit_folder": str(execution_folder)}
+            args.cloud_execution_summary = summary
+            write_json(execution_folder / "execution.json", summary)
+            if (not outcome["startup_retryable"] or not outcome["cleanup_confirmed"]
+                    or index + 1 == config["max_startup_attempts"]):
+                return outcome["exit_code"]
+            # Every attempt consumes this same execution budget, including full
+            # transfer bounds and delayed charges; a retry never resets it.
+            config = dict(config, budget_usd=summary["remaining_budget_usd"],
+                          exclude_machine_ids=sorted(set(config["exclude_machine_ids"] + [outcome["machine_id"]])))
             try:
-                state["instance_id"] = client.create_instance(proposal["offer"]["id"], image=proposal["image"],
-                    disk_gb=config["disk_gb"], label=label, onstart=onstart_script(label, state["deadline"]))
-            except CreateRejected:
-                state["create_attempted"] = False
-                write_json(folder / "state.json", state)
-                raise
-            write_json(folder / "state.json", state)
-            client.attach_ssh_key(state["instance_id"], public)
-            startup_deadline = created + config["startup_seconds"]
-            ssh = wait_ssh(client, state, config, folder, root, startup_deadline)
-            ssh.run(["mkdir", "-p", remote], timeout=remaining(startup_deadline))
-            ssh.run(["bash", "-c", "command -v python3 >/dev/null || (apt-get -qq update && DEBIAN_FRONTEND=noninteractive apt-get -qq install -y --no-install-recommends python3)"],
-                    timeout=remaining(startup_deadline, 300))
-            ssh.upload(folder / "source.tar.gz", remote + "/source.tar.gz", timeout=remaining(startup_deadline, 180))
-            ssh.upload(folder / "request.json", remote + "/request.json", timeout=remaining(startup_deadline, 30))
-            print(f"[{label}] preparing remote CUDA build environment", flush=True)
-            bootstrap(ssh, remote, startup_deadline, **dependencies)
-            status = ssh.run(["cat", "/tmp/thunderfft-watchdog/status"], timeout=remaining(startup_deadline), check=False)
-            write_json(folder / "remote-watchdog.json", {"status": status.stdout.strip(), "credential_source": "provider container-scoped credential"})
-            print(f"[{label}] executing {len(jobs)} job(s); results: {folder}", flush=True)
-            outcome = execute_worker(ssh, remote, config)
-            code = outcome if outcome in (0, 2, 124, 130) else 1
-        except KeyboardInterrupt:
-            code = 130
-            write_json(folder / "error.json", {"error": "Execution interrupted"})
-        except Exception as error:
-            # Provider/transport exceptions sanitize response bodies. Never log
-            # environment dumps or arbitrary exception tracebacks.
-            write_json(folder / "error.json", {"error_type": type(error).__name__, "error": str(error)[:1000]})
-            print(f"Cloud execution failed ({type(error).__name__}); audit: {folder}", file=sys.stderr, flush=True)
-        finally:
-            # The detached watchdog remains active throughout interrupted cleanup.
-            # Stop the remote runner before archiving terminal checkpoints.
-            if ssh is not None:
-                try:
-                    stop_worker(ssh, remote)
-                    fetched = fetch_results(ssh, remote, folder, config, state["deadline"])
-                    print(f"Results downloaded: {fetched}", flush=True)
-                except Exception as error:
-                    write_json(folder / "download-error.json", {"error_type": type(error).__name__, "error": str(error)[:1000]})
-                    code = 1
-            print(f"[{label}] destroying instance and recording billing", flush=True)
-            clean = cleanup_and_bill(client, state, folder, config["cleanup_seconds"])
-            state["finished"] = True
-            write_json(folder / "state.json", state)
-            if clean or not state["create_attempted"]:
-                try:
-                    watchdog.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    pass  # It also observes the terminal state independently.
-            else:
-                print("Cleanup remains unresolved; detached watchdog is still active. Use --cloud-recover with this session directory.", file=sys.stderr)
-                code = 1
-        if fetched:
-            try:
-                imported = register_results(args, jobs, fetched, collection_module)
-                write_json(folder / "imported.json", imported)
-            except (ValueError, OSError, KeyError, TypeError) as error:
-                print(f"Result import failed: {error}; downloaded evidence retained at {fetched}", file=sys.stderr)
-                code = 1
-        write_json(folder / "status.json", {"exit_code": code, "cleanup_confirmed": state["cleanup_confirmed"],
-                   "results_retrieved": fetched is not None, "billing_settlement_verified": False})
-        print(f"Cloud audit: {folder}; billing settlement is unconfirmed. No further rentals started.", flush=True)
-        return code
+                proposal = plan(client, config, args.gpu)
+            except ProviderError as error:
+                summary["retry_stopped"] = str(error)
+                write_json(execution_folder / "execution.json", summary)
+                print(f"No alternate host fits the remaining execution budget: {error}", file=sys.stderr, flush=True)
+                return outcome["exit_code"]
+            label = "thunderfft-ae-" + uuid.uuid4().hex
+            folder = args.result_dir.resolve() / "cloud" / label
+            folder.mkdir(parents=True, exist_ok=False, mode=0o700)
+            shutil.copyfile(first_source, folder / "source.tar.gz")
+            write_json(folder / "source.json", source)
+            write_json(folder / "request.json", request)
+            write_json(folder / "plan.json", proposal)
+            print(f"Retrying startup on machine {proposal['offer']['machine_id']}; "
+                  f"${reserved:.4f} reserved for previous attempts, "
+                  f"${config['budget_usd']:.4f} remains", flush=True)

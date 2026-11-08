@@ -153,7 +153,7 @@ def run_jobs(root, request, output, deadline):
             process = None
             try:
                 remaining = time_left(deadline, request["execution_seconds"])
-                command = ["bash", str(root / "run.sh"), *job["evaluations"], "--profile", request["profile"],
+                command = ["bash", str(root / "run.sh"), *job["evaluations"], "--backend", "local", "--profile", request["profile"],
                            "--device", "0", "--jobs", str(request["build_jobs"]),
                            "--result-dir", str(root / "result"), "--build-dir", str(root / "build_artifact"),
                            "--timeout", str(request["task_timeout"])]

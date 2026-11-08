@@ -31,6 +31,11 @@ class FakeClient:
         self.rejected = False
         self.rows = []
         self.create_count = 0
+        self.offers = [{"id": 12, "machine_id": 8, "num_gpus": 1,
+                        "gpu_name": "A100 PCIE", "gpu_ram": 81920,
+                        "dph_total": .6, "storage_cost": .1,
+                        "inet_down_cost": .005, "inet_up_cost": .01}]
+        self.created_offers = []
 
     def account_summary(self):
         self.events.append("account")
@@ -42,10 +47,7 @@ class FakeClient:
 
     def search_offers(self, gpu, disk):
         self.events.append("offers")
-        return [{"id": 12, "machine_id": 8, "num_gpus": 1,
-                 "gpu_name": "A100 PCIE", "gpu_ram": 81920,
-                 "dph_total": .6, "storage_cost": .1,
-                 "inet_down_cost": .005, "inet_up_cost": .01}]
+        return copy.deepcopy(self.offers)
 
     def instances(self):
         self.events.append("instances")
@@ -54,6 +56,7 @@ class FakeClient:
     def create_instance(self, offer_id, **kwargs):
         self.events.append("create")
         self.create_count += 1
+        self.created_offers.append(offer_id)
         if self.rejected:
             raise provider.CreateRejected("Vast.ai rejected creation with HTTP 400; response body suppressed")
         self.rows = [{"id": 123, "label": kwargs["label"]}]
@@ -119,7 +122,7 @@ class CoordinatorTests(unittest.TestCase):
         state = json.loads((folder / "state.json").read_text())
         self.assertFalse(state["create_attempted"])
         self.assertIsNone(state["instance_id"])
-        self.assertNotIn("create", self.events)
+        self.assertEqual(self.client.rows, [])
         return mock.Mock(wait=mock.Mock(return_value=0))
 
     def fake_ssh(self, *args, **kwargs):
@@ -247,6 +250,115 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual(self.client.rows, [])
         self.assertTrue((self.session() / "download-error.json").is_file())
         self.assertFalse(json.loads((self.session() / "status.json").read_text())["results_retrieved"])
+
+    def alternate_offer(self):
+        self.client.offers.append(dict(self.client.offers[0], id=13, machine_id=9, dph_total=.61))
+
+    def test_explicit_machine_exclusion_selects_an_alternate_without_renting(self):
+        self.alternate_offer()
+        self.settings["exclude_machine_ids"] = [8]
+        proposal = coordinator.plan(self.client, self.settings, "A100")
+        self.assertEqual(proposal["offer"]["machine_id"], 9)
+        self.assertEqual(self.client.create_count, 0)
+
+    def test_startup_retry_destroys_before_rearming_and_preserves_one_budget(self):
+        self.alternate_offer()
+        with self.patches(), mock.patch.object(coordinator, "wait_ssh", side_effect=[
+                coordinator.StartupUnavailable("public-key authentication unavailable"), self.fake_ssh()]):
+            self.assertEqual(self.run_coordinator(), 0)
+        self.assertEqual(self.client.created_offers, [12, 13])
+        self.assertEqual([event for event in self.events if event in ("watchdog", "create", "destroy")],
+                         ["watchdog", "create", "destroy", "watchdog", "create", "destroy"])
+        summary = self.args.cloud_execution_summary
+        first, second = summary["attempts"]
+        self.assertTrue(summary["cleanup_confirmed"])
+        self.assertTrue(first["startup_retryable"])
+        self.assertFalse(second["startup_retryable"])
+        self.assertGreater(first["reserved_total_usd"], self.settings["reserve_usd"])
+        self.assertEqual(summary["reserved_total_usd"],
+                         first["reserved_total_usd"] + second["reserved_total_usd"])
+        retry_plan = json.loads((Path(second["folder"]) / "plan.json").read_text())
+        self.assertAlmostEqual(retry_plan["cost"]["budget_usd"],
+                               self.settings["budget_usd"] - first["reserved_total_usd"])
+        for attempt in summary["attempts"]:
+            self.assertTrue((Path(attempt["folder"]) / "cost.json").exists())
+        self.assertEqual(json.loads((Path(summary["audit_folder"]) / "execution.json").read_text()), summary)
+
+    def test_startup_retry_is_refused_when_remaining_budget_cannot_cover_new_plan(self):
+        self.alternate_offer()
+        self.settings["budget_usd"] = 1.3
+        with self.patches(), mock.patch.object(coordinator, "wait_ssh", side_effect=
+                coordinator.StartupUnavailable("startup deadline")):
+            self.assertEqual(self.run_coordinator(), 1)
+        self.assertEqual(self.client.create_count, 1)
+        self.assertEqual(self.client.rows, [])
+        self.assertIn("retry_stopped", self.args.cloud_execution_summary)
+
+    def test_startup_retry_never_rents_with_unconfirmed_cleanup(self):
+        self.alternate_offer()
+        with self.patches(), mock.patch.object(coordinator, "wait_ssh", side_effect=
+                coordinator.StartupUnavailable("startup deadline")), mock.patch.object(
+                coordinator, "cleanup_and_bill", return_value=False):
+            self.assertEqual(self.run_coordinator(), 1)
+        self.assertEqual(self.client.create_count, 1)
+        self.assertFalse(self.args.cloud_execution_summary["cleanup_confirmed"])
+        self.assertEqual(len(self.args.cloud_execution_summary["attempts"]), 1)
+
+    def test_startup_attempt_limit_excludes_each_failed_machine(self):
+        self.alternate_offer()
+        self.client.offers.append(dict(self.client.offers[0], id=14, machine_id=10))
+        with self.patches(), mock.patch.object(coordinator, "wait_ssh", side_effect=
+                coordinator.StartupUnavailable("startup deadline")):
+            self.assertEqual(self.run_coordinator(), 1)
+        self.assertEqual(self.client.create_count, 2)
+        self.assertEqual(len(set(self.client.created_offers)), 2)
+        self.assertEqual(self.client.rows, [])
+
+    def test_bootstrap_and_worker_failures_are_not_startup_retried(self):
+        self.alternate_offer()
+        with self.patches(), mock.patch.object(coordinator, "bootstrap", side_effect=TimeoutError("package setup")):
+            self.assertEqual(self.run_coordinator(), 1)
+        self.assertEqual(self.client.create_count, 1)
+        self.assertFalse(self.args.cloud_execution_summary["attempts"][0]["startup_retryable"])
+
+    def test_cost_bound_includes_lifetime_delay_network_and_larger_observed_charge(self):
+        folder = self.root / "cost-evidence"
+        folder.mkdir()
+        (folder / "cleanup.json").write_text(json.dumps({"confirmed": True, "observed_at": 200}))
+        proposal = coordinator.plan(self.client, self.settings, "A100")
+        state = {"created_at": 100, "cleanup_confirmed": True, "create_attempted": True, "instance_id": 123}
+        evidence = coordinator.attempt_cost(proposal, state, folder)
+        cost = proposal["cost"]
+        expected = ((cost["compute_usd_per_hour"] + cost["storage_usd_per_hour"]) * (100 + 360) / 3600
+                    + cost["network_usd"] + cost["reserve_usd"])
+        self.assertAlmostEqual(evidence["reserved_total_usd"], expected)
+        (folder / "billing.json").write_text(json.dumps({"samples": [{"observed_charge_usd": 5}]}))
+        self.assertEqual(coordinator.attempt_cost(proposal, state, folder)["reserved_total_usd"], 5.25)
+
+    def test_publickey_failure_is_bounded_without_waiting_full_startup_timeout(self):
+        self.client.rows = [{"id": 123, "ssh_host": "example.invalid", "ssh_port": 2222,
+                             "actual_status": "running"}]
+        ssh = mock.Mock()
+        ssh.run.side_effect = subprocess.CalledProcessError(255, ["ssh"], stderr=
+                "untrusted-host-message: Permission denied (publickey).")
+        clock = [0]
+        with mock.patch.object(coordinator, "SSH", return_value=ssh), mock.patch.object(
+                coordinator.time, "time", side_effect=lambda: clock[0]), mock.patch.object(
+                coordinator.time, "sleep", side_effect=lambda seconds: clock.__setitem__(0, clock[0] + seconds)):
+            with self.assertRaisesRegex(coordinator.StartupUnavailable, "public-key"):
+                coordinator.wait_ssh(self.client, {"instance_id": 123}, self.settings, self.root, self.repo, 900)
+        self.assertEqual(clock[0], 90)
+        evidence = (self.root / "ssh-readiness.json").read_text()
+        self.assertTrue(json.loads(evidence)["publickey_rejected"])
+        self.assertNotIn("untrusted-host-message", evidence)
+
+    def test_waiting_for_an_endpoint_is_bounded_by_startup_allowance(self):
+        clock = [0]
+        with mock.patch.object(coordinator.time, "time", side_effect=lambda: clock[0]), mock.patch.object(
+                coordinator.time, "sleep", side_effect=lambda seconds: clock.__setitem__(0, clock[0] + seconds)):
+            with self.assertRaisesRegex(coordinator.StartupUnavailable, "deadline"):
+                coordinator.wait_ssh(self.client, {"instance_id": 123}, self.settings, self.root, self.repo, 20)
+        self.assertEqual(clock[0], 20)
 
     def fixture_part(self, evaluation, label):
         source = self.root / ("fixture-" + label)

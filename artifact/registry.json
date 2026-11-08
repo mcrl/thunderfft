@@ -108,7 +108,7 @@
     },
     {
       "id": "table5",
-      "backends": ["local"],
+      "backends": ["local", "vast"],
       "title": "Numerical accuracy and finite dynamic range",
       "paper_page": 9,
       "implementation": "ready",
@@ -129,7 +129,7 @@
     },
     {
       "id": "table6",
-      "backends": ["local"],
+      "backends": ["local", "vast"],
       "title": "Comparison with prior Tensor Core FFT libraries",
       "paper_page": 9,
       "implementation": "ready",
@@ -151,7 +151,7 @@
     },
     {
       "id": "table7",
-      "backends": ["local"],
+      "backends": ["local", "vast"],
       "title": "64-point optimization ablation",
       "paper_page": 9,
       "implementation": "ready_subset",
@@ -237,7 +237,7 @@
     },
     {
       "id": "figure5",
-      "backends": ["local"],
+      "backends": ["local", "vast"],
       "title": "A100 2D convolution comparison",
       "paper_page": 10,
       "implementation": "ready",
