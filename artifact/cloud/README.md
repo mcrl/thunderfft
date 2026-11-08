@@ -1,303 +1,101 @@
-# Run evaluations on Vast.ai
+# Vast.ai backend
 
-Run `./run.sh --backend vast` on the coordinator server. The coordinator searches
-for a suitable GPU, checks the cost estimate, uploads a source snapshot, executes
-the selected evaluations, retrieves their result bundles, and destroys the
-instance. Results return to the coordinator's `result/` directory. Local execution
-remains available with `--backend local`, which is the default.
+`./run.sh ... --backend vast --gpu A100|H100|B200` rents one GPU on Vast.ai,
+uploads the source, installs the dependencies the selected evaluations need
+(MathDX, cuDNN 9.12, CPU PyTorch headers), runs the same adapters as a local
+run, downloads the results and destroys the instance.
 
-The cloud backend prepares the dependencies of the selected evaluation and
-library subsets, then runs the same adapters as local execution. See the
-[evaluation status](../README.md) for each task's implemented scope and the
-distinction between artifact implementations and recovered paper versions.
+## Credentials
 
-## Prepare the coordinator
-
-Use a Linux coordinator with Python 3.9 or newer, Git, OpenSSH client tools and
-outbound HTTPS/SSH access. Keep the coordinator running until result retrieval and
-cleanup finish. Its OS account must be dedicated to the intended evaluators; users
-who can read that account's files can also use its credentials.
-
-Store the review's dedicated credentials outside the repository:
+Each evaluator account holds its own credentials under `~/cloud_key/thunderfft/`.
+They are never part of the repository or the distribution zip.
 
 ```text
-~/cloud_key/                         # mode 0700
-  thunderfft/                       # mode 0700
-    config.json                     # mode 0600; paths and settings only
-    vast_api_key                    # mode 0600; API token, one line
-    id_ed25519                      # mode 0600; dedicated SSH private key
-    id_ed25519.pub                   # matching SSH public key
+~/cloud_key/                  mode 0700
+  thunderfft/                 mode 0700
+    vast_api_key              mode 0600, API key on one line
+    id_ed25519                mode 0600, SSH private key without passphrase
+    id_ed25519.pub
+    config.json               optional, see Configuration
 ```
-
-The operator prepares this once before giving evaluators access:
 
 ```bash
 umask 077
-install -d -m 700 "$HOME/cloud_key" "$HOME/cloud_key/thunderfft"
-install -m 600 artifact/cloud/config.example.json \
-  "$HOME/cloud_key/thunderfft/config.json"
-ssh-keygen -t ed25519 -N '' -C thunderfft-ae \
-  -f "$HOME/cloud_key/thunderfft/id_ed25519"
-# Paste the dedicated token as one line in the editor, then save and close it.
-vi "$HOME/cloud_key/thunderfft/vast_api_key"
-chmod 600 "$HOME/cloud_key/thunderfft/vast_api_key" \
-  "$HOME/cloud_key/thunderfft/id_ed25519"
+install -d -m 700 ~/cloud_key ~/cloud_key/thunderfft
+ssh-keygen -t ed25519 -N '' -C thunderfft-ae -f ~/cloud_key/thunderfft/id_ed25519
+vi ~/cloud_key/thunderfft/vast_api_key
+chmod 600 ~/cloud_key/thunderfft/vast_api_key
 ```
 
-Do not overwrite existing review credentials when preparing another coordinator.
-An operator-managed secret provisioning tool can replace the editor step. Do not
-put the token's value in a shell command, repository, or result log.
-The SSH key must support unattended authentication. The runner attaches its public
-key to the rented instance; the private key and account API key stay on the
-coordinator and are excluded from uploads. Credential paths must be outside the
-repository, with private files readable only by their owner and a private parent
-directory.
+The Vast API key needs the permission categories `misc`, `user_read`,
+`instance_read`, `instance_write` and `billing_read`.
 
-Create a separate, revocable Vast API key for this review. Required permission
-categories are `misc` (offer search), `user_read` (account checks), `instance_read`,
-`instance_write` (create, attach public key, destroy), and `billing_read`. Do not
-grant key administration, credit transfers or payment administration to this key.
-An operator can use this permission object when creating it:
-
-```json
-{
-  "api": {
-    "misc": {},
-    "user_read": {},
-    "instance_read": {},
-    "instance_write": {},
-    "billing_read": {}
-  }
-}
-```
-
-These categories grant account-level access within their scope; this is not a key
-restricted to one future instance. A dedicated review account or operator-managed
-isolation is preferable when the same account holds unrelated resources. Vast
-supports scoped keys and parameter constraints, but a revocable review key is not
-automatically single-use. Revoke it and remove the dedicated SSH key after the
-review. The runner does not create credentials or alter account/payment settings.
-See [Vast's permission reference](https://docs.vast.ai/api-reference/permissions).
-
-## Preview and execute
-
-Run commands from the repository root:
+## Usage
 
 ```bash
-# Offline preview: no credentials, API calls, GPU work, or rental.
-./run.sh validation --backend vast --gpu A100 --dry-run
-
-# Read-only account/offer query and cost estimate; no rental.
-./run.sh validation --backend vast --gpu A100 --cloud-plan
-
-# Execute a bounded smoke job and retrieve its outputs.
-./run.sh validation --backend vast --gpu A100 --profile smoke
-
-# Use a different operator-prepared configuration.
-./run.sh table3 --backend vast --gpu A100 --profile paper \
-  --cloud-config "$HOME/cloud_key/thunderfft/config.json"
+./run.sh figure5 --backend vast --gpu H100 --profile smoke --dry-run       # offline preview
+./run.sh figure5 --backend vast --gpu H100 --profile smoke --cloud-plan    # offer and cost, no rental
+./run.sh figure5 --backend vast --gpu H100 --profile smoke                 # rent, run, download, destroy
+./run.sh figure5 --backend vast --gpu H100 --profile paper --collection fig5 --part h100
 ```
 
-`--gpu` accepts `A100`, `H100` or `B200`. A100/H100 searches require the paper's
-PCIe 80 GB models; SXM and H100 NVL offers are not interchangeable substitutes.
-Availability and accepted cost determine whether a run can start. A plan does not
-reserve its displayed offer. Execution checks current account and offer
-information again. Each invocation rents at most
-one GPU, then releases it. Choose the task selection and execution time together;
-the full paper workload is not guaranteed to fit the example's ten-minute
-execution allowance.
+A100 and H100 offers are restricted to the PCIe 80GB models. Add
+`--collection NAME --part PART` to import the downloaded result into the local
+collection, then assemble it locally with `./run.sh --collection NAME --assemble`.
 
-The default configuration path is `~/cloud_key/thunderfft/config.json`. The
-[example configuration](config.example.json) supplies credential paths, timing
-allowances, transfer estimates, image choices and an `environment` object for
-supported measurement overrides. The runner forwards explicitly supported
-evaluation settings, not arbitrary coordinator environment variables. Put
-measurement overrides such as `THUNDERFFT_TABLE3_N_LIST` in `environment`; never
-put credentials there.
+The uploaded source is the tracked file list of a Git checkout, or the packaged
+file list of an extracted distribution zip. Edited files are rejected unless
+`--cloud-allow-dirty` is given; extra files outside `result/`, `build/` and
+`build_*/` are rejected.
 
-Cloud runs require a clean tracked source tree by default. Commit intended source
-changes before execution, or explicitly use `--cloud-allow-dirty` to include
-modified tracked files and staged new files. Nonignored untracked files cause the
-source check to fail even with that flag; track new evaluation code and store
-local batch files outside the checkout or explicitly ignore them. The source
-archive records the original Git revision and hashes of the actual uploaded
-files. It excludes Git history, credential folders, build directories and
-previous results.
+## Configuration
 
-## cuFFTDx (MathDx)
+The default configuration is `~/cloud_key/thunderfft/config.json`; `--cloud-config`
+selects another file. A file lists only the fields it changes
+([`config.example.json`](config.example.json) shows all of them).
 
-`"mathdx": true` (the default) enables cuFFTDx for tasks that use it (including
-Table 3 and Table 5's `accuracy_fp16_cufftdx`); set it to `false` to skip automatic
-installation. Explicitly requesting cuFFTDx still requires its dependency.
-Bootstrap downloads NVIDIA MathDx
-25.06.1 for the image's CUDA major version (12 or 13) from NVIDIA's download
-server, verifies its pinned SHA-256, and the worker sets `MATHDX_ROOT`. A hash
-mismatch or unsupported CUDA version stops the run before any job. The archive
-is about 36 MB; it is not uploaded from the coordinator. A ThunderFFT-only
-Table 3 part or tcFFT-only Table 6 part does not download MathDx.
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `execution_seconds` | 3600 | time allowed on the instance for build and run |
+| `budget_usd` | 10 | maximum planned cost of one invocation |
+| `disk_gb` | 32 | instance disk |
+| `images` | CUDA 12.9.1 (A100), 13.0.2 (H100, B200) devel images | container image per GPU |
+| `environment` | `{}` | measurement overrides forwarded to the job |
+| `mathdx` | `true` | install MathDX for cuFFTDx paths |
 
-Figure 4/5 jobs selecting cuDNN install **cuDNN 9.12.0.46** for CUDA 12 or 13,
-with the SHA-256 from NVIDIA's [redistribution manifest](https://developer.download.nvidia.com/compute/cudnn/redist/redistrib_9.12.0.json).
-The worker pins matching headers and libraries through `CUDNN_HOME` and the
-library search path. Table 6 or Figure 4 selecting FlashFFTConv installs
-**PyTorch 2.8.0 CPU** from the [official wheel index](https://pytorch.org/get-started/previous-versions/)
-for its headers. The native FlashFFTConv drivers do not require a CUDA PyTorch
-runtime. External source commits are fetched and verified by their adapters.
-The setup log, package versions and PyTorch installation report return with
-the result bundle. `--dry-run` and `--cloud-plan` show which dependencies the
-selected jobs require.
+The worker sets `MATHDX_ROOT`, `CUDNN_HOME` and `THUNDERFFT_ARCHS` for the rented
+GPU and uses device 0. The `THUNDERFFT_*` measurement variables listed in
+`ENVIRONMENT` in [`config.py`](config.py) are forwarded from the shell and from
+`environment` (which takes precedence). Local paths such as `*_BACKENDS` and
+`THUNDERFFT_TABLE4_SOURCE_DIR` are not forwarded.
 
-Supported forwarded settings include Table 3/6 and Figure 3/4/5 library
-selectors, FFT sizes, filter lists, trials, timeouts and convolution validation
-sample counts. Host filesystem paths such as `*_BACKENDS` and
-`THUNDERFFT_TABLE4_SOURCE_DIR` are not forwarded. Collect those inputs as local
-parts and combine them with downloaded remote parts using `--assemble`.
-
-## Collect several parts on the same GPU
-
-Use `--cloud-batch` to run multiple collections inside one rental with one source
-snapshot and shared build. For example, save the following outside the checkout
-as `~/cloud_key/thunderfft/a100-parts.json`:
+## Several parts in one rental
 
 ```json
 [
-  {
-    "evaluations": ["table3"],
-    "part": "a100-fp16",
-    "environment": {"THUNDERFFT_TABLE3_PRECISIONS": "fp16"}
-  },
-  {
-    "evaluations": ["table3"],
-    "part": "a100-tf32",
-    "environment": {"THUNDERFFT_TABLE3_PRECISIONS": "tf32"}
-  }
+  {"evaluations": ["table3"], "part": "h100-fp16", "environment": {"THUNDERFFT_TABLE3_PRECISIONS": "fp16"}},
+  {"evaluations": ["table3"], "part": "h100-tf32", "environment": {"THUNDERFFT_TABLE3_PRECISIONS": "tf32"}}
 ]
 ```
 
 ```bash
-./run.sh --backend vast --gpu A100 --profile paper \
-  --collection ae-a100 \
-  --cloud-batch "$HOME/cloud_key/thunderfft/a100-parts.json" --cloud-plan
-./run.sh --backend vast --gpu A100 --profile paper \
-  --collection ae-a100 \
-  --cloud-batch "$HOME/cloud_key/thunderfft/a100-parts.json"
-
-# Assemble returned CSVs locally; no rental or GPU execution.
-./run.sh --collection ae-a100 --assemble
+./run.sh --backend vast --gpu H100 --profile paper --collection ae --cloud-batch ~/h100-parts.json
 ```
 
-The jobs inherit the command's profile, collection, build parallelism and timeout.
-Each job's environment overrides the configuration's measurement settings. The
-execution allowance applies to the entire batch, including build work. Choose
-unique part labels and nonoverlapping measurements. Missing inputs remain pending
-when assembling; the assembler does not fill gaps with paper values.
+All jobs share one instance, source upload and build. Keep the batch file
+outside the source directory.
 
-The same GPU model does not establish compatible evidence: existing assemblers
-check the physical GPU UUID, compiler/runtime, source and binary hashes, and
-measurement settings. Collect parts requiring the same physical GPU during one
-rental. A later rental may use a different A100 and therefore require a separate
-collection. Table 3 can contain different GPU families in separate rows when their
-source provenance agrees. Do not remove these checks to combine unrelated runs.
-
-## Returned evidence
-
-Each rental execution retains its own cloud session directory. The downloaded
-`result/` tree preserves the remote runner's evaluation directories and evidence:
+## Results
 
 ```text
-result/
-  cloud/thunderfft-ae-<session_id>/
-    plan.json                       # selected offer and conservative cost plan
-    request.json                    # selected jobs and measurement overrides
-    source.json                     # Git revision and uploaded file hashes
-    state.json                      # instance ID, deadline and cleanup state
-    cleanup.json
-    billing.json                    # observed charges; settlement unconfirmed
-    status.json
-    download/result/
-      <evaluation>/<run_id>/        # CSVs, metadata, correctness and task logs
-      runs/<run_id>/                # batch manifest and summary
-      cloud-worker/                 # setup/job logs and measured environment
-      collections/<name>/           # remote immutable parts, when requested
-  collections/<name>/parts/         # automatically imported local parts
+result/cloud/thunderfft-ae-<session>/
+  plan.json request.json source.json state.json status.json billing.json
+  download/result/<evaluation>/<run_id>/     CSVs, logs, metadata
+  download/result/cloud-worker/              setup and job logs
 ```
 
-When `--collection` is supplied, the coordinator imports validated remote parts
-into the local collection after its instance cleanup step. Existing parts cannot
-be overwritten. It retains downloaded evidence if import fails, so a duplicate
-label or incompatible collection does not erase the CSVs. Tables and figures are
-then assembled explicitly with local `./run.sh --collection NAME --assemble`.
-Without `--collection`, results remain under the cloud session's
-`download/result/` tree and can be imported later using the existing
-`--import-result EVALUATION=DIR` option.
-
-After a failed or interrupted job, the coordinator attempts to retrieve available
-logs and terminal checkpoints before cleanup. Such retrieval can fail if the
-remote server or connection is already unavailable; partial data does not become
-a successful measurement just because the transfer succeeded.
-
-## Images and reproduction conditions
-
-The example uses CUDA 12.9.1 on Ubuntu 22.04 for A100 and CUDA 13.0.2 on Ubuntu
-24.04 for H100/B200. The A100 image's Ubuntu version differs from the paper's
-Ubuntu 20.04: Ubuntu 22.04 supplies the Python and CMake versions needed by this
-artifact runner. This environment difference must remain in measurement metadata.
-An operator can supply an Ubuntu 20.04 image with compatible Python/CMake already
-installed when reproducing that OS setting.
-
-Setup installs build tools, the repository's Python requirements, and the
-selected tasks' pinned cuDNN/MathDx/PyTorch dependencies. Image tags
-and distribution package repositories can change. For a fixed review environment,
-prepare and validate an image with the required dependencies, pin its image digest
-in `images`, and retain the compiler, package and GPU information in the returned
-evidence. Baseline adapters fetch their pinned external source commits; a CUDA
-development image alone does not supply those sources.
-
-## Cost, cleanup and recovery
-
-The example plans for at most **US$1.50**, with a **US$0.25** uncertainty reserve.
-The runner rejects budgets above **US$5 per invocation**, including startup,
-execution, downloads, cleanup, retries, storage and network traffic. It adds a
-360-second billing-delay allowance. `upload_gb` is an inbound traffic estimate
-including image/package downloads, not just the source archive; `download_gb`
-reserves result-transfer traffic. Adjust estimates conservatively for your image
-and task. A job that cannot fit its estimate is rejected before renting.
-
-An independent coordinator watchdog is armed before instance creation. Normal
-cleanup destroys the instance and checks that it disappeared. An instance-side
-deadline fallback uses Vast's own per-instance credential when available; the
-coordinator's account API token is never sent to the GPU server. These safeguards
-reduce orphaned rentals but are not a provider-enforced spending cap: API/network
-outages can delay destruction. The runner does not change autobilling or payment
-settings.
-
-Vast charges storage while an instance is stopped, so stopping is insufficient.
-After destruction, billing/account evidence is recorded separately from the
-absence check. A stable observed debit does not prove that delayed charges have
-finally settled. See [Vast's billing documentation](https://docs.vast.ai/guides/reference/billing)
-and [per-instance credentials](https://docs.vast.ai/guides/instances/docker-environment).
-
-Cloud session state and logs are retained under
-`result/cloud/thunderfft-ae-<session_id>/`.
-After a coordinator interruption, use the saved session directory:
+If the coordinator is interrupted, destroy the instance of a saved session with:
 
 ```bash
-./run.sh --backend vast --cloud-recover result/cloud/thunderfft-ae-SESSION_ID
+./run.sh --backend vast --cloud-recover result/cloud/thunderfft-ae-<session>
 ```
-
-Recovery rechecks and destroys the instance identified by that session and
-records billing evidence. It does not create a new rental, resume jobs or retrieve
-additional results. Destruction removes any data still held only on that
-instance. Preserve the session record until cleanup and billing checks have been
-reviewed.
-
-CPU contract and simulated failure-path checks cover the backend. A real Table 2
-CPU model run also passes through the worker, result archive extraction,
-collection import and offline assembly; its GPU/version probes are simulated.
-Live read-only account, offer, instance-list and billing API queries were checked
-on 2026-11-04.
-
-No rented-GPU end-to-end run has been performed for this backend. Provisioning,
-remote CUDA execution and result retrieval still require a small live smoke run
-to establish integration evidence separately from these CPU/API checks and the
-existing local GPU validation.

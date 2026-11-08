@@ -107,7 +107,7 @@ class ProviderTests(unittest.TestCase):
                     provider.plan_cost(offer(**{field: bad}), **budget())
         with self.assertRaisesRegex(provider.ProviderError, "exceeds budget"):
             provider.plan_cost(offer(dph_total=10), **budget())
-        for key, value in [("budget_usd", 5.01), ("reserve_usd", .24),
+        for key, value in [("budget_usd", 10.01), ("reserve_usd", .24),
                            ("billing_delay_seconds", 359), ("disk_gb", 0),
                            ("upload_gb", -1)]:
             args = budget()

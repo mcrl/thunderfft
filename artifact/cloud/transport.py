@@ -59,6 +59,105 @@ def _excluded_source(path: PurePosixPath) -> bool:
                    for p in parts))
 
 
+_GENERATED_DIRS = {"__pycache__", "CMakeFiles", "_local_artifacts"}
+_GENERATED_FILES = {"CMakeCache.txt"}
+
+
+def _generated(path: PurePosixPath) -> bool:
+    return (any(part in _GENERATED_DIRS for part in path.parts)
+            or path.name in _GENERATED_FILES or path.suffix in (".pyc", ".pyo")
+            or (path.parent == PurePosixPath("sample/conv1d") and path.suffix == ".log"))
+
+
+def is_distribution(root: Path) -> bool:
+    root = Path(root)
+    return not (root / ".git").exists() and (root / SOURCE_MANIFEST).is_file()
+
+
+def distribution_status(root: Path) -> dict:
+    root = Path(root).resolve()
+    manifest_path = root / SOURCE_MANIFEST
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    modified, missing = [], []
+    for name, evidence in sorted(manifest["files"].items()):
+        path = root / _safe_relative(name)
+        if path.is_symlink() or not path.is_file():
+            missing.append(name)
+        elif _sha256_file(path) != evidence["sha256"]:
+            modified.append(name)
+    untracked = []
+    for directory, dirs, files in os.walk(root):
+        relative = PurePosixPath(Path(directory).relative_to(root).as_posix())
+        dirs[:] = sorted(d for d in dirs
+                         if not _excluded_source(relative / d) and not _generated(relative / d))
+        for name in sorted(files):
+            path = (relative / name) if str(relative) != "." else PurePosixPath(name)
+            if (path.as_posix() == SOURCE_MANIFEST or path.as_posix() in manifest["files"]
+                    or _excluded_source(path) or _generated(path)):
+                continue
+            untracked.append(path.as_posix())
+    return {"git": manifest["git"],
+            "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            "modified": modified, "missing": missing, "untracked": untracked,
+            "unmodified": not (modified or missing or untracked)}
+
+
+def _git_sources(repo: Path, allow_dirty: bool) -> tuple[dict, list[str], list[str]]:
+    if Path(_git(repo, "rev-parse", "--show-toplevel").decode().strip()).resolve() != repo:
+        raise ValueError("source directory must be the repository root")
+    if _git(repo, "ls-files", "--others", "--exclude-standard", "-z"):
+        raise ValueError("untracked files are present; commit or explicitly ignore them before cloud execution")
+    status = _git(repo, "status", "--porcelain=v1", "--untracked-files=no").decode("utf-8")
+    if status and not allow_dirty:
+        raise ValueError("source tree is dirty; commit it or use --cloud-allow-dirty")
+    manifest = {
+        "schema_version": 1,
+        "git": {"head": _git(repo, "rev-parse", "HEAD").decode().strip(),
+                "branch": _git(repo, "branch", "--show-current").decode().strip(),
+                "status_porcelain": status, "dirty": bool(status)},
+        "files": {}, "excluded_files": [],
+    }
+    names, excluded = [], []
+    for record in _git(repo, "ls-files", "--stage", "-z").split(b"\0"):
+        if not record:
+            continue
+        index, raw_name = record.split(b"\t", 1)
+        git_mode, _oid, stage = index.decode("ascii").split()
+        name = raw_name.decode("utf-8")
+        path = _safe_relative(name)
+        if name == SOURCE_MANIFEST:
+            raise ValueError("reserved cloud source manifest is already tracked")
+        if _excluded_source(path):
+            excluded.append(name)
+            continue
+        if stage != "0" or git_mode not in ("100644", "100755"):
+            raise ValueError(f"unsupported or conflicted tracked source: {name}")
+        names.append(name)
+    return manifest, names, excluded
+
+
+def _distribution_sources(repo: Path, allow_dirty: bool) -> tuple[dict, list[str], list[str]]:
+    status = distribution_status(repo)
+    if status["missing"]:
+        raise ValueError("distributed files are missing: " + ", ".join(status["missing"][:10]))
+    if status["untracked"]:
+        raise ValueError("files outside the distribution manifest are present; move them out of the "
+                         "source directory before cloud execution: " + ", ".join(status["untracked"][:10]))
+    if status["modified"] and not allow_dirty:
+        raise ValueError("distributed files were modified; restore them or use --cloud-allow-dirty: "
+                         + ", ".join(status["modified"][:10]))
+    original = json.loads((repo / SOURCE_MANIFEST).read_text(encoding="utf-8"))
+    git = dict(original["git"])
+    git["dirty"] = bool(git.get("dirty")) or bool(status["modified"])
+    manifest = {
+        "schema_version": 1, "git": git, "files": {},
+        "excluded_files": list(original.get("excluded_files", [])),
+        "distribution": {"manifest_sha256": status["manifest_sha256"],
+                         "modified_files": status["modified"]},
+    }
+    return manifest, sorted(original["files"]), []
+
+
 def build_source_bundle(repo: Path, dest: Path, *, allow_dirty: bool = False,
                         max_bytes: int = 512 * 1024 * 1024,
                         max_files: int = 50000) -> dict:
@@ -71,21 +170,12 @@ def build_source_bundle(repo: Path, dest: Path, *, allow_dirty: bool = False,
     repo, dest = Path(repo).resolve(), Path(dest).absolute()
     if max_bytes < 1 or max_files < 1:
         raise ValueError("archive limits must be positive")
-    if Path(_git(repo, "rev-parse", "--show-toplevel").decode().strip()).resolve() != repo:
-        raise ValueError("source directory must be the repository root")
-    if _git(repo, "ls-files", "--others", "--exclude-standard", "-z"):
-        raise ValueError("untracked files are present; commit or explicitly ignore them before cloud execution")
-    status = _git(repo, "status", "--porcelain=v1", "--untracked-files=no").decode("utf-8")
-    if status and not allow_dirty:
-        raise ValueError("source tree is dirty; commit it or use --cloud-allow-dirty")
-    records = _git(repo, "ls-files", "--stage", "-z").split(b"\0")
-    manifest = {
-        "schema_version": 1,
-        "git": {"head": _git(repo, "rev-parse", "HEAD").decode().strip(),
-                "branch": _git(repo, "branch", "--show-current").decode().strip(),
-                "status_porcelain": status, "dirty": bool(status)},
-        "files": {}, "excluded_files": [],
-    }
+    distribution = is_distribution(repo)
+    if distribution:
+        manifest, names, excluded = _distribution_sources(repo, allow_dirty)
+    else:
+        manifest, names, excluded = _git_sources(repo, allow_dirty)
+    manifest["excluded_files"].extend(excluded)
     dest.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     total_bytes = 0
@@ -93,21 +183,8 @@ def build_source_bundle(repo: Path, dest: Path, *, allow_dirty: bool = False,
         with tempfile.NamedTemporaryFile(dir=dest.parent, prefix=".source-", suffix=".tar.gz", delete=False) as out:
             temporary = Path(out.name)
             with tarfile.open(fileobj=out, mode="w:gz", format=tarfile.PAX_FORMAT) as archive:
-                for record in records:
-                    if not record:
-                        continue
-                    index, raw_name = record.split(b"\t", 1)
-                    git_mode, _oid, stage = index.decode("ascii").split()
-                    name = raw_name.decode("utf-8")
-                    path = _safe_relative(name)
-                    if name == SOURCE_MANIFEST:
-                        raise ValueError("reserved cloud source manifest is already tracked")
-                    if _excluded_source(path):
-                        manifest["excluded_files"].append(name)
-                        continue
-                    if stage != "0" or git_mode not in ("100644", "100755"):
-                        raise ValueError(f"unsupported or conflicted tracked source: {name}")
-                    source = repo / name
+                for name in names:
+                    source = repo / _safe_relative(name)
                     if source.resolve() != source or not stat.S_ISREG(source.lstat().st_mode):
                         raise ValueError(f"tracked source must be a regular file without symlink parents: {name}")
                     if len(manifest["files"]) >= max_files:
@@ -131,8 +208,10 @@ def build_source_bundle(repo: Path, dest: Path, *, allow_dirty: bool = False,
                 archive.addfile(info, io.BytesIO(encoded))
         # Revisions and status may change while files are read. Do not label such
         # a snapshot with an earlier checkout's identity.
-        if (_git(repo, "rev-parse", "HEAD").decode().strip() != manifest["git"]["head"]
-                or _git(repo, "status", "--porcelain=v1", "--untracked-files=no").decode("utf-8") != status):
+        if not distribution and (
+                _git(repo, "rev-parse", "HEAD").decode().strip() != manifest["git"]["head"]
+                or _git(repo, "status", "--porcelain=v1", "--untracked-files=no").decode("utf-8")
+                != manifest["git"]["status_porcelain"]):
             raise ValueError("repository changed while preparing the source archive")
         # An already-dirty file can change without altering porcelain status.
         # Check the captured bytes again before declaring the snapshot ready.

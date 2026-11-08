@@ -1,24 +1,31 @@
-# FFT correctness
+# Validation: FFT correctness
 
-This additional task checks the library itself and uses only CUDA and cuFFT
-FP64 as a numerical reference. It needs no cuFFT tuning parameters, cuFFTDx
-configuration or external library.
+Checks ThunderFFT correctness on the selected GPU: seven sizes (64 to 4096),
+FP16 and TF32, forward and inverse, public wrappers, direct register cores and
+memory guards, against a cuFFT FP64 reference (relative L2 at most 0.005).
+This is not a numbered paper result; any supported GPU can run it.
+
+## Run
 
 ```sh
-./run.sh validation                  # 88 quick cases and 18 host API checks
-./run.sh validation --profile paper  # 500 full cases and 18 host API checks
+./run.sh validation                   # smoke: 88 cases + 18 host API checks
+./run.sh validation --profile paper   # paper: 500 cases + 18 host API checks
 ```
 
-Both modes cover seven sizes, FP16/TF32, forward/inverse, public wrappers,
-direct register cores and memory guards. Full mode adds impulse, tone,
-constant and public partial-batch inputs. Each case requires finite outputs,
-relative L2 at most 0.005, and intact guards. This calls the existing
-[`thff_validate`](../../sample/validation/README.md) suite; it is not a paper
-performance measurement. It selects a logical device within inherited CUDA
-visibility and does not change clocks or power settings.
+Use `--device N` to select another local GPU.
 
-Generated `data.csv`, `table.csv`, `validation.json`, `metadata.json`,
-`native.log`, build logs and exact commands are saved under the task's root
-`result/` directory. Source/binary hashes and compiler commands are retained.
-Compute Sanitizer is a separate optional check documented in the library
-validation guide; it is not silently implied by this task's success.
+## Options
+
+This task reads no task-specific environment variables.
+
+## Output
+
+Written to `result/validation/<run_id>/`:
+
+- `data.csv`: one row per correctness case
+- `table.csv`: summary per precision, size and direction
+- `validation.json`: pass/fail status, case count and maximum relative L2 error
+- `metadata.json`: command, GPU inventory, source and binary hashes
+- `native.log`: output of the native `thff_validate` program
+- `commands.txt`, `configure.log`, `build.log`: exact command and build logs
+- `status.json`, `run.log`: runner status and full task log

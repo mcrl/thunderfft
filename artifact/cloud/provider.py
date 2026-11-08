@@ -23,7 +23,7 @@ import urllib.request
 
 API_ORIGIN = "https://console.vast.ai"
 DEFAULT_KEY_FILE = Path("~/cloud_key/thunderfft/vast_api_key")
-MAX_BUDGET_USD = 5.0
+MAX_BUDGET_USD = 10.0
 GPU_NAMES = {"A100": "A100 PCIE", "H100": "H100 PCIE", "B200": "B200"}
 
 
@@ -147,7 +147,7 @@ def plan_cost(offer: dict, *, disk_gb: float, startup_seconds: float,
     budget = _number(budget_usd, "budget", minimum=.25)
     reserve = _number(reserve_usd, "cleanup reserve", minimum=.25)
     if budget > MAX_BUDGET_USD:
-        raise ProviderError("Per-execution budget must not exceed USD 5")
+        raise ProviderError(f"Per-execution budget must not exceed USD {MAX_BUDGET_USD:g}")
     disk = _number(disk_gb, "disk size", minimum=1)
     phases = {
         "startup_seconds": _number(startup_seconds, "startup timeout", minimum=1),

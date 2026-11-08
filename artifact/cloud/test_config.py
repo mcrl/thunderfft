@@ -25,7 +25,7 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(example, config.DEFAULTS)
 
     def test_rejects_over_budget_and_reduced_cleanup_reserves(self):
-        for overrides in ({"budget_usd": 5.01}, {"reserve_usd": .24},
+        for overrides in ({"budget_usd": 10.01}, {"reserve_usd": .24},
                           {"billing_delay_seconds": 359}, {"cleanup_seconds": 119},
                           {"execution_seconds": 59}, {"disk_gb": 0},
                           {"download_gb": float("inf")}, {"startup_seconds": True}):

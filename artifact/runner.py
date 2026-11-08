@@ -24,6 +24,7 @@ REGISTRY = Path(__file__).with_name("registry.json")
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from artifact.cloud import coordinator as cloud
+from artifact.cloud import transport as cloud_transport
 
 # Also works when CPU tests load this file by path rather than as a module.
 _spec = importlib.util.spec_from_file_location("artifact_collection", Path(__file__).with_name("collection.py"))
@@ -345,6 +346,14 @@ def main():
         # A source archive carries original revision + actual per-file hashes;
         # it is deliberately not a synthetic Git repository or invented commit.
         metadata["cloud_source"] = json.loads(cloud_source.read_text())
+    if cloud_transport.is_distribution(ROOT):
+        try:
+            metadata["distribution_check"] = cloud_transport.distribution_status(ROOT)
+        except (ValueError, OSError, KeyError) as error:
+            metadata["distribution_check"] = {"error": str(error)}
+        if not metadata["distribution_check"].get("unmodified"):
+            print("Warning: source differs from the distributed manifest; see manifest.json distribution_check",
+                  file=sys.stderr)
     atomic_json(batch_dir / "manifest.json", metadata)
     states, by_id = [], {}
     interrupted = False

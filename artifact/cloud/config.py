@@ -8,8 +8,8 @@ DEFAULTS = {
     "api_key_file": "~/cloud_key/thunderfft/vast_api_key",
     "ssh_key_file": "~/cloud_key/thunderfft/id_ed25519",
     "ssh_public_key_file": "~/cloud_key/thunderfft/id_ed25519.pub",
-    "budget_usd": 1.5, "reserve_usd": 0.25,
-    "disk_gb": 32, "startup_seconds": 900, "execution_seconds": 600,
+    "budget_usd": 10.0, "reserve_usd": 0.25,
+    "disk_gb": 32, "startup_seconds": 900, "execution_seconds": 3600,
     "download_seconds": 120, "cleanup_seconds": 120, "billing_delay_seconds": 360,
     "upload_gb": 10, "download_gb": 1,
     "images": {"A100": "nvidia/cuda:12.9.1-devel-ubuntu22.04",
@@ -109,7 +109,7 @@ def load_config(path=None):
         if int(result[field]) != result[field]:
             raise ValueError(f"{field} must be an integer")
         result[field] = int(result[field])
-    ceiling = 5.0
+    ceiling = 10.0
     if result["reserve_usd"] < .25:
         raise ValueError("reserve_usd must be at least 0.25")
     policy = Path("~/.config/vastai/spending-policy.json").expanduser()

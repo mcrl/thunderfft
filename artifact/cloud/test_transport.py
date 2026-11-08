@@ -55,6 +55,47 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(embedded["files"], manifest["files"])
         self.assertEqual(manifest["archive_sha256"], hashlib.sha256(self.dest.read_bytes()).hexdigest())
 
+    def extract_distribution(self):
+        transport.build_source_bundle(self.repo, self.dest)
+        extracted = self.root / "extracted"
+        with tarfile.open(self.dest) as archive:
+            archive.extractall(extracted)
+        return extracted
+
+    def test_extracted_distribution_rebundles_without_git(self):
+        extracted = self.extract_distribution()
+        head = self.git("rev-parse", "HEAD")
+        (extracted / "__pycache__").mkdir()
+        (extracted / "__pycache__" / "x.pyc").write_bytes(b"generated")
+        (extracted / "result").mkdir()
+        (extracted / "result" / "run.csv").write_text("new measurement")
+        self.assertTrue(transport.is_distribution(extracted))
+        self.assertTrue(transport.distribution_status(extracted)["unmodified"])
+        manifest = transport.build_source_bundle(extracted, self.root / "again.tar.gz")
+        self.assertEqual(manifest["git"]["head"], head)
+        self.assertFalse(manifest["git"]["dirty"])
+        self.assertEqual(manifest["distribution"]["modified_files"], [])
+        with tarfile.open(self.root / "again.tar.gz") as archive:
+            self.assertEqual(set(archive.getnames()), {".gitignore", "run.sh", transport.SOURCE_MANIFEST})
+            self.assertEqual(archive.getmember("run.sh").mode, 0o755)
+
+    def test_extracted_distribution_rejects_edits_and_extra_files(self):
+        extracted = self.extract_distribution()
+        (extracted / "run.sh").write_text("#!/bin/sh\nfalse\n")
+        with self.assertRaisesRegex(ValueError, "modified.*run.sh"):
+            transport.build_source_bundle(extracted, self.root / "edited.tar.gz")
+        manifest = transport.build_source_bundle(extracted, self.root / "edited.tar.gz", allow_dirty=True)
+        self.assertTrue(manifest["git"]["dirty"])
+        self.assertEqual(manifest["distribution"]["modified_files"], ["run.sh"])
+        (extracted / "notes.txt").write_text("not packaged")
+        self.assertEqual(transport.distribution_status(extracted)["untracked"], ["notes.txt"])
+        with self.assertRaisesRegex(ValueError, "outside the distribution manifest"):
+            transport.build_source_bundle(extracted, self.root / "extra.tar.gz", allow_dirty=True)
+        (extracted / "notes.txt").unlink()
+        (extracted / "run.sh").unlink()
+        with self.assertRaisesRegex(ValueError, "missing.*run.sh"):
+            transport.build_source_bundle(extracted, self.root / "missing.tar.gz", allow_dirty=True)
+
     def test_dirty_opt_in_archives_actual_bytes_and_labels_revision(self):
         (self.repo / "run.sh").write_text("changed working tree\n")
         with self.assertRaisesRegex(ValueError, "dirty"):

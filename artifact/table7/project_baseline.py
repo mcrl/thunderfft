@@ -57,12 +57,12 @@ def is_a100(name):
     return isinstance(name, str) and re.search(r"\bA100\b", name) is not None
 
 
-def documented_sources(path=TABLE6 / "README.md"):
+def documented_sources(path=TABLE6 / "reference_a100.md"):
     """Read the public rounded timing record; do not invent original raw trials."""
     path = Path(path)
     text = path.read_text()
     if not re.search(r"256-point FP16 forward FFT, batch 65,536, on A100", text):
-        raise ValueError("Table 6 README does not declare the required N256 FP16 A100 batch65536 contract")
+        raise ValueError("Table 6 reference does not declare the required N256 FP16 A100 batch65536 contract")
     sections = re.findall(r"^## A100 result \(([^\n)]+)\)\n(.*?)(?=^## |\Z)", text, re.M | re.S)
     if len(sections) != 1:
         raise ValueError("Expected exactly one documented A100 timing result section")
@@ -74,7 +74,7 @@ def documented_sources(path=TABLE6 / "README.md"):
             raise ValueError(f"Missing or ambiguous documented {library} timing")
         sources.append({"library": library, "time_us": positive(matches[0], "documented time_ms") * 1000,
                         "evidence": "documented_rounded_timing", "source_date": date,
-                        "note": "Rounded Table 6 README timing; original raw timing CSV is not supplied or revalidated."})
+                        "note": "Rounded Table 6 reference timing; original raw timing CSV is not supplied or revalidated."})
     return sources, [file_record(path)]
 
 
@@ -241,7 +241,7 @@ def write_outputs(output, sources, inputs, comparison=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--documented-table6", action="store_true", help="Use the rounded public Table 6 README timings, with that evidence label")
+    mode.add_argument("--documented-table6", action="store_true", help="Use the rounded Table 6 reference timings, with that evidence label")
     mode.add_argument("--table6-csv", type=Path, help="Table 6 table.csv; requires adjacent data.csv")
     mode.add_argument("--library", choices=LIBRARIES, help="Explicit supported Table 6 kernel timing; assumes A100 N256 FP16 complex batch65536")
     parser.add_argument("--source-time-us", type=float, help="Explicit differential resident-compute time for one batch, already divided by R")

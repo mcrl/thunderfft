@@ -1,439 +1,78 @@
-# Table 3: FFT kernel latency matrix
+# Table 3: FFT kernel latency
 
-Status: operational ThunderFFT and cuFFTDx adapters (cuFFTDx requires a build configured with `MATHDX_ROOT`); complete matched multi-GPU reproduction pending
+FFT kernel latency of ThunderFFT and cuFFTDx on paper p. 8: sizes 64 to 4096,
+batch 65536, register and shared-memory input, ThunderFFT FP16 and TF32 against
+cuFFTDx FP16 and FP32, with speedups. The paper reports A100 PCIe 80GB, H100
+PCIe and B200 columns; one run measures one GPU.
 
-Paper p. 8, Section 6.2: single A100 PCIe 80GB, H100 PCIe, and B200; FFT
-sizes 64/128/256/512/1024/2048/4096; batch 65,536. Measure register-input and
-shared-memory-input kernels separately. Compare matched FP16 paths and
-ThunderFFT TF32 against cuFFTDx FP32. Report latency in microseconds,
-`cuFFTDx_time / ThunderFFT_time` speedups, and geometric-mean speedups over
-sizes. These are 84 matched comparison configurations across GPUs, precisions,
-placements, and sizes. The paper selects the best cuFFTDx launch parameters
-after an exhaustive sweep. [Figure 2](../figure2/README.md) consumes this data's
-A100/register subset.
-
-## Available measurements
-
-The shared source [`sample/bench/paper_fft.cu`](../../sample/bench/paper_fft.cu)
-builds as `thff_paper_fft`. It selects all seven sizes, FP16 or TF32, and register
-or shared input: **28 ThunderFFT configurations per GPU**. It uses the existing
-benchmark kernels in `sample/bench/baseline/thunderfft_bench.h`. With MathDX,
-the same source also builds `thff_paper_fft_cufftdx` and times the default and
-recorded tuned candidates in `sample/bench/baseline/cufftdx_bench.h`. The adapter
-selects each configuration's fastest median candidate and calculates matched
-speedups. It does not rerun an exhaustive parameter search.
-
-ThunderFFT can be collected independently without MathDX or external FFT
-libraries. CUDA Toolkit cuFFT supplies the FP64 correctness reference for both
-libraries and is not a timed Table 3 comparison implementation.
-
-From the repository root:
+## Run
 
 ```sh
-# All seven N values, FP16/TF32, register/shared: 28 configurations per library.
-./run.sh table3 --profile smoke --device 0
+# Local GPU
+./run.sh table3                    # smoke: batch 1024, R=256, 2 trials
+./run.sh table3 --profile paper    # paper: batch 65536, R=1000, 3 trials
 
-# Paper-sized measurements for the selected GPU and configured libraries.
-./run.sh table3 --profile paper --device 0
+# H100 or B200 on Vast.ai (add --cloud-plan to check offer and cost without renting)
+./run.sh table3 --backend vast --gpu H100
+./run.sh table3 --backend vast --gpu H100 --profile paper
+./run.sh table3 --backend vast --gpu B200 --profile paper
 ```
 
-The adapter configures/builds `thff_paper_fft`, then saves its raw CSV and
-stderr separately for every configuration. Smoke defaults to batch 1024,
-R=256 and two trials; it is a short installation/numerical/timing check, not a
-paper performance comparison. Paper defaults to batch 65536, R=1000 and three
-trials. Results are written to `result/table3/<run_id>/`. A build configured
-with `MATHDX_ROOT` also collects cuFFTDx and matched speedups by default.
-Success means the selected configurations completed on one selected GPU.
+cuFFTDx is measured when the build has MathDX, which `artifact/setup.sh` and
+the Vast.ai worker both provide.
 
-## Collect independent parts and assemble later
+## Collect per GPU and assemble
 
-The collection runner keeps each part's original CSV, native logs and metadata.
-Select sizes, precisions and placements independently, using distinct part names:
+Collect each GPU column in one command, each GPU as a different part of the
+same collection, then assemble without a GPU:
 
 ```sh
-THUNDERFFT_TABLE3_N_LIST=64,128,256 THUNDERFFT_TABLE3_PLACEMENTS=register \
-  ./run.sh table3 --collection ae --part a100-register-small --profile paper
-THUNDERFFT_TABLE3_N_LIST=512,1024,2048,4096 THUNDERFFT_TABLE3_PLACEMENTS=register \
-  ./run.sh table3 --collection ae --part a100-register-large --profile paper
-THUNDERFFT_TABLE3_PLACEMENTS=shared \
-  ./run.sh table3 --collection ae --part a100-shared --profile paper
-
-# Offline: reread existing evidence and regenerate the current table and figure.
-./run.sh --assemble --collection ae --profile paper
-```
-
-`THUNDERFFT_TABLE3_PRECISIONS=fp16` or `tf32` can split each command further.
-`THUNDERFFT_TABLE3_LIBRARIES=ThunderFFT` or `cuFFTDx` collects one library, so
-the baseline can be added after a ThunderFFT-only collection without repeating
-those measurements. The default is both when cuFFTDx is configured, otherwise
-ThunderFFT. Only the selected executable targets are built. For example:
-
-```sh
-THUNDERFFT_TABLE3_LIBRARIES=ThunderFFT ./run.sh table3 \
-  --collection ae --part a100-thunderfft --profile paper
-MATHDX_ROOT=/path/to/mathdx/25.06 THUNDERFFT_ARCHS=80 \
-  THUNDERFFT_TABLE3_LIBRARIES=cuFFTDx ./run.sh table3 \
-  --collection ae --part a100-cufftdx --profile paper
+./run.sh table3 --profile paper --collection ae --part a100    # local A100
+./run.sh table3 --backend vast --gpu H100 --profile paper --collection ae --part h100
+./run.sh table3 --backend vast --gpu B200 --profile paper --collection ae --part b200
 ./run.sh table3 table2 figure2 --assemble --collection ae --profile paper
 ```
 
-The precision selector uses ThunderFFT names: `tf32` selects matched cuFFTDx
-`fp32`; `fp16` selects `fp16` for either library. A requested cuFFTDx library
-without a configured MathDX build remains pending.
+Use `table3 table4` instead of `table3` in the three collection commands to
+also collect the [Table 4](../table4/README.md) column from the same GPU.
+Configurations that were not collected stay blank; assembly exits with code 2
+while the table is partial.
 
-All three selectors accept nonempty comma-separated lists; omitted selectors
-include all their values. Duplicate or unsupported values fail. Use the same
-profile, batch, R, trial count, source and physical GPU for parts
-belonging to the same GPU column. A100, H100 and B200 have separate columns and
-must use the same source revision, while allowing their required architecture/toolkit builds.
-Binary hashes and cuFFTDx version/target-SM evidence must agree within each
-library on one GPU. Build configurations remain in the provenance; adding the
-cuFFTDx executable does not invalidate an earlier ThunderFFT-only part.
-Overlapping configurations
-and incompatible parts are rejected instead of silently averaged. Keep different
-measurement campaigns in different collections.
+## Options
 
-After every complete configuration, `data.csv` and `table.csv` are checkpointed.
-If a later configuration fails or the process is interrupted, assembly can
-retain earlier complete configurations after rechecking their successful command
-record, native CSV/log, numerical error and differential timing. Incomplete or
-corrupt trial groups fail validation. Uncollected configurations remain blank
-with `status=pending` in the assembled 168-row grid: 84 ThunderFFT and 84
-cuFFTDx configurations. Already collected
-values are never replaced with the paper's reference targets.
+| Environment variable | Values | Default (smoke / paper) |
+| --- | --- | --- |
+| `THUNDERFFT_TABLE3_N_LIST` | comma-separated subset of `64,128,256,512,1024,2048,4096` | all |
+| `THUNDERFFT_TABLE3_PRECISIONS` | `fp16`, `tf32` (`tf32` selects cuFFTDx FP32) | both |
+| `THUNDERFFT_TABLE3_PLACEMENTS` | `register`, `shared` | both |
+| `THUNDERFFT_TABLE3_LIBRARIES` | `ThunderFFT`, `cuFFTDx` | both if the build has MathDX, else `ThunderFFT` |
+| `THUNDERFFT_TABLE3_BATCH` | positive multiple of 16 (512 with cuFFTDx); paper requires 65536 | 1024 / 65536 |
+| `THUNDERFFT_TABLE3_REPEATS` | FFT repeats R per kernel; paper requires 1000 | 256 / 1000 |
+| `THUNDERFFT_TABLE3_TRIALS` | positive integer | 2 / 3 |
+| `THUNDERFFT_TABLE3_TIMEOUT` | seconds per ThunderFFT executable call | 120 |
+| `THUNDERFFT_TABLE3_CUFFTDX_TIMEOUT` | seconds per cuFFTDx executable call | 1800 |
 
-Assembly writes `data.csv`, `table.csv`, `cufftdx_candidates.csv`, `speedup.csv`
-and `metadata.json` to the collection's
-`assembled/table3/` directory and derives Figure 2 from its A100/register subset.
-It selects the smallest median cuFFTDx candidate per configuration, retains all
-candidates, and pairs FP16/FP16 and TF32/FP32 for available speedups. Empty
-candidate/speedup files still carry their headers. It launches no GPU workloads.
-Table 3 remains `partial` while any of the 168 configurations is missing;
-`complete_declared_subset=true` means only that all 84 ThunderFFT configurations
-have been collected. `full_paper_comparison=true` requires all 168 configurations
-with the paper profile. Original part outputs remain unchanged.
-Source paths in the assembled CSV and metadata are relative to the assembly
-directory. Copy the complete collection, including `parts/`, to preserve native
-evidence and regenerate derived tables/figures after moving it. Historical
-absolute source references remain readable while those originals are available.
+These variables are forwarded to Vast.ai when exported in the shell.
 
-Set `CUDACXX` and `THUNDERFFT_ARCHS` for the evaluation GPU/toolkit before
-running, for example:
+## Output
 
-```sh
-CUDACXX=/usr/local/cuda-12.9/bin/nvcc THUNDERFFT_ARCHS=80 \
-  ./run.sh table3 --profile smoke
-```
+Written to `result/table3/<run_id>/`:
 
-`--device` is a logical ordinal within any inherited `CUDA_VISIBLE_DEVICES`.
-The adapter preserves scheduler-assigned ordinal/UUID masks, selecting just
-that device; it never expands the visible GPU set. The native executable
-reports the actual GPU name/compute capability. A100/H100/B200 names select
-their corresponding paper target; unknown models retain their real name and
-get no paper target rather than silently comparing against A100.
-The native log also records the CUDA device UUID. Assembly matches this UUID
-against the saved GPU inventory, because CUDA ordinals and `nvidia-smi` indices
-can differ. Historical logs without UUIDs require an explicit UUID visibility
-mask or exactly one device with the recorded model name; ambiguous device
-identity is rejected.
+- `data.csv`: every validated timing trial (ThunderFFT and every cuFFTDx candidate)
+- `table.csv`: median/min/max latency per configuration; paper targets on paper-profile runs
+- `cufftdx_candidates.csv`: every cuFFTDx candidate, selected one marked (cuFFTDx runs only)
+- `speedup.csv`: cuFFTDx/ThunderFFT speedups and geometric means (cuFFTDx runs only)
+- `metadata.json`: settings, coverage, GPU and software versions, hashes
+- `raw/*.csv`, `raw/*.log`: native output of each executable call
+- `commands.txt`, `configure.log`, `build.log`: exact commands and build logs
+- `status.json`, `run.log`: runner status and full task log
 
-Environment overrides are `THUNDERFFT_TABLE3_BATCH`,
-`THUNDERFFT_TABLE3_REPEATS`, `THUNDERFFT_TABLE3_TRIALS` and
-`THUNDERFFT_TABLE3_TIMEOUT` (seconds per executable call, default 120). Batch
-must be a positive multiple of 16; all other values must be positive integers.
-The paper profile requires batch 65536 and R=1000. Any override is recorded in
-metadata. A nonpositive/noisy differential measurement fails instead of being
-discarded or replaced; repeat with a better-controlled GPU or a larger smoke
-batch if needed. No failed candidate is silently retried or selected away.
+A Vast.ai run downloads the same directory to
+`result/cloud/thunderfft-ae-<session>/download/result/table3/<run_id>/`. With
+`--collection`, the result is also stored as
+`result/collections/ae/parts/table3/<part>/`.
 
-Every CSV row must match its requested configuration and trial, have positive
-finite raw/differential/e2e times, and pass the native single-FFT finite-output
-and `relL2 <= 0.005` gate. The Python adapter independently checks those CSV
-fields and consistency of `(t_2R_us-t_R_us)/R`. Missing/duplicate trials,
-identity changes and subprocess failures/timeouts fail the evaluation while
-preserving partial raw evidence. This bounded gate does not substitute for
-the broader FFT validation adapter.
-
-Build from the repository root, choosing the compiler and architecture for the
-target GPU. The paper uses CUDA 12.9 / SM80 for A100 and CUDA 13.0 / SM90 or
-SM100 for H100 or B200. A minimal A100 build is:
-
-```sh
-cmake -S . -B build -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.9/bin/nvcc \
-  -DTHUNDERFFT_ARCHS=80
-cmake --build build --target thff_paper_fft -j2
-```
-
-The target compiles with `-O3 --use_fast_math -lineinfo`. Preserve those flags
-and architecture settings in a before/after comparison. GPU commands below
-are intended for the designated evaluation GPU; local CPU compilation alone
-does not establish a measured result.
-
-The CLI is:
-
-```text
-thff_paper_fft N fp16|tf32 register|shared [R=1000] [trials=3] [batch=65536]
-```
-
-For example, retain a separate raw CSV and metadata log for each configuration:
-
-```sh
-mkdir -p result/table3/manual-a100/raw
-build/sample/bench/thff_paper_fft 4096 fp16 register 1000 3 65536 \
-  > result/table3/manual-a100/raw/n4096-fp16-register.csv \
-  2> result/table3/manual-a100/raw/n4096-fp16-register.log
-python3 artifact/table3/compare_paper.py \
-  'result/table3/manual-a100/raw/*.csv' --gpu A100 \
-  --output result/table3/manual-a100/compared.csv
-```
-
-Repeat the executable call for N=64/128/256/512/1024/2048/4096, both precisions
-and both placements. Use distinct result directories and `--gpu H100` or
-`--gpu B200` for those GPUs. Do not mix GPU outputs in one comparison. The
-comparison script requires batch 65536 and reports median/minimum/maximum
-compute latency, signed deviation from the paper, and the separate e2e latency.
-Its default 10% tolerance is a descriptive, adjustable comparison threshold;
-the paper does not define a reproduction tolerance. All three GPUs require
-their own measurements.
-
-`paper-table3-xfft-targets.csv` transcribes the paper's 84 ThunderFFT timing
-targets; `paper-table3-all-targets.csv` also includes its 84 cuFFTDx targets.
-These are reference targets, not measurements produced by this repository run.
-
-## Measured check: 2026-11-02
-
-Vast.ai single-GPU rentals measured all 28 ThunderFFT forward configurations
-per available GPU. Each configuration used batch 65536, R=1000 and two timing
-trials per version, with the same harness and flags for the corrected library
-and parent `2f0810c7d4adb2663702b0774baf832900665d4b`.
-
-| GPU | Toolkit / architecture | Then-current latency versus paper | Then-current versus parent latency |
-| --- | --- | --- | --- |
-| A100 PCIe 80GB | CUDA 12.9 / SM80 | -2.78% to +6.61% | -0.61% to +0.19%; geometric mean -0.063% |
-| H100 PCIe 80GB | CUDA 13.0 / SM90 | +4.38% to +15.98% | -0.49% to +0.51%; geometric mean +0.041% |
-| B200 | CUDA 13.0 / native SM100 binaries built | Unmeasured: no rentable single-GPU offer | Unmeasured |
-
-Positive percentages mean longer latency. The A100 values are close to the
-paper; the H100 run remains slower, so full paper performance reproduction is
-not established. With the descriptive 10% threshold, A100 has 28/28 and H100
-20/28 configurations within range. That threshold is not specified by the
-paper. The small before/after differences with two trials do not demonstrate
-an optimization or a regression. At that revision, forward FFT bodies were
-retained while inverse and API correctness were repaired.
-
-Before timing, each GPU passed the 500-case FFT correctness matrix, 88 cases
-under each of Compute Sanitizer memcheck, synccheck and racecheck, and eight
-small convolution checks. The full FFT matrix's maximum relative L2 errors
-were FP16 `0.0006623171` on both GPUs, TF32 `0.0026404948` on A100 and
-`0.0026454357` on H100, against a `0.005` gate. These are bounded-input results.
-
-Raw data and billing evidence are local generated outputs under
-`result/implementation-completion-20261102/performance/measurement/gpu-run1/`
-(A100) and `gpu-run2/` (H100). The same performance directory contains
-`a100-paper-comparison.csv`, `h100-paper-comparison.csv` and before/after
-summaries. The frozen source archive SHA256 is
-`07d99326607c586edd5bf448f86bd40a95f27b4c23d47dc12d1d3c6b442aac49`.
-Both instances were destroyed after measurement. The H100 active measurement
-clocks and the paper's clock settings were not recorded together, so the
-remaining H100 gap cannot be attributed to a clock difference from this run.
-The cuFFTDx exhaustive sweep and full convolution comparison remain separate
-artifact tasks.
-
-## N=1024 SM80 follow-up: 2026-11-03
-
-The float N=1024 core now reuses the twiddle table already prepared by
-`ThunderFFTInitialize<float>(1024)` instead of evaluating sin/cos for each FFT.
-This change applies to SM80 only, in both directions; the measured forward
-register and shared-input paths use the same core. Native SM90 and SM100 builds
-keep their previous paths; SM80 PTX JIT-compiled on a newer GPU would use the
-cached path.
-
-Matched local A100 PCIe 80GB runs used CUDA 12.9, native SM80,
-`-O3 --use_fast_math -lineinfo`, batch 65536 and R=1000. Register runs interleaved
-three invocations per version, each with three trials. Shared runs used two
-invocations per version, each with three trials. The table reports medians;
-percentages describe latency, so negative values mean faster.
-
-| TF32 input placement | Before (us) | After (us) | Change | Paper (us) | After versus paper |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Register | 137.240570 | 126.527481 | -7.81% | 127.85 | -1.03% |
-| Shared | 160.784378 | 155.632126 | -3.20% | 155.34 | +0.19% |
-
-The register baseline used 255 registers/thread without spills. Shared load
-and store conflict-counter/wavefront ratios were 0.065% and 0.070%; these are
-memory-counter ratios, not percentages of kernel time. Static bank mapping
-and ideal/actual shared wavefront counters did not identify excessive bank
-serialization. Global loads and stores used eight 32-byte sectors per
-256-byte full-warp float2 access. Register caps introduced spills and slowed
-the tested candidates. The accepted change reuses the existing table without
-changing launch geometry, synchronization or the timing harness.
-In the accepted register benchmark's compiled repeat loop, 32 COS and 32 SIN
-instructions disappear; the twiddle loads are hoisted outside that loop.
-The cached version still uses 255 registers/thread and introduces a 64-byte
-stack with 60 bytes each of spill loads/stores. Thus the observed improvement
-comes with a spill tradeoff, rather than from lower register use. Native SM90
-and SM100 builds were checked to retain identical SASS across all 116 compiled
-functions compared with the preceding build.
-
-The production build passed 500 full-matrix correctness cases and 112 actual
-benchmark-entry checks, including a `5e-3` maximum per-transform relative L2
-gate, finite outputs and output guards. Memcheck, initcheck and synccheck each
-passed the 88-case quick matrix. A short repeated N=1024 register benchmark
-also passed racecheck with no hazards. Initcheck here covers global-memory
-initialization; it is not a proof of shared-memory initialization.
-
-Raw matched data, profiler reports, build metadata and validation outputs are
-under local generated directory `result/n1024-performance-fix-20261103/`, with
-`local-matched/`, `local-shared-matched/`, `profile/` and `validation/`
-subdirectories. Clocks and power settings were not changed; intermittent jobs
-from another account were present on the GPU. The repeated interleaved A/B
-observations support this local improvement, with those environmental limits.
-The separate single-FFT end-to-end metric did not show an improvement.
-Other Table 3 configurations were not retimed, and the cuFFTDx sweep remains
-pending. This follow-up does not establish full paper reproduction.
-
-## cuFFTDx comparison
-
-An A100 N=64 FP16 register result collected on 2026-11-04 is documented in
-[Table 2](../table2/README.md). A complete matched collection of all 28
-configurations on A100, H100 and B200 remains pending.
-
-When the build directory is configured with `MATHDX_ROOT`, `run.sh` also builds
-`thff_paper_fft_cufftdx`, the same `paper_fft.cu` compiled with cuFFTDx (MathDX
-25.06.1 was used for development), and `measure.py --cufftdx-binary` times the
-28 matched cuFFTDx configurations: FP16 and FP32, register and shared, all seven
-sizes. Otherwise the adapter stays ThunderFFT-only, as before.
-
-MathDX is header-only and needed only to configure and build: CMake keeps
-`MATHDX_ROOT` in the build directory's cache and records whether the target was
-configured (`THFF_CUFFTDX_ENABLED`), and `run.sh` decides from that cache, not
-from the environment. Pass it once per build directory; later runs need not:
-
-```sh
-MATHDX_ROOT=/path/to/mathdx/25.06 THUNDERFFT_ARCHS=80 ./run.sh table3 --profile paper  # configure once
-THUNDERFFT_ARCHS=80 ./run.sh table3 --profile paper   # still measures cuFFTDx
-MATHDX_ROOT= ./run.sh table3                           # empty value clears it: ThunderFFT only
-```
-
-cuFFTDx is configured at compile time for one SM, so `THUNDERFFT_ARCHS` must
-name one architecture (80, 90 or 100) and the binary refuses another device.
-If `MATHDX_ROOT` is set but several architectures are named, the target is not
-configured and the adapter returns 78 (pending) instead of silently skipping
-cuFFTDx. The Table 3 manifest records the cached `MATHDX_ROOT` and
-`THFF_CUFFTDX_ENABLED` values.
-
-- **Candidates.** [`cufftdx_bench.h`](../../sample/bench/baseline/cufftdx_bench.h)
-  holds the tuned FFTsPerBlock/ElementsPerThread candidates for A100, H100 and
-  B200, so the exhaustive sweep is not repeated here. All 166 tuned candidates
-  (52/58/56) are timed, together with the cuFFTDx default Block configuration
-  for every configuration. Thread FFT candidates appear for N=64 register.
-- **Same work.** Each candidate goes through `paper_fft.cu`'s shared
-  `measure()`: the same input, the same FP64 cuFFT gate (`relL2 <= 5e-3`; the
-  validation batch grows to one launch block for thread FFTs), the same three
-  warmups, R/2R differential timing and e2e definition as ThunderFFT. A failing
-  candidate fails the run; it is never skipped.
-- **Selection.** Per GPU/N/precision/placement, the candidate with the smallest
-  median `compute_us` is selected. `cufftdx_candidates.csv` keeps every
-  candidate with `selected=true|false`.
-- **Speedup.** `speedup.csv` pairs ThunderFFT FP16 with cuFFTDx FP16 and
-  ThunderFFT TF32 with cuFFTDx FP32 and reports `cuFFTDx_time / ThunderFFT_time`
-  per size plus a geometric mean per GPU/placement/precision pair. Paper
-  speedups from `paper-table3-all-targets.csv` appear only for paper-sized runs.
-- **Native CLI.** `thff_paper_fft_cufftdx --library cufftdx [--candidate LABEL] N fp16|fp32 register|shared [R] [trials] [batch]`.
-  Labels are `block_default`, `block_f<FPB>_e<EPT>` or `thread_t<threads>`. The CSV
-  appends `library,candidate,ffts_per_block,elements_per_thread,threads_per_block`.
-- **Batch.** With cuFFTDx, batch must be a multiple of 512, because FP16 thread
-  FFTs launch 512 FFTs per block. `THUNDERFFT_TABLE3_CUFFTDX_TIMEOUT` (default
-  1800 s) bounds one cuFFTDx invocation, which times all of its candidates.
-
-
-## Timing and correctness definitions
-
-The driver reports CUDA-event times in microseconds. For `R=1000`, it records
-one R-repeat and one 2R-repeat kernel and computes
-`compute_us = (t_2R_us - t_R_us) / R`. Input/output global memory traffic occurs
-once per kernel; the FFT repeats in registers or with shared-memory loads and
-stores according to the selected placement. The difference removes most fixed
-load/store and launch cost.
-
-Before timing, the driver runs three extra R-repeat warmup kernels. Each trial
-then warms the R and 2R kernels once before recording their individual times.
-Those warmups are outside reported intervals. The CSV retains both raw times;
-nonpositive or nonfinite differential times fail the run.
-
-Timed input follows the existing sample's real sinusoid
-`sin(2*pi*(i % N)/N)/sqrt(N)`, with zero imaginary part. Input and output global
-buffers are separate, so each kernel launch starts from the same input. Repeated
-FFTs inside a timing kernel can grow to nonfinite values; their final values
-are not used for correctness validation.
-
-Accuracy is checked separately on a deterministic complex LCG input, batch 64,
-rounded to the selected storage precision. A single forward FFT is compared
-against cuFFT FP64 applied to that exact rounded input. Nonfinite outputs or
-relative L2 error above `5e-3` fail before performance timing. This is a limited
-measurement gate; the broader correctness suite covers additional inputs,
-directions and batch boundaries.
-
-`e2e_out_of_place_us` measures a separate single-FFT kernel, with one warmup and
-ten timed launches. It includes global input/output movement and must be kept
-separate from Table 3's differential compute latency. The metadata log records
-GPU name, compute capability, driver/runtime/compiled CUDA and cuFFT versions,
-and the extra warmup count. Also retain exact build flags, Git revision, dirty
-state, GPU clocks/power settings and raw commands in the run manifest.
-
-Raw CSV columns are:
-
-```text
-N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_out_of_place_us,single_fft_relL2,shared_bytes
-```
-
-## Remaining comparison requirements
-
-- Run the cuFFTDx comparison (implemented above) on each target GPU.
-- Confirm the paper's cuFFTDx/MathDX version, swept parameter ranges, direction,
-  timing statistic and other missing experimental settings. R=1000 comes from
-  the existing repository helper; the PDF does not explicitly specify it or the
-  three added warmups.
-- Validate each implementation using matched input, reference and tolerances
-  before reporting timings or speedups. Preserve separate correctness input and
-  performance input; never validate the overflowed repeated-loop output.
-- Run the unified adapter independently on the remaining target GPUs. Its
-  metadata records one actual GPU; a successful single-GPU run does not
-  establish multi-GPU reproduction.
-
-## Results and completion
-
-The adapter writes these outputs under `THUNDERFFT_RESULT_DIR`:
-
-- `data.csv`: every validated timing trial, with canonical columns
-  `gpu,N,batch,placement,library,precision,trial,time_us,e2e_out_of_place_us,rel_l2,passed,inside_repeats,t_R_us,t_2R_us,shared_bytes,raw_csv,candidate,ffts_per_block,elements_per_thread,threads_per_block`.
-  `library` is `ThunderFFT` or `cuFFTDx`, and cuFFTDx rows include every candidate
-  and trial. `time_us` is the differential compute latency.
-- `table.csv`: per-configuration median/min/max latency, separate median e2e
-  latency and maximum validation error, with one row per ThunderFFT
-  configuration and one per selected cuFFTDx candidate. Paper targets/deviations appear only
-  for paper-sized measurements on a recognized GPU. These targets are
-  transcribed references, never replacement measurements.
-- `cufftdx_candidates.csv` and `speedup.csv` (cuFFTDx runs only): every
-  cuFFTDx candidate's summary with the selected one marked, and matched speedups
-  with geometric means.
-- `metadata.json`: expected/completed coverage, cuFFTDx scope or its explicit
-  absence, exact executable argv, timeout/exit status, GPU/software metadata,
-  source/binary SHA256, Git revision/dirty state and CMake build flags.
-- `raw/*.csv`, `raw/*.log`, `commands.txt`, `configure.log`, `build.log`:
-  auditable raw measurements, native metadata and build output.
-
-[`Figure 2`](../figure2/README.md) consumes `data.csv` from the same runner's
-Table 3 dependency, retaining its A100/register subset. A smoke-derived figure
-is a smoke result; it is not relabeled as paper-sized data.
-
-Complete paper Table 3 comparison still requires cuFFTDx measurements on all
-three GPUs. One run measures one GPU, so the metadata always records
-`full_paper_comparison_complete=false`. Without a cuFFTDx-configured build it also records
-`cufftdx="not measured"`. See the [runner contract](../README.md).
-
-Parser/validation contract checks run without a GPU:
-
-```sh
-python3 -m unittest discover -s artifact/table3 -p 'test_*.py' -v
-```
+Assembly writes `result/collections/ae/assembled/table3/` (`data.csv`,
+`table.csv`, `cufftdx_candidates.csv`, `speedup.csv`, `metadata.json`,
+`status.json`) and `result/collections/ae/assembled/missing.csv`, listing
+uncollected configurations.
