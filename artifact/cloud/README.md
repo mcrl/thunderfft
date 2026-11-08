@@ -57,7 +57,7 @@ selects another file. A file lists only the fields it changes
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `execution_seconds` | 3600 | time allowed on the instance for build and run |
-| `budget_usd` | 10 | maximum planned cost of one invocation |
+| `budget_usd` | 50 | maximum planned cost of one invocation |
 | `disk_gb` | 32 | instance disk |
 | `images` | CUDA 12.9.1 (A100), 13.0.2 (H100, B200) devel images | container image per GPU |
 | `environment` | `{}` | measurement overrides forwarded to the job |

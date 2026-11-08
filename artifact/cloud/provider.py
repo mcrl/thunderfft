@@ -23,7 +23,7 @@ import urllib.request
 
 API_ORIGIN = "https://console.vast.ai"
 DEFAULT_KEY_FILE = Path("~/cloud_key/thunderfft/vast_api_key")
-MAX_BUDGET_USD = 10.0
+MAX_BUDGET_USD = 50.0
 GPU_NAMES = {"A100": "A100 PCIE", "H100": "H100 PCIE", "B200": "B200"}
 
 
@@ -240,8 +240,11 @@ class VastClient:
     def account_summary(self) -> dict:
         data = self._request("GET", "/api/v0/users/current/")
         # Never persist names, email, SSH keys, session IDs, or payment details.
-        return {"balance_usd": _number(data.get("balance"), "account balance", minimum=-1e12),
-                "observed_at": time.time()}
+        # Prepaid (credit-only) accounts keep their funds in "credit" with
+        # "balance" at 0; a negative "balance" is an amount owed.
+        balance = _number(data.get("balance"), "account balance", minimum=-1e12)
+        credit = _number(data.get("credit", 0), "account credit", minimum=-1e12)
+        return {"balance_usd": balance + credit, "observed_at": time.time()}
 
     def instances(self) -> list[dict]:
         # The v0 list route returns HTTP 410. v1 is paginated (25 rows/page),

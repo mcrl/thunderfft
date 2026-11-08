@@ -107,7 +107,7 @@ class ProviderTests(unittest.TestCase):
                     provider.plan_cost(offer(**{field: bad}), **budget())
         with self.assertRaisesRegex(provider.ProviderError, "exceeds budget"):
             provider.plan_cost(offer(dph_total=10), **budget())
-        for key, value in [("budget_usd", 10.01), ("reserve_usd", .24),
+        for key, value in [("budget_usd", 50.01), ("reserve_usd", .24),
                            ("billing_delay_seconds", 359), ("disk_gb", 0),
                            ("upload_gb", -1)]:
             args = budget()
@@ -170,7 +170,10 @@ class ProviderTests(unittest.TestCase):
         self.responses = [{"balance": 4.5, "email": "private", "ssh_key": "private"}]
         summary = self.client.account_summary()
         self.assertEqual(set(summary), {"balance_usd", "observed_at"})
+        self.assertEqual(summary["balance_usd"], 4.5)
         self.assertEqual(self.requests[-1][1], "https://console.vast.ai/api/v0/users/current/")
+        self.responses = [{"balance": 0, "credit": 93.25}]
+        self.assertEqual(self.client.account_summary()["balance_usd"], 93.25)
         self.responses = [{"success": True}]
         self.client.attach_ssh_key(123, "ssh-ed25519 QUJD team-personal-comment")
         self.assertEqual(self.requests[-1][3], {"ssh_key": "ssh-ed25519 QUJD"})

@@ -2,7 +2,7 @@
   "api_key_file": "~/cloud_key/thunderfft/vast_api_key",
   "ssh_key_file": "~/cloud_key/thunderfft/id_ed25519",
   "ssh_public_key_file": "~/cloud_key/thunderfft/id_ed25519.pub",
-  "budget_usd": 10.0,
+  "budget_usd": 50.0,
   "disk_gb": 32,
   "startup_seconds": 900,
   "execution_seconds": 3600,
