@@ -53,7 +53,8 @@ Artifact: thunderfft.zip
 
   $ ./run.sh
 
-- Estimated total time: 35-55 minutes on the prepared evaluation account.
+- Rough total-time estimate: 20-35 minutes on the prepared evaluation account.
+  The new parallel workflow has not been measured end to end.
 - Generates every Table 2-7 output and Figure 2-5 PDF automatically.
   This shorter version is sufficient to check that all graphs are generated.
 - Uses the paper workload settings and fresh measurements:
@@ -61,8 +62,11 @@ Artifact: thunderfft.zip
   - Figures 4/5: skip the slow cuDNN filter tails; measure all other libraries.
   - Table 5: measure alpha=1 error for all four implementations, then
     recheck the known finite boundary and expand the window if needed.
-- Runs A100 evaluations, H100 Tables 3/4, B200 Tables 3/4, then assembly.
-  H100/B200 use the supplied cloud credentials and incur rental charges.
+- Checks all required GPU offers and their combined cost before starting.
+  After acquiring and preparing every cloud server, runs A100 evaluations,
+  H100 Tables 3/4 and B200 Tables 3/4 in parallel, then assembles the results.
+  Measurements start only when every GPU stage is ready.
+- H100/B200 use the supplied cloud credentials and incur rental charges.
   If the local A100 stays busy for 120 seconds, auto mode rents an A100.
 - ./run.sh all is equivalent. No manual merging or plotting is required.
 - The command prints the collection name (full-<run_id> by default).
@@ -85,7 +89,8 @@ Final outputs:
 
   $ ./run.sh --full
 
-- Estimated total time: 65-85 minutes on the prepared evaluation account.
+- Rough total-time estimate: 50-70 minutes on the prepared evaluation account.
+  The new parallel full workflow has not been measured end to end.
 - Generates the same set of table files and Figure 2-5 PDFs.
 - Runs the complete searches and measurement grids:
   - Table 3: search all cuFFTDx parameter candidates on A100, H100 and B200.
@@ -100,9 +105,12 @@ Final outputs:
 
 - Estimates assume dependencies and local builds are already available.
 - Cloud times include startup, builds, measurements, download and cleanup.
-- Initial setup/builds, GPU waiting and cloud retries can add time.
+- GPU stages overlap after all cloud servers are prepared; total elapsed time
+  depends on preparation and the slowest GPU stage, not the sum of all rows.
+- Initial setup/builds, waiting at the readiness gate and waiting for exclusive
+  GPU availability can add time.
 
-| Step, in execution order | GPU | Default | --full |
+| Step (A100 steps run in order; GPU stages run in parallel) | GPU | Default | --full |
 | --- | --- | --- | --- |
 | Validation | A100 | Under 1 minute | Under 1 minute |
 | Table 3 | A100 | 4-6 minutes | 8-12 minutes |
@@ -117,12 +125,12 @@ Final outputs:
 | Tables 3/4, complete cloud stage | H100 PCIe | 8-12 minutes | 10-15 minutes |
 | Tables 3/4, complete cloud stage | B200 | 8-12 minutes | 10-15 minutes |
 | Final tables and Figure 2-5 PDFs | CPU | Under 1 minute | Under 1 minute |
-| Total | | About 35-55 minutes | About 65-85 minutes |
+| Total elapsed time | | About 20-35 minutes (rough, unmeasured) | About 50-70 minutes (rough, unmeasured) |
 
 - Figure 2 reuses Table 3 measurements during final assembly.
 - Both totals, H100/B200 preset-stage times and the expanded full Table 5
-  time are estimates. The combined new default and expanded full workflows
-  have not been rerun end to end on all three GPUs.
+  time are estimates. The new parallel default and expanded full workflows
+  have not been measured end to end on all three GPUs.
 - Measured checks of the individual changes are listed in Section 5.
 
 
@@ -224,12 +232,20 @@ Table 5: boundary recheck or full exponent scan
   On the prepared reviewer account, API and SSH keys are already provided
   in ~/cloud_key/thunderfft/. For another machine, follow artifact/cloud/README.md.
   --cloud-config FILE selects another config; keep credentials outside the artifact.
-- The configured budget covers all rentals and retries in the workflow.
+- The configured budget covers all concurrent rentals, including startup,
+  readiness waiting, download, cleanup and billing-delay allowances.
 - A100 options: auto (default), local, vast; --local-wait-seconds changes
   the 120-second local wait. Other users' processes are never stopped.
-- Rentals run sequentially; each result is downloaded and its instance
-  destroyed before the next rental. Failed SSH startup is cleaned up
-  before another host is tried.
+- The whole workflow checks every required offer and the combined cost,
+  acquires all cloud servers, and prepares them in parallel. Only after every
+  server is ready and local A100 availability is rechecked do the
+  A100/H100/B200 measurements start together.
+- If any acquisition or preparation fails, all acquired instances are cleaned
+  up and no benchmark starts. The whole workflow does not retry startup
+  automatically. Standalone --backend vast commands use one GPU at a time
+  and retain up to two startup attempts by default.
+- After measurements, results are downloaded and each cloud instance is
+  destroyed; final assembly waits for all GPU stages to finish.
 - Default build/run limits: 1200 seconds per H100/B200 stage, 3600 seconds
   for a rented A100. --cloud-stage-seconds / --a100-stage-seconds change
   them within the config's execution_seconds upper bound.
@@ -339,6 +355,18 @@ Checks below were run on 2026-11-09 at the stated source revisions.
 - GPU busy/unavailable: another account is using the A100. Retry local
   experiments later. The whole workflow waits, then rents an A100 in auto
   mode; use --a100-backend local to require the shared machine instead.
+- Cloud GPU unavailable: we are sorry for the interruption. Provider GPU
+  inventory is outside our control. The runner prints a brief explanation
+  and retry/local-only commands. Check offers with ./run.sh --cloud-plan,
+  then rerun ./run.sh when available, or run only A100:
+
+  $ ./run.sh all --backend local --profile paper
+
+  Add --full if you want the complete searches and measurement grids.
+  This generates the local Figure 2-5 outputs; Tables 3/4 lack H100/B200
+  measurements. No rentals or benchmarks start if the initial availability
+  check fails. The workflow does not automatically wait for cloud inventory
+  or skip a missing GPU.
 - CMake older than 3.18: set THUNDERFFT_CMAKE=/path/to/cmake.
 - CUDA not found: set CUDACXX=/path/to/nvcc and CUDAToolkit_ROOT=/path/to/cuda.
 - Table 6 / Figure 4 need GitHub access for pinned tcFFT/FlashFFTConv sources.

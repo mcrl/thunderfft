@@ -63,13 +63,22 @@ tests.
 ```
 
 The launcher loads `~/.thunderfft_env` when present. With no evaluation names,
-or with `all`, it uses the paper profile and runs these stages in order:
+or with `all`, it uses the paper profile and coordinates all three GPUs:
 
-1. Run validation, Tables 2--7 and Figures 2--5 on an A100, using the local GPU
-   when available and a rented A100 80GB PCIe otherwise.
-2. Rent an H100 80GB PCIe for Tables 3 and 4, download its results and destroy it.
-3. Rent a B200 for Tables 3 and 4, download its results and destroy it.
-4. Assemble the collected measurements into the final tables and figures.
+1. Select the local A100 or a rented A100 80GB PCIe, check all required cloud
+   offers, and verify that their combined conservative cost fits the budget.
+2. Acquire every required cloud server and prepare them in parallel. Wait
+   until every cloud server is ready, then recheck local A100 availability.
+   No benchmark starts before this readiness gate passes.
+3. Run all A100 evaluations, H100 80GB PCIe Tables 3/4, and B200 Tables 3/4
+   simultaneously. Evaluations on each GPU run in dependency order.
+4. Download cloud results and destroy each instance. After all GPU stages
+   finish, assemble the collected measurements into the final tables and figures.
+
+If any cloud acquisition or preparation fails, the workflow cleans up every
+acquired instance and starts no benchmarks. This coordinated startup does
+not retry automatically; standalone `--backend vast` commands retain their
+single-GPU startup retries.
 
 Table 3 defaults to `--cufftdx-mode preset`: remeasure the saved best cuFFTDx
 parameters for each A100/H100/B200 configuration. `--cufftdx-mode all` repeats
@@ -106,7 +115,7 @@ Full cuDNN mode measures every requested filter and disables the optional
 Approximate paper-workflow times on the prepared evaluation account, with
 dependencies and local builds already available:
 
-| Step, in execution order | GPU | Default (`preset` + `fast` + `boundary`) | `--full` |
+| Step (ordered within A100; GPU stages run in parallel) | GPU | Default (`preset` + `fast` + `boundary`) | `--full` |
 | --- | --- | --- | --- |
 | Validation | A100 | Under 1 minute | Under 1 minute |
 | Table 3 | A100 | 4–6 minutes | 8–12 minutes |
@@ -121,16 +130,19 @@ dependencies and local builds already available:
 | Tables 3 and 4, complete cloud stage | H100 PCIe | 8–12 minutes | 10–15 minutes |
 | Tables 3 and 4, complete cloud stage | B200 | 8–12 minutes | 10–15 minutes |
 | Final table assembly and Figure 2–5 PDFs | CPU | Under 1 minute | Under 1 minute |
-| **Total** |  | **About 35–55 minutes (estimate)** | **About 65–85 minutes (estimate)** |
+| **Total elapsed time** |  | **About 20–35 minutes (rough, unmeasured estimate)** | **About 50–70 minutes (rough, unmeasured estimate)** |
 
 Cloud-stage estimates include startup, builds, measurements, result download
-and cleanup. Initial setup/local builds, GPU waiting and cloud retries can add
-time. Figure 2 reuses Table 3 measurements during final assembly.
+and cleanup. GPU stages overlap after all cloud servers are prepared, so total
+elapsed time depends on preparation and the slowest GPU stage, rather than
+the sum of all rows. Initial setup/local builds, the readiness gate and waiting
+for exclusive GPU availability can add time. Figure 2 reuses Table 3 measurements
+during final assembly.
 The expanded Table 5 full-mode time, H100/B200 preset-stage times and both
 workflow totals remain estimates. Table 5 full mode adds the cuFFTDx finite-range scan,
 which the older full run did not include. The complete new
-`preset` + `fast` + `boundary` workflow has not been rerun end to end on all
-three GPUs; neither has the expanded `--full` workflow.
+parallel `preset` + `fast` + `boundary` workflow has not been measured end to
+end on all three GPUs; neither has the expanded parallel `--full` workflow.
 A100 Table 3 preset measurement took 4 minutes 56 seconds, plus 2 minutes
 9 seconds for build/setup, compared with the previous full search's
 8 minutes 41 seconds of measurement. See the Table 3 README for details.
@@ -180,8 +192,9 @@ is under `result/collections/<name>/assembled/`. No manual import, status-file
 editing or separate assembly command is needed.
 
 Cloud stages require the evaluator account's Vast.ai credentials and incur
-charges. The combined planned cost of all rentals, including an A100 fallback
-and any retries, must fit the cloud configuration's budget. Preview the
+charges. The combined conservative cost of all concurrent rentals, including
+an A100 fallback, startup, readiness waiting, download, cleanup and billing-delay
+allowances, must fit the cloud configuration's budget. Preview the
 workflow or current offers with:
 
 ```bash
@@ -202,9 +215,12 @@ The full workflow allows up to 1,200 seconds of build/run time for each H100
 and B200 stage and 3,600 seconds for a rented A100 stage. Use
 `--cloud-stage-seconds` and `--a100-stage-seconds` to change these limits;
 the cloud configuration's `execution_seconds` remains an upper bound.
-Startup, download, cleanup and delayed-billing reserves are accounted for
-separately. If an affordable compatible offer is unavailable, the workflow
-reports the stage and does not rent an incompatible GPU.
+Startup, readiness waiting, download, cleanup and delayed-billing reserves are
+accounted for separately. If an affordable compatible offer is unavailable,
+the initial check stops the workflow before any benchmarks or rentals start.
+The runner prints a brief apology and commands to check offers again or run
+the local A100 evaluations. It does not automatically wait for cloud inventory
+or skip a GPU stage.
 
 Every runnable evaluation produces its output. Table 5 labels its default
 range coverage `boundary_recheck`; full mode uses `full_profile_scan`.
@@ -293,6 +309,11 @@ Named evaluation runs return 0 when every selected evaluation completed,
   `--a100-backend local` when only the local GPU should be used.
 - CMake older than 3.18 on `PATH`: set `THUNDERFFT_CMAKE=/path/to/cmake`.
 - Toolkit not found: set `CUDACXX=/path/to/nvcc` and `CUDAToolkit_ROOT=/path/to/cuda`.
+- No compatible cloud offer: we are sorry for the interruption; provider
+  inventory is outside our control. Wait and retry `./run.sh --cloud-plan`,
+  then `./run.sh`, or run `./run.sh all --backend local --profile paper`.
+  Add `--full` to retain exhaustive measurement settings. Local-only execution
+  generates Figure 2–5 outputs; Tables 3/4 lack H100/B200 measurements.
 
 ## Packaging
 

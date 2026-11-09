@@ -6,14 +6,27 @@ uploads the source, installs the dependencies the selected evaluations need
 run, downloads the results and destroys the instance.
 
 The default `./run.sh` (also `./run.sh all`) coordinates the whole paper
-workflow: all A100 evaluations, H100 and B200 Tables 3 and 4, and final
-assembly. It uses the local A100 when available and rents one if it remains
+workflow: all A100 evaluations and H100/B200 Tables 3 and 4 run in parallel,
+followed by final assembly. It uses the local A100 when available and rents one if it remains
 unavailable after `--local-wait-seconds 120`. Set `--a100-backend local` to
 require the local A100, or `--a100-backend vast` to rent one directly. It rents
-cloud GPUs sequentially and manages one total cloud budget across all stages
-and any retries. Use `./run.sh --cloud-plan`
-to inspect the required offers and their combined conservative cost before running;
-this does not rent an instance or run the local measurements.
+all required cloud GPUs before starting measurements and manages one total
+cloud budget across them. First it checks every required offer and their
+combined conservative cost. It then acquires all cloud servers, prepares them
+in parallel, and waits for every server to be ready. The local A100 is rechecked
+at this gate; only then do all GPU measurement stages start together.
+Each cloud result is downloaded and its instance destroyed after its stage;
+final assembly waits for all GPU stages to finish.
+
+Use `./run.sh --cloud-plan` to inspect the required offers and combined cost
+before running; this does not rent an instance or run local measurements.
+The plan includes startup, readiness waiting, execution, download, cleanup and
+billing-delay allowances across all concurrent rentals.
+
+If any acquisition or preparation fails, the whole workflow cleans up every
+acquired instance and no benchmarks start. There is no automatic startup retry
+for this parallel group. Individual `--backend vast` commands still use one
+GPU at a time, with up to two startup attempts by default.
 
 ## Credentials
 
@@ -74,7 +87,7 @@ selects another file. A file lists only the fields it changes
 | `environment` | `{}` | measurement overrides forwarded to the job |
 | `mathdx` | `true` | install MathDX for cuFFTDx paths |
 | `exclude_machine_ids` | `[]` | Vast host machine IDs to skip |
-| `max_startup_attempts` | 2 | maximum startup attempts within the same invocation budget |
+| `max_startup_attempts` | 2 | maximum startup attempts for standalone single-GPU runs, within the same invocation budget |
 | `ssh_auth_failure_seconds` | 90 | duration of repeated SSH authentication rejection before abandoning that host |
 
 For the complete workflow, H100 and B200 build/run stages default to 1,200
@@ -88,6 +101,8 @@ and confirms its absence before considering another host. The failed machine
 is excluded from the retry. All attempts retain their cost and cleanup
 evidence, and their conservative costs share the same budget. No retry occurs
 if deletion cannot be confirmed or the remaining budget is insufficient.
+This retry behavior applies to individual `--backend vast` invocations; the
+complete parallel workflow instead cleans up the whole group on startup failure.
 
 The worker sets `MATHDX_ROOT`, `CUDNN_HOME` and `THUNDERFFT_ARCHS` for the rented
 GPU and uses device 0. The `THUNDERFFT_*` measurement variables listed in
@@ -113,6 +128,22 @@ outside the source directory.
 
 ## Results
 
+The complete parallel workflow records its group plan, readiness gate and
+per-instance evidence under:
+
+```text
+result/cloud/group-<session>/
+  preflight.json plan.json source.json ready.json execution.json
+  thunderfft-ae-<instance-session>/
+    plan.json request.json source.json state.json status.json billing.json
+    download/result/<evaluation>/<run_id>/
+    download/result/cloud-worker/
+```
+
+`ready.json` is written only after every cloud environment is ready. The
+pipeline summary at `result/pipelines/<run_id>/pipeline.json` records the group
+audit directory. Standalone `--backend vast` invocations use:
+
 ```text
 result/cloud/thunderfft-ae-<session>/
   plan.json request.json source.json state.json status.json billing.json
@@ -125,3 +156,32 @@ If the coordinator is interrupted, destroy the instance of a saved session with:
 ```bash
 ./run.sh --backend vast --cloud-recover result/cloud/thunderfft-ae-<session>
 ```
+
+For a parallel group, use the individual session paths printed by the runner;
+recovery applies to one instance at a time:
+
+```bash
+./run.sh --backend vast --cloud-recover result/cloud/group-<session>/thunderfft-ae-<instance-session>
+```
+
+Repeat for each group member whose cleanup remains unconfirmed. Recovery also
+refreshes billing evidence; deletion alone does not establish settled charges.
+
+## Unavailable cloud GPUs
+
+We are sorry for the interruption when no compatible offer is available.
+Provider GPU inventory is outside our control. The initial check reports the
+unavailable GPU before any rental or benchmark starts and prints brief commands
+to retry or proceed locally. It does not automatically wait for inventory or
+skip the missing GPU.
+
+```bash
+./run.sh --cloud-plan                            # check offers and combined cost; no rental
+./run.sh                                        # retry the complete workflow when available
+./run.sh all --backend local --profile paper     # alternative: run only the local A100
+```
+
+Add `--full` if the original run used the exhaustive settings. Local-only
+execution generates Figure 2–5 outputs; Tables 3/4 lack H100/B200 measurements.
+For independent GPU parts and offline assembly, see
+[Collect per GPU and assemble](../README.md#collect-per-gpu-and-assemble).

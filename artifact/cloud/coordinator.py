@@ -157,21 +157,27 @@ class StartupUnavailable(TimeoutError):
     """A rental never reached authenticated SSH; safe to retry after cleanup."""
 
 
-def wait_ssh(client, state, config, folder, root, deadline):
+def wait_ssh(client, state, config, folder, root, deadline, cancel_event=None):
     first_auth_failure = None
     attempts = 0
     while time.time() < deadline:
+        if cancel_event is not None and cancel_event.is_set():
+            raise InterruptedError("Cloud group startup cancelled")
         for row in client.instances():
             if int(row["id"]) != state["instance_id"]:
                 continue
             host, port = row.get("ssh_host"), row.get("ssh_port")
             if host and port and row.get("actual_status") == "running":
                 ssh = SSH(host, int(port), "root", Path(config["ssh_key_file"]), folder / "known_hosts", repo_root=root)
+                if cancel_event is not None:
+                    ssh.cancel_event = cancel_event
                 try:
                     ssh.run(["true"], timeout=max(.1, min(deadline - time.time(), 12)))
                     write_json(folder / "endpoint.json", {"host": host, "port": port, "user": "root"})
                     return ssh
                 except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise InterruptedError("Cloud group startup cancelled") from None
                     attempts += 1
                     # Keep only a classification: stderr may contain host or
                     # provider text, so it is never copied into the audit.
@@ -186,7 +192,11 @@ def wait_ssh(client, state, config, folder, root, deadline):
                                "observed_at": time.time()})
                     if first_auth_failure is not None and time.time() - first_auth_failure >= config["ssh_auth_failure_seconds"]:
                         raise StartupUnavailable("SSH public-key authentication remained unavailable") from None
-        time.sleep(max(0, min(3, deadline - time.time())))
+        delay = max(0, min(3, deadline - time.time()))
+        if cancel_event is None:
+            time.sleep(delay)
+        elif cancel_event.wait(delay):
+            raise InterruptedError("Cloud group startup cancelled")
     raise StartupUnavailable("Instance startup/SSH deadline exceeded")
 
 
@@ -252,19 +262,27 @@ def fetch_results(ssh, remote, folder, config, absolute_deadline=None):
     return folder / "download/result"
 
 
-def execute_worker(ssh, remote, config):
+def execute_worker(ssh, remote, config, cancel_event=None):
+    if cancel_event is not None and cancel_event.is_set():
+        raise InterruptedError("Cloud group execution cancelled")
     command = shlex.join([remote + "/venv/bin/python", remote + "/source/artifact/cloud/worker.py",
                           remote + "/source", remote + "/request.json"])
     script = f"cd -- {shlex.quote(remote)}; nohup {command} >worker-console.log 2>&1 </dev/null & echo $! > worker.pid"
     ssh.run(["bash", "-c", script], timeout=20)
     deadline = time.time() + config["execution_seconds"]
     while time.time() < deadline:
+        if cancel_event is not None and cancel_event.is_set():
+            raise InterruptedError("Cloud group execution cancelled")
         reply = ssh.run(["bash", "-c", f"cat {shlex.quote(remote + '/worker.exit.json')} 2>/dev/null || true"],
                         timeout=remaining(deadline, 15))
         if reply.stdout.strip():
             value = json.loads(reply.stdout)
             return int(value["exit_code"])
-        time.sleep(min(3, remaining(deadline, 3)))
+        delay = min(3, remaining(deadline, 3))
+        if cancel_event is None:
+            time.sleep(delay)
+        elif cancel_event.wait(delay):
+            raise InterruptedError("Cloud group execution cancelled")
     raise TimeoutError("Remote worker reached its execution allowance")
 
 

@@ -268,6 +268,7 @@ class SSH:
         if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
             raise ValueError("invalid SSH port")
         self.host, self.port, self.user = host, port, user
+        self.cancel_event = None
         self.repo_root = Path(repo_root).resolve() if repo_root else None
         self.key_path = validate_private_key(key_path, self.repo_root)
         self.known_hosts_path = Path(known_hosts_path).absolute()
@@ -304,8 +305,47 @@ class SSH:
             check: bool = True) -> subprocess.CompletedProcess:
         if timeout <= 0:
             raise ValueError("SSH timeout must be positive")
-        return subprocess.run(self._command(argv), input=input, text=True, capture_output=True,
-                              timeout=timeout, check=check)
+        return self._run(self._command(argv), input=input, timeout=timeout, check=check)
+
+    def _check_cancelled(self):
+        event = getattr(self, "cancel_event", None)
+        if event is not None and event.is_set():
+            raise InterruptedError("SSH operation cancelled")
+
+    def _run(self, command, *, timeout, input=None, stdin=None, check=True):
+        """Keep ordinary calls unchanged; group calls can cancel a blocked SSH."""
+        if getattr(self, "cancel_event", None) is None:
+            return subprocess.run(command, input=input, stdin=stdin, text=True, capture_output=True,
+                                  timeout=timeout, check=check)
+        self._check_cancelled()
+        deadline = time.monotonic() + timeout
+        with subprocess.Popen(command, stdin=subprocess.PIPE if input is not None else stdin,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+            pending_input = input
+            last_timeout = None
+            try:
+                while True:
+                    self._check_cancelled()
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(command, timeout,
+                            output=last_timeout.output if last_timeout else None,
+                            stderr=last_timeout.stderr if last_timeout else None)
+                    try:
+                        stdout, stderr = process.communicate(input=pending_input, timeout=min(remaining, .1))
+                        break
+                    except subprocess.TimeoutExpired as error:
+                        last_timeout = error
+                        pending_input = None
+                result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+                if check:
+                    result.check_returncode()
+                return result
+            except BaseException:
+                if process.poll() is None:
+                    process.kill()
+                process.communicate()
+                raise
 
     def upload(self, local: Path, remote: str, *, timeout: float = 120) -> subprocess.CompletedProcess:
         local = Path(local)
@@ -318,8 +358,8 @@ class SSH:
                   "p=sys.argv[1]; fd,t=tempfile.mkstemp(prefix='.upload-',dir=os.path.dirname(p)); "
                   "f=os.fdopen(fd,'wb'); shutil.copyfileobj(sys.stdin.buffer,f); f.close(); os.replace(t,p)")
         with local.open("rb") as stream:
-            return subprocess.run(self._command(["python3", "-c", script, remote]), stdin=stream,
-                                  text=True, capture_output=True, timeout=timeout, check=True)
+            return self._run(self._command(["python3", "-c", script, remote]), stdin=stream,
+                             timeout=timeout, check=True)
 
     def download(self, remote: str, local: Path, *, timeout: float = 120,
                  max_bytes: int = 1024 * 1024 * 1024) -> subprocess.CompletedProcess:
@@ -327,6 +367,7 @@ class SSH:
         _remote_path(remote)
         if timeout <= 0 or max_bytes < 1:
             raise ValueError("download limits must be positive")
+        self._check_cancelled()
         local = Path(local).absolute()
         local.parent.mkdir(parents=True, exist_ok=True)
         command = self._command(["cat", "--", remote])
@@ -344,6 +385,7 @@ class SSH:
                     selector.register(process.stdout, selectors.EVENT_READ, "stdout")
                     selector.register(process.stderr, selectors.EVENT_READ, "stderr")
                     while selector.get_map():
+                        self._check_cancelled()
                         remaining = deadline - time.monotonic()
                         if remaining <= 0:
                             raise subprocess.TimeoutExpired(command, timeout)
@@ -361,7 +403,16 @@ class SSH:
                                 stderr.extend(chunk)
                                 if len(stderr) > 1024 * 1024:
                                     raise ValueError("download stderr exceeds byte limit")
-                code = process.wait(timeout=max(0.001, deadline - time.monotonic()))
+                while True:
+                    self._check_cancelled()
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(command, timeout)
+                    try:
+                        code = process.wait(timeout=min(.1, remaining))
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
                 error_text = stderr.decode("utf-8", errors="replace")
                 if code:
                     raise subprocess.CalledProcessError(code, command, stderr=error_text)

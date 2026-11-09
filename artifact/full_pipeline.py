@@ -7,16 +7,18 @@ import io
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import time
 import uuid
 
 from artifact.cloud import coordinator as cloud
+from artifact.cloud import group as cloud_group
 from artifact.cloud.config import (CUFFTDX_MODE_ENV, cufftdx_mode, CUDNN_MODE_ENV, cudnn_mode,
                                    TABLE5_RANGE_MODE_ENV, table5_range_mode,
                                    inherited_environment, load_config, preview_modes)
-from artifact.cloud.provider import VastClient
+from artifact.cloud.provider import VastClient, ProviderError
 from artifact.cloud.transport import validate_private_key
 
 
@@ -117,11 +119,28 @@ def stage_config(config, gpu, budget, args):
     return result
 
 
+class PreflightUnavailable(RuntimeError):
+    """All required GPUs were checked; at least one cannot currently be planned."""
+
+    def __init__(self, failures, proposals):
+        self.failures, self.proposals = failures, proposals
+        super().__init__('; '.join(f'{gpu}: {detail}' for gpu, detail in failures.items()))
+
+
 def preflight(config, a100_backend, args, root):
     client = VastClient(config["api_key_file"], repo_root=root)
     gpus = (["A100"] if a100_backend == "vast" else []) + ["H100", "B200"]
-    proposals = [cloud.plan(client, stage_config(config, gpu, config["budget_usd"], args), gpu)
-                 for gpu in gpus]
+    proposals, failures = [], {}
+    for gpu in gpus:
+        try:
+            proposal = cloud.plan(client, stage_config(config, gpu, config["budget_usd"], args), gpu)
+            proposals.append(proposal)
+            print(f'[{gpu}] suitable offer found; planned total ${proposal["cost"]["planned_total_usd"]:.4f}', flush=True)
+        except ProviderError as error:
+            failures[gpu] = str(error)
+            print(f'[{gpu}] preflight could not find a usable offer: {error}', flush=True)
+    if failures:
+        raise PreflightUnavailable(failures, proposals)
     total = sum(p["cost"]["planned_total_usd"] for p in proposals)
     balance = min(p["account_before"]["balance_usd"] for p in proposals)
     if total > min(config["budget_usd"], balance):
@@ -132,12 +151,55 @@ def preflight(config, a100_backend, args, root):
             "cufftdx_mode": cufftdx_mode(getattr(args, "cufftdx_mode", None), inherited_environment(config)),
             "cudnn_mode": cudnn_mode(getattr(args, "cudnn_mode", None), inherited_environment(config)),
             "table5_range_mode": table5_range_mode(getattr(args, "table5_range_mode", None), inherited_environment(config)),
-            "provider_enforced_cap": False}
+            "execution_strategy": "parallel", "provider_enforced_cap": False}
 
 
-def run_local(args, root, folder, stop_process, gpu_uuid=None):
+def unavailable_notice(args, error, *, new_collection=False):
+    common = ['--profile', args.profile]
+    for flag, value in (('--cufftdx-mode', args.cufftdx_mode), ('--cudnn-mode', args.cudnn_mode),
+                        ('--table5-range-mode', args.table5_range_mode)):
+        common += [flag, value]
+    for field in ('result_dir', 'build_dir'):
+        common += ['--' + field.replace('_', '-'), str(getattr(args, field))]
+    for field in ('device', 'jobs', 'timeout'):
+        common += ['--' + field.replace('_', '-'), str(getattr(args, field))]
+    cloud_options = []
+    if args.cloud_config:
+        cloud_options += ['--cloud-config', str(args.cloud_config)]
+    cloud_options += ['--a100-backend', args.a100_backend,
+                     '--local-wait-seconds', str(args.local_wait_seconds),
+                     '--cloud-stage-seconds', str(args.cloud_stage_seconds),
+                     '--a100-stage-seconds', str(args.a100_stage_seconds)]
+    if args.collection and not new_collection:
+        cloud_options += ['--collection', args.collection]
+    if args.cloud_allow_dirty:
+        cloud_options += ['--cloud-allow-dirty']
+    check = shlex.join(['./run.sh', *common, *cloud_options, '--cloud-plan'])
+    retry = shlex.join(['./run.sh', *common, *cloud_options])
+    local = shlex.join(['./run.sh', 'all', '--backend', 'local', *common])
+    print('\nWe are very sorry: the parallel evaluation cannot start because the required\n'
+          'cloud servers could not all be secured under the current availability and budget.\n'
+          'Provider inventory is outside our control; details of the failed checks follow:\n'
+          f'  {error}\n'
+          'No instance has been created and no measurement has started.\n'
+          'Please wait and check availability again, then rerun:\n'
+          f'  {check}\n  {retry}\n'
+          'Or run all A100 evaluations locally now, without cloud rentals:\n'
+          f'  {local}\n'
+          'The local run generates Figure 2-5 PDFs; H100/B200 table cells remain uncollected.\n'
+          'See artifact/README.md for collecting those GPUs separately later.\n'
+          'We apologize for the inconvenience and appreciate your patience.',
+          file=sys.stderr, flush=True)
+    if new_collection:
+        print('The retry command creates a new collection; the failed attempt remains available for inspection.',
+              file=sys.stderr, flush=True)
+
+
+def run_local(args, root, folder, stop_process, gpu_uuid=None, cancel_event=None):
     if not gpu_uuid:
         raise ValueError("Local execution requires the selected GPU UUID")
+    if cancel_event is not None and cancel_event.is_set():
+        return 130
     mode = cufftdx_mode(getattr(args, "cufftdx_mode", None))
     convolution_mode = cudnn_mode(getattr(args, "cudnn_mode", None))
     range_mode = table5_range_mode(getattr(args, "table5_range_mode", None))
@@ -156,10 +218,16 @@ def run_local(args, root, folder, stop_process, gpu_uuid=None):
                                        env=dict(os.environ, CUDA_VISIBLE_DEVICES=gpu_uuid,
                                                 **{CUFFTDX_MODE_ENV: mode, CUDNN_MODE_ENV: convolution_mode,
                                                    TABLE5_RANGE_MODE_ENV: range_mode}))
+            last_progress = 0.0
             while process.poll() is None:
-                print(f"[A100] local experiments running; log: {folder / 'a100.log'}", flush=True)
+                if cancel_event is not None and cancel_event.is_set():
+                    stop_process(process)
+                    return 130
+                if time.monotonic() - last_progress >= 30:
+                    print(f"[A100] local experiments running; log: {folder / 'a100.log'}", flush=True)
+                    last_progress = time.monotonic()
                 try:
-                    return process.wait(timeout=30)
+                    return process.wait(timeout=1 if cancel_event is not None else 30)
                 except subprocess.TimeoutExpired:
                     pass
             return process.returncode
@@ -239,8 +307,10 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
         print(f"Table 5 range mode: {modes['table5_range_mode']}")
         print("A100: " + ", ".join(e["id"] for e in entries if e["id"] != "figure2"))
         print("H100 PCIe 80GB: table3, table4; B200: table3, table4")
+        print("Check every required cloud offer and combined budget, acquire and prepare all servers,")
+        print("then run A100/H100/B200 concurrently. No measurements start before every server is ready.")
         print("Then assemble all tables and figures automatically; Figure 2 reuses A100 Table 3.")
-        print("Cloud budget is shared by all GPUs and startup retries. No GPU/API queries or files created.")
+        print("Cloud budget is shared by all GPUs; no automatic group startup retries. No GPU/API queries or files created.")
         return 0
     config = load_config(args.cloud_config)
     args.cufftdx_mode = cufftdx_mode(getattr(args, "cufftdx_mode", None), inherited_environment(config))
@@ -251,10 +321,14 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
     config["environment"][CUDNN_MODE_ENV] = args.cudnn_mode
     config["environment"][TABLE5_RANGE_MODE_ENV] = args.table5_range_mode
     a100_backend, observed = choose_a100(args, wait=not args.cloud_plan)
-    preview = preflight(config, a100_backend, args, root)
+    try:
+        preview = preflight(config, a100_backend, args, root)
+    except (PreflightUnavailable, ValueError) as error:
+        unavailable_notice(args, error)
+        return 1
     if args.cloud_plan:
         print(json.dumps(preview, indent=2))
-        print("Read-only full-pipeline plan. No instance created; offers are rechecked before each stage.")
+        print("Read-only full-pipeline plan. No instance created; all offers are rechecked before group acquisition.")
         return 0
     validate_private_key(Path(config["ssh_key_file"]), repo_root=root)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
@@ -276,7 +350,7 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
              "collection": args.collection, "assembled_dir": str(destination / "assembled"),
              "a100_backend": a100_backend, "a100_observation": observed, "preflight": preview,
              "budget_usd": config["budget_usd"], "reserved_total_usd": 0.0, "stages": [],
-             "billing_settlement_verified": False}
+             "billing_settlement_verified": False, "execution_strategy": "parallel"}
 
     def save():
         write_json(folder / "pipeline.json", state)
@@ -286,71 +360,56 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
             writer.writerows({k: s.get(k, "") for k in writer.fieldnames} for s in state["stages"])
 
     save()
+    def update_stage(gpu, update):
+        stage = next((item for item in state['stages'] if item['gpu'] == gpu), None)
+        if stage is None:
+            stage = {'gpu': gpu, 'backend': 'local' if gpu == 'A100' and a100_backend == 'local' else 'vast'}
+            state['stages'].append(stage)
+        stage.update(update)
+        state['stages'].sort(key=lambda item: ('A100', 'H100', 'B200').index(item['gpu']))
+        save()
+
+    def local_ready():
+        if a100_backend == 'local':
+            current = inventory(args.device)
+            if not current['available'] or current.get('uuid') != observed.get('uuid'):
+                raise RuntimeError('Local A100 became unavailable while cloud servers were preparing: '
+                                   + current.get('reason', 'GPU identity changed'))
+
+    # Fixed per-GPU allowances add up to the one workflow budget. A worker may
+    # never borrow another concurrent worker's allowance or reset spent costs.
+    slack = config['budget_usd'] - preview['planned_total_usd']
+    configs = {proposal['gpu']: stage_config(
+        config, proposal['gpu'], proposal['cost']['planned_total_usd'] + slack / len(preview['proposals']), args)
+        for proposal in preview['proposals']}
+    state['cloud_budget_allocations'] = {gpu: settings['budget_usd'] for gpu, settings in configs.items()}
+    save()
     code = 1
     try:
-        for gpu in ("A100", "H100", "B200"):
-            backend = a100_backend if gpu == "A100" else "vast"
-            stage = {"gpu": gpu, "backend": backend, "status": "running", "started_at": timestamp()}
-            state["stages"].append(stage)
-            save()
-            started = time.monotonic()
-            print(f"[{gpu}] starting {backend} stage; collection: {args.collection}", flush=True)
-            child, stage_code, interrupted = None, 1, False
-            try:
-                if backend == "local":
-                    stage_code = run_local(args, root, folder, stop_process, observed.get("uuid"))
-                else:
-                    available = config["budget_usd"] - state["reserved_total_usd"]
-                    configured = stage_config(config, gpu, available, args)
-                    # Reserve later GPUs before allowing retries in this stage.
-                    order = ("A100", "H100", "B200")
-                    later = order[order.index(gpu) + 1:]
-                    client = VastClient(config["api_key_file"], repo_root=root)
-                    future = sum(cloud.plan(client, stage_config(config, g, available, args), g)["cost"]["planned_total_usd"] for g in later)
-                    configured["budget_usd"] = available - future
-                    if configured["budget_usd"] <= config["reserve_usd"]:
-                        raise ValueError("Remaining aggregate budget cannot cover this stage and later GPUs")
-                    path = folder / (gpu.lower() + "-config.json")
-                    write_json(path, configured)
-                    path.chmod(0o600)
-                    child = copy.copy(args)
-                    child.backend, child.gpu, child.device = "vast", gpu, 0
-                    child.cloud_config, child.part = path, gpu.lower()
-                    child.cloud_execution_summary = None
-                    child.evaluations = ["all"] if gpu == "A100" else ["table3", "table4"]
-                    chosen = [e for e in select_tasks(child.evaluations, registry["evaluations"], parser) if e["id"] != "figure2"]
-                    stage_code = cloud.run(child, chosen, registry, root, collection, select_tasks, parser)
-                    evidence = getattr(child, "cloud_execution_summary", None)
-                    if not evidence or not evidence["cleanup_confirmed"]:
-                        stage_code = 1
-                        raise RuntimeError("Cloud accounting or cleanup is unconfirmed; no further stage can start")
-            except KeyboardInterrupt:
-                stage_code, interrupted = 130, True
-                raise
-            except Exception:
-                stage_code = 1
-                raise
-            finally:
-                if child is not None:
-                    evidence = getattr(child, "cloud_execution_summary", None)
-                    stage["cloud"] = evidence
-                    # Preserve child evidence even if interrupted after cleanup. If the
-                    # child cannot report costs, reserve its entire allowance and stop.
-                    charge = evidence["reserved_total_usd"] if evidence else configured["budget_usd"]
-                    state["reserved_total_usd"] += charge
-                    if not evidence:
-                        stage["accounting_unconfirmed"] = True
-                stage.update(exit_code=stage_code, elapsed_seconds=round(time.monotonic() - started, 3),
-                             status="interrupted" if interrupted else "completed" if stage_code == 0 else "failed")
-                save()
-            if state["reserved_total_usd"] > config["budget_usd"]:
-                raise RuntimeError("Observed conservative reservations exceeded the aggregate budget")
-            save()
-            if stage_code:
-                code = stage_code
-                break
-        else:
-            code = 0
+        outcome = cloud_group.run(
+            args, registry, root, collection, select_tasks, parser, configs, preview['proposals'],
+            local_run=(lambda cancel: run_local(args, root, folder, stop_process,
+                                               observed.get('uuid'), cancel_event=cancel))
+                      if a100_backend == 'local' else None,
+            stage_update=update_stage, ready_check=local_ready)
+        state['cloud_group'] = outcome
+        state['stages'] = sorted(outcome['stages'], key=lambda item: ('A100', 'H100', 'B200').index(item['gpu']))
+        state['reserved_total_usd'] = outcome['reserved_total_usd']
+        code = outcome['exit_code']
+        if outcome.get('error'):
+            state['error'] = outcome['error']
+            print(f"Complete pipeline failed: {outcome['error']}", file=sys.stderr, flush=True)
+        if not outcome['cleanup_confirmed']:
+            code = 1
+            state['error'] = 'Cloud cleanup is unconfirmed; inspect the group audit and active watchdogs.'
+        if state['reserved_total_usd'] > config['budget_usd']:
+            code = 1
+            state['error'] = 'Observed conservative reservations exceeded the aggregate budget.'
+        save()
+    except cloud_group.PreflightUnavailable as error:
+        code = 1
+        state['error'] = str(error)
+        unavailable_notice(args, error, new_collection=True)
     except KeyboardInterrupt:
         code = 130
     except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as error:

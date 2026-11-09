@@ -6,9 +6,11 @@ import io
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -17,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from artifact import collection, full_pipeline as pipeline, runner
 from artifact.cloud.config import CUFFTDX_MODE_ENV, CUDNN_MODE_ENV, TABLE5_RANGE_MODE_ENV, DEFAULTS
+from artifact.cloud.provider import ProviderError
 
 
 class PipelineTests(unittest.TestCase):
@@ -37,7 +40,7 @@ class PipelineTests(unittest.TestCase):
                         for name in ("table3", "table4", "figure2")]
         self.registry = {"evaluations": self.entries}
         self.parser = argparse.ArgumentParser()
-        self.calls, self.allocated, self.cloud_parts = [], [], []
+        self.calls, self.allocated = [], []
         self.stage_modes = []
         self.stage_cudnn_modes = []
         self.stage_range_modes = []
@@ -46,45 +49,83 @@ class PipelineTests(unittest.TestCase):
         self.plan_costs = {"A100": 1.0, "H100": 2.0, "B200": 3.0}
         self.cleanup = True
         self.a100_backend = "local"
-        self.raise_in_cloud = None
         self.no_evidence = False
+        self.group_ready = False
+        self.prepare_error = False
+        self.interrupted = False
+        self.plan_calls = []
+        self.plan_errors = {}
+        self.group_request = None
 
     @staticmethod
     def select(requested, entries, parser):
         return list(entries) if requested == ["all"] else [entry for entry in entries if entry["id"] in requested]
 
     def fake_plan(self, client, config, gpu):
+        self.plan_calls.append(gpu)
+        if gpu in self.plan_errors:
+            raise ProviderError(self.plan_errors[gpu])
         self.assertGreaterEqual(config["budget_usd"], self.plan_costs[gpu])
         return {"gpu": gpu, "cost": {"planned_total_usd": self.plan_costs[gpu]},
                 "account_before": {"balance_usd": 100}}
 
     def fake_local(self, *args, **kwargs):
+        self.assertTrue(self.group_ready, "A100 started before cloud resources were ready")
         self.calls.append("A100")
         self.stage_modes.append(("A100", args[0].cufftdx_mode))
         self.stage_cudnn_modes.append(("A100", args[0].cudnn_mode))
         self.stage_range_modes.append(("A100", args[0].table5_range_mode))
         return self.stage_codes.get("A100", 0)
 
-    def fake_cloud(self, args, entries, *unused):
-        self.calls.append(args.gpu)
-        configured = json.loads(args.cloud_config.read_text())
-        self.allocated.append((args.gpu, configured["budget_usd"]))
-        self.stage_modes.append((args.gpu, args.cufftdx_mode))
-        self.stage_cudnn_modes.append((args.gpu, args.cudnn_mode))
-        self.stage_range_modes.append((args.gpu, args.table5_range_mode))
-        self.assertEqual(configured["environment"][CUFFTDX_MODE_ENV], args.cufftdx_mode)
-        self.assertEqual(configured["environment"][CUDNN_MODE_ENV], args.cudnn_mode)
-        self.assertEqual(configured["environment"][TABLE5_RANGE_MODE_ENV], args.table5_range_mode)
-        self.cloud_parts.append((args.gpu, args.part, [entry["id"] for entry in entries]))
-        code = self.stage_codes.get(args.gpu, 0)
-        if not self.no_evidence:
-            args.cloud_execution_summary = {"cleanup_confirmed": self.cleanup,
-                "reserved_total_usd": self.stage_costs[args.gpu], "exit_code": code,
-                "attempts": [{"reserved_total_usd": .25},
-                             {"reserved_total_usd": self.stage_costs[args.gpu] - .25}]}
-        if self.raise_in_cloud:
-            raise self.raise_in_cloud
-        return code
+    def fake_group(self, args, registry, root, collection_module, select_tasks, parser,
+                   configs, proposals, *, local_run=None, stage_update=None, ready_check=None):
+        self.group_request = {"args": args, "configs": copy.deepcopy(configs),
+                              "proposals": copy.deepcopy(proposals)}
+        stages, reserved = [], 0.0
+        self.allocated = [(gpu, config["budget_usd"]) for gpu, config in configs.items()]
+        self.assertLessEqual(sum(value for _, value in self.allocated), self.config["budget_usd"] + 1e-9)
+        for gpu, configured in configs.items():
+            self.assertGreaterEqual(configured["budget_usd"], self.plan_costs[gpu])
+            self.assertEqual(configured["environment"][CUFFTDX_MODE_ENV], args.cufftdx_mode)
+            self.assertEqual(configured["environment"][CUDNN_MODE_ENV], args.cudnn_mode)
+            self.assertEqual(configured["environment"][TABLE5_RANGE_MODE_ENV], args.table5_range_mode)
+        failure = self.prepare_error
+        if not failure and ready_check is not None:
+            try:
+                ready_check()
+            except (ValueError, RuntimeError):
+                failure = True
+        if not failure:
+            self.group_ready = True
+        if local_run is not None:
+            code = 1 if failure else local_run(threading.Event())
+            stages.append({"gpu": "A100", "backend": "local", "exit_code": code,
+                           "status": "completed" if code == 0 else "failed", "elapsed_seconds": .001})
+        for gpu, configured in configs.items():
+            code = 130 if self.interrupted else 1 if failure else self.stage_codes.get(gpu, 0)
+            if not failure:
+                self.calls.append(gpu)
+                self.stage_modes.append((gpu, args.cufftdx_mode))
+                self.stage_cudnn_modes.append((gpu, args.cudnn_mode))
+                self.stage_range_modes.append((gpu, args.table5_range_mode))
+            charge = configured["budget_usd"] if self.no_evidence else self.stage_costs[gpu]
+            reserved += charge
+            cloud = None if self.no_evidence else {"cleanup_confirmed": self.cleanup,
+                "reserved_total_usd": charge, "exit_code": code,
+                "attempts": [{"reserved_total_usd": charge}]}
+            stage = {"gpu": gpu, "backend": "vast", "exit_code": code, "elapsed_seconds": .001,
+                     "status": "interrupted" if code == 130 else "completed" if code == 0 else "failed",
+                     "cloud": cloud}
+            if self.no_evidence:
+                stage["accounting_unconfirmed"] = True
+            stages.append(stage)
+        if stage_update:
+            for stage in stages:
+                stage_update(stage["gpu"], dict(stage))
+        code = 130 if self.interrupted else int(any(stage["exit_code"] for stage in stages))
+        return {"exit_code": code, "stages": stages, "reserved_total_usd": reserved,
+                "cleanup_confirmed": self.cleanup and not self.no_evidence,
+                "billing_settlement_verified": False, "audit_folder": str(self.directory / "group-audit")}
 
     def fake_assembly(self, destination, entries, profile):
         self.calls.append("assemble")
@@ -103,10 +144,12 @@ class PipelineTests(unittest.TestCase):
         stack.enter_context(mock.patch.object(pipeline, "choose_a100", side_effect=lambda *a, **k:
             (self.a100_backend, {"available": True, "uuid": "GPU-a100"})))
         stack.enter_context(mock.patch.object(pipeline, "VastClient", return_value=object()))
+        stack.enter_context(mock.patch.object(pipeline, "inventory", return_value={"available": True, "uuid": "GPU-a100"}))
         stack.enter_context(mock.patch.object(pipeline.cloud, "plan", side_effect=self.fake_plan))
         stack.enter_context(mock.patch.object(pipeline, "validate_private_key"))
         stack.enter_context(mock.patch.object(pipeline, "run_local", side_effect=self.fake_local))
-        stack.enter_context(mock.patch.object(pipeline.cloud, "run", side_effect=self.fake_cloud))
+        stack.enter_context(mock.patch.object(pipeline.cloud, "run", side_effect=AssertionError("serial cloud path used")))
+        stack.enter_context(mock.patch.object(pipeline.cloud_group, "run", side_effect=self.fake_group))
         stack.enter_context(mock.patch.object(collection, "assemble_collection", side_effect=self.fake_assembly))
         stack.enter_context(redirect_stdout(io.StringIO()))
         stack.enter_context(redirect_stderr(io.StringIO()))
@@ -120,25 +163,28 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(paths), 1)
         return json.loads(paths[0].read_text())
 
-    def test_complete_pipeline_reserves_later_gpu_then_debits_all_prior_attempts(self):
+    def test_complete_pipeline_allocates_one_budget_and_assembles_after_group_execution(self):
         with self.patches():
             self.assertEqual(self.execute(), 0)
         self.assertEqual(self.calls, ["A100", "H100", "B200", "assemble"])
-        self.assertEqual(self.allocated, [("H100", 7.0), ("B200", 8.75)])
-        self.assertEqual(self.cloud_parts, [("H100", "h100", ["table3", "table4"]),
-                                           ("B200", "b200", ["table3", "table4"])])
+        self.assertEqual(self.allocated, [("H100", 4.5), ("B200", 5.5)])
+        self.assertEqual(self.plan_calls, ["H100", "B200"])
+        self.assertEqual(set(self.group_request["configs"]), {"H100", "B200"})
         summary = self.summary()
         self.assertEqual(summary["reserved_total_usd"], 3.25)
         self.assertEqual(summary["status"], "completed")
         self.assertEqual(summary["profile"], "paper")
         self.assertTrue(summary["assembly"]["outputs_complete"])
 
-    def test_cloud_a100_includes_all_evaluations_and_preserves_later_gpu_budgets(self):
+    def test_cloud_a100_joins_group_with_one_shared_fixed_budget(self):
         self.a100_backend = "vast"
         with self.patches():
             self.assertEqual(self.execute(), 0)
-        self.assertEqual(self.allocated, [("A100", 5.0), ("H100", 6.25), ("B200", 8.0)])
-        self.assertEqual(self.cloud_parts[0], ("A100", "a100", ["table3", "table4"]))
+        self.assertEqual([gpu for gpu, _ in self.allocated], ["A100", "H100", "B200"])
+        self.assertAlmostEqual(sum(value for _, value in self.allocated), 10.0)
+        for gpu, value in self.allocated:
+            self.assertAlmostEqual(value, self.plan_costs[gpu] + 4.0 / 3.0)
+        self.assertEqual(self.plan_calls, ["A100", "H100", "B200"])
         self.assertEqual(self.summary()["reserved_total_usd"], 4.0)
 
     def test_configured_all_mode_reaches_local_and_cloud_stages_and_metadata(self):
@@ -191,38 +237,183 @@ class PipelineTests(unittest.TestCase):
 
     def test_total_preflight_budget_failure_creates_no_results_or_stages(self):
         self.config["budget_usd"] = 4
-        with self.patches(), self.assertRaisesRegex(ValueError, "shared"):
-            self.execute()
+        with self.patches():
+            self.assertEqual(self.execute(), 1)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.plan_calls, ["H100", "B200"])
+        self.assertIsNone(self.group_request)
+        self.assertFalse(self.args.result_dir.exists())
+
+    def test_missing_offers_scan_all_required_gpus_before_stopping_without_work(self):
+        for backend, failures in (("local", {"H100": "H100 unavailable"}),
+                                  ("local", {"B200": "B200 unavailable"}),
+                                  ("local", {"H100": "H100 unavailable", "B200": "B200 unavailable"}),
+                                  ("vast", {"A100": "A100 unavailable", "H100": "H100 unavailable"})):
+            with self.subTest(backend=backend, failures=failures):
+                self.a100_backend, self.plan_errors = backend, failures
+                self.plan_calls.clear()
+                output = io.StringIO()
+                with self.patches(), redirect_stderr(output):
+                    self.assertEqual(self.execute(), 1)
+                self.assertEqual(self.plan_calls, (["A100"] if backend == "vast" else []) + ["H100", "B200"])
+                self.assertIsNone(self.group_request)
+                self.assertEqual(self.calls, [])
+                self.assertFalse(self.args.result_dir.exists())
+                for detail in failures.values():
+                    self.assertIn(detail, output.getvalue())
+                self.assertIn("--cloud-plan", output.getvalue())
+                self.assertIn("--backend local", output.getvalue())
+
+    def test_preflight_error_keeps_all_failures_and_successful_proposals(self):
+        self.plan_errors = {"H100": "fixture H100 unavailable"}
+        with self.patches(), self.assertRaises(pipeline.PreflightUnavailable) as raised:
+            pipeline.preflight(self.config, "vast", self.args, ROOT)
+        self.assertEqual(self.plan_calls, ["A100", "H100", "B200"])
+        self.assertEqual(raised.exception.failures, self.plan_errors)
+        self.assertEqual([proposal["gpu"] for proposal in raised.exception.proposals], ["A100", "B200"])
+
+    def test_unavailable_commands_preserve_modes_paths_device_and_cloud_settings(self):
+        self.args.profile = "smoke"
+        self.args.cufftdx_mode, self.args.cudnn_mode, self.args.table5_range_mode = "all", "full", "full"
+        self.args.result_dir = self.directory / "results with ' quotes"
+        self.args.build_dir = self.directory / "build with spaces"
+        self.args.cloud_config = self.directory / "cloud $(literal) settings.json"
+        self.args.device, self.args.jobs, self.args.timeout = 1, 8, 91
+        self.args.a100_backend = "local"
+        self.args.local_wait_seconds = 45
+        self.args.cloud_stage_seconds, self.args.a100_stage_seconds = 700, 1500
+        self.args.collection = "custom-evaluation"
+        self.args.cloud_allow_dirty = True
+        self.plan_errors = {"H100": "fixture no H100"}
+        output = io.StringIO()
+        with self.patches(), redirect_stderr(output):
+            self.assertEqual(self.execute(), 1)
+        commands = [shlex.split(line.strip()) for line in output.getvalue().splitlines()
+                    if line.strip().startswith("./run.sh")]
+        self.assertEqual(len(commands), 3)
+        check, retry, local = commands
+        self.assertIn("--cloud-plan", check)
+        self.assertNotIn("--cloud-plan", retry)
+        self.assertEqual(local[1:4], ["all", "--backend", "local"])
+        expected_common = {"--profile": "smoke", "--cufftdx-mode": "all", "--cudnn-mode": "full",
+            "--table5-range-mode": "full", "--result-dir": str(self.args.result_dir),
+            "--build-dir": str(self.args.build_dir), "--device": "1", "--jobs": "8", "--timeout": "91"}
+        for command in commands:
+            for flag, value in expected_common.items():
+                self.assertEqual(command[command.index(flag) + 1], value)
+        expected_cloud = {"--cloud-config": str(self.args.cloud_config), "--a100-backend": "local",
+            "--local-wait-seconds": "45", "--cloud-stage-seconds": "700",
+            "--a100-stage-seconds": "1500", "--collection": "custom-evaluation"}
+        for command in (check, retry):
+            for flag, value in expected_cloud.items():
+                self.assertEqual(command[command.index(flag) + 1], value)
+            self.assertIn("--cloud-allow-dirty", command)
+        self.assertNotIn("--cloud-config", local)
+        self.assertNotIn("--cloud-allow-dirty", local)
         self.assertEqual(self.calls, [])
         self.assertFalse(self.args.result_dir.exists())
 
-    def test_failed_stage_assembles_partial_evidence_without_next_rental(self):
+    def test_cloud_plan_checks_all_offers_but_never_acquires_or_starts_work(self):
+        self.args.cloud_plan = True
+        with self.patches():
+            self.assertEqual(self.execute(), 0)
+        self.assertEqual(self.plan_calls, ["H100", "B200"])
+        self.assertIsNone(self.group_request)
+        self.assertEqual(self.calls, [])
+        self.assertFalse(self.args.result_dir.exists())
+
+    def test_fresh_offer_disappearance_preserves_audit_and_suggests_new_collection(self):
+        self.args.collection = "initialized-before-fresh-offer-check"
+        output = io.StringIO()
+        with self.patches(), mock.patch.object(pipeline.cloud_group, "run", side_effect=
+                pipeline.cloud_group.PreflightUnavailable("H100", "H100 became unavailable")), redirect_stderr(output):
+            self.assertEqual(self.execute(), 1)
+        self.assertEqual(self.calls, ["assemble"])
+        summary = self.summary()
+        self.assertEqual(summary["status"], "failed")
+        self.assertEqual(summary["reserved_total_usd"], 0.0)
+        self.assertIn("assembly", summary)
+        self.assertIn("H100 became unavailable", output.getvalue())
+        self.assertIn("No instance has been created", output.getvalue())
+        self.assertIn("new collection", output.getvalue().lower())
+        commands = [shlex.split(line.strip()) for line in output.getvalue().splitlines()
+                    if line.strip().startswith("./run.sh")]
+        self.assertEqual(len(commands), 3)
+        self.assertIn("--cloud-plan", commands[0])
+        self.assertEqual(commands[2][1:4], ["all", "--backend", "local"])
+        self.assertTrue(all("--collection" not in command for command in commands))
+        retained = collection.read_manifest(collection.location(self.args.result_dir, self.args.collection))
+        self.assertEqual(retained["parts"], [])
+
+    def test_group_prepare_failure_starts_no_local_or_remote_measurements(self):
+        self.prepare_error = True
+        with self.patches():
+            self.assertEqual(self.execute(), 1)
+        self.assertEqual(self.calls, ["assemble"])
+        self.assertFalse(self.group_ready)
+        summary = self.summary()
+        self.assertEqual(summary["status"], "failed")
+        self.assertEqual(summary["reserved_total_usd"], 3.25)
+        self.assertIn("assembly", summary)
+
+    def test_local_busy_or_identity_change_after_preparation_aborts_ready_gate(self):
+        for current in ({"available": False, "uuid": "GPU-a100", "reason": "became busy"},
+                        {"available": True, "uuid": "GPU-different"}):
+            with self.subTest(current=current):
+                self.calls.clear()
+                self.group_ready = False
+                # Use separate empty collections for each attempted execution.
+                self.args.collection = "race-" + str(len(list(self.args.result_dir.glob("pipelines/*"))))
+                with self.patches(), mock.patch.object(pipeline, "inventory", return_value=current):
+                    self.assertEqual(self.execute(), 1)
+                self.assertEqual(self.calls, ["assemble"])
+                self.assertFalse(self.group_ready)
+
+    def test_custom_paths_config_budget_and_stage_limits_reach_one_group(self):
+        self.args.cloud_config = self.directory / "private settings.json"
+        self.args.result_dir = self.directory / "custom results"
+        self.args.build_dir = self.directory / "custom build"
+        self.args.profile = "smoke"
+        self.args.jobs, self.args.timeout = 8, 91
+        self.args.cloud_stage_seconds = 700
+        self.config["budget_usd"] = 6.25
+        original = copy.deepcopy(self.config)
+        with self.patches():
+            self.assertEqual(self.execute(), 0)
+        passed = self.group_request["args"]
+        self.assertEqual(passed.cloud_config, self.directory / "private settings.json")
+        self.assertEqual((passed.profile, passed.jobs, passed.timeout), ("smoke", 8, 91))
+        self.assertEqual(passed.result_dir, self.directory / "custom results")
+        self.assertEqual(passed.build_dir, self.directory / "custom build")
+        self.assertEqual(self.allocated, [("H100", 2.625), ("B200", 3.625)])
+        self.assertTrue(all(config["execution_seconds"] == 700 for config in self.group_request["configs"].values()))
+        self.assertEqual(self.config, original)
+
+    def test_failed_parallel_stage_preserves_other_completed_gpu_results_and_costs(self):
         self.stage_codes["H100"] = 1
         with self.patches():
             self.assertEqual(self.execute(), 1)
-        self.assertEqual(self.calls, ["A100", "H100", "assemble"])
+        self.assertEqual(self.calls, ["A100", "H100", "B200", "assemble"])
         summary = self.summary()
         self.assertEqual(summary["status"], "failed")
-        self.assertEqual(summary["stages"][-1]["status"], "failed")
-        self.assertEqual(summary["reserved_total_usd"], 1.25)
+        self.assertEqual(next(stage for stage in summary["stages"] if stage["gpu"] == "H100")["status"], "failed")
+        self.assertEqual(summary["reserved_total_usd"], 3.25)
 
-    def test_unknown_cleanup_blocks_next_gpu_and_preserves_terminal_audit(self):
+    def test_unknown_group_cleanup_fails_pipeline_and_preserves_terminal_audit(self):
         self.cleanup = False
         with self.patches():
             self.assertEqual(self.execute(), 1)
-        self.assertNotIn("B200", self.calls)
         summary = self.summary()
         self.assertFalse(summary["stages"][-1]["cloud"]["cleanup_confirmed"])
         self.assertNotEqual(summary["stages"][-1]["status"], "running")
         self.assertIn("assemble", self.calls)
 
-    def test_missing_cloud_cost_evidence_blocks_next_gpu(self):
+    def test_missing_cloud_evidence_reserves_all_group_allowances_and_fails(self):
         self.no_evidence = True
         with self.patches():
             self.assertEqual(self.execute(), 1)
-        self.assertNotIn("B200", self.calls)
         self.assertEqual(self.summary()["status"], "failed")
-        self.assertEqual(self.summary()["reserved_total_usd"], 7.0)
+        self.assertEqual(self.summary()["reserved_total_usd"], 10.0)
         self.assertTrue(self.summary()["stages"][-1]["accounting_unconfirmed"])
 
     def test_assembly_error_keeps_completed_gpu_costs_and_failed_summary(self):
@@ -236,15 +427,14 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.calls, ["A100", "H100", "B200"])
 
     def test_interrupt_preserves_available_cleanup_cost_and_assembles_prior_parts(self):
-        self.raise_in_cloud = KeyboardInterrupt()
+        self.interrupted = True
         with self.patches():
             self.assertEqual(self.execute(), 130)
         summary = self.summary()
         self.assertEqual(summary["status"], "interrupted")
-        self.assertEqual(summary["reserved_total_usd"], 1.25)
-        self.assertEqual(summary["stages"][-1]["cloud"]["reserved_total_usd"], 1.25)
+        self.assertEqual(summary["reserved_total_usd"], 3.25)
+        self.assertEqual(summary["stages"][-1]["cloud"]["reserved_total_usd"], 2.0)
         self.assertNotEqual(summary["stages"][-1]["status"], "running")
-        self.assertNotIn("B200", self.calls)
         self.assertIn("assemble", self.calls)
 
     def test_dry_run_never_queries_gpu_credentials_or_provider(self):
@@ -371,6 +561,41 @@ class LocalInventoryTests(unittest.TestCase):
             with self.assertRaises((ValueError, RuntimeError)):
                 pipeline.run_local(SimpleNamespace(), ROOT, Path(temporary), mock.Mock())
             launch.assert_not_called()
+
+    def test_cancelled_local_stage_does_not_launch_new_work(self):
+        cancel = threading.Event()
+        cancel.set()
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            args = SimpleNamespace(profile="paper", collection="test", result_dir=folder / "result",
+                build_dir=folder / "build", jobs=2, timeout=0, cufftdx_mode="preset", cudnn_mode="fast",
+                table5_range_mode="boundary")
+            with mock.patch.object(pipeline.subprocess, "Popen") as launch:
+                self.assertEqual(pipeline.run_local(args, ROOT, folder, mock.Mock(),
+                    gpu_uuid="GPU-a100", cancel_event=cancel), 130)
+            launch.assert_not_called()
+
+    def test_running_local_stage_stops_its_process_group_on_cancellation(self):
+        cancel = threading.Event()
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            args = SimpleNamespace(profile="paper", collection="test", result_dir=folder / "result",
+                build_dir=folder / "build", jobs=2, timeout=0, cufftdx_mode="preset", cudnn_mode="fast",
+                table5_range_mode="boundary")
+            process = mock.Mock()
+            process.poll.return_value = None
+
+            def waiting(*, timeout):
+                self.assertLessEqual(timeout, 1)
+                cancel.set()
+                raise subprocess.TimeoutExpired("local-child", timeout)
+
+            process.wait.side_effect = waiting
+            stop = mock.Mock()
+            with mock.patch.object(pipeline.subprocess, "Popen", return_value=process), redirect_stdout(io.StringIO()):
+                self.assertEqual(pipeline.run_local(args, ROOT, folder, stop,
+                    gpu_uuid="GPU-a100", cancel_event=cancel), 130)
+            stop.assert_called_once_with(process)
 
 
 class DefaultRoutingTests(unittest.TestCase):

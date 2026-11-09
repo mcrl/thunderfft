@@ -12,6 +12,8 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -201,6 +203,90 @@ class SSHTests(unittest.TestCase):
             self.ssh.run(["true"], timeout=4)
         self.assertEqual(run.call_args.kwargs["timeout"], 4)
         self.assertNotIn("shell", run.call_args.kwargs)
+
+    def test_cancellable_run_preserves_text_input_output_and_returncode(self):
+        self.ssh.cancel_event = threading.Event()
+        command = [sys.executable, "-c", "import sys,time;time.sleep(.15);sys.stdout.write(sys.stdin.read());sys.stderr.write('error');sys.exit(3)"]
+        with patch.object(self.ssh, "_command", return_value=command):
+            result = self.ssh.run(["fixture"], input="input\n" * 50000, timeout=3, check=False)
+            self.assertEqual(result.returncode, 3)
+            self.assertEqual(result.stdout, "input\n" * 50000)
+            self.assertEqual(result.stderr, "error")
+            with self.assertRaises(subprocess.CalledProcessError) as failed:
+                self.ssh.run(["fixture"], input="small", timeout=3)
+            self.assertEqual(failed.exception.output, "small")
+            self.assertEqual(failed.exception.stderr, "error")
+
+    def test_cancel_before_launch_does_not_create_process(self):
+        self.ssh.cancel_event = threading.Event()
+        self.ssh.cancel_event.set()
+        with patch.object(transport.subprocess, "Popen", side_effect=AssertionError("cancelled command started")), \
+                self.assertRaises(InterruptedError):
+            self.ssh.run(["true"], timeout=5)
+
+    def test_cancellation_interrupts_run_and_upload_and_reaps_process(self):
+        local = self.root / "payload"
+        local.write_bytes(b"payload")
+        original = transport.subprocess.Popen
+        for operation in (lambda: self.ssh.run(["fixture"], timeout=30),
+                          lambda: self.ssh.upload(local, "/remote/payload", timeout=30)):
+            with self.subTest(operation=operation):
+                self.ssh.cancel_event = threading.Event()
+                processes = []
+
+                def start(*args, **kwargs):
+                    process = original(*args, **kwargs)
+                    processes.append(process)
+                    return process
+
+                timer = threading.Timer(.15, self.ssh.cancel_event.set)
+                started = time.monotonic()
+                timer.start()
+                try:
+                    command = [sys.executable, "-c", "import time;time.sleep(30)"]
+                    with patch.object(self.ssh, "_command", return_value=command), \
+                            patch.object(transport.subprocess, "Popen", side_effect=start), \
+                            self.assertRaises(InterruptedError):
+                        operation()
+                finally:
+                    timer.cancel()
+                    timer.join()
+                self.assertLess(time.monotonic() - started, 3)
+                self.assertEqual(len(processes), 1)
+                self.assertIsNotNone(processes[0].poll())
+
+    def test_cancellable_command_timeout_still_kills_and_reaps_process(self):
+        self.ssh.cancel_event = threading.Event()
+        original = transport.subprocess.Popen
+        processes = []
+
+        def start(*args, **kwargs):
+            process = original(*args, **kwargs)
+            processes.append(process)
+            return process
+
+        with patch.object(self.ssh, "_command", return_value=[sys.executable, "-c", "import time;time.sleep(30)"]), \
+                patch.object(transport.subprocess, "Popen", side_effect=start), \
+                self.assertRaises(subprocess.TimeoutExpired):
+            self.ssh.run(["fixture"], timeout=.05)
+        self.assertEqual(len(processes), 1)
+        self.assertIsNotNone(processes[0].poll())
+
+    def test_download_cancellation_preserves_existing_file_and_removes_temporary(self):
+        target = self.root / "download.tar"
+        target.write_bytes(b"previous complete file")
+        self.ssh.cancel_event = threading.Event()
+        timer = threading.Timer(.15, self.ssh.cancel_event.set)
+        timer.start()
+        try:
+            command = [sys.executable, "-c", "import os,time;os.close(1);os.close(2);time.sleep(30)"]
+            with patch.object(self.ssh, "_command", return_value=command), self.assertRaises(InterruptedError):
+                self.ssh.download("/remote/file", target, timeout=30)
+        finally:
+            timer.cancel()
+            timer.join()
+        self.assertEqual(target.read_bytes(), b"previous complete file")
+        self.assertFalse(list(self.root.glob(".download-*")))
 
     def test_private_key_is_not_uploadable(self):
         with self.assertRaisesRegex(ValueError, "noncredential"):
