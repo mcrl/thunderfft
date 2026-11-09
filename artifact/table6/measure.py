@@ -245,13 +245,14 @@ def main():
     rows, identity = [], None
     TABLE3.atomic_json(args.output / "metadata.json", metadata)
     try:
-        for label, command in jobs:
+        for completed, (label, command) in enumerate(jobs):
             csv_path, log_path = raw / f"{label}.csv", raw / f"{label}.log"
             record = {"argv": command, "library": label, "revision": revisions[label],
                       "stdout": csv_path.relative_to(args.output).as_posix(),
                       "stderr": log_path.relative_to(args.output).as_posix(), "started_at": TABLE3.now()}
             metadata["commands"].append(record)
             print(f"Table 6 [{label}] batch={settings['batch']} R={settings['repeats']}", flush=True)
+            TABLE3.report_progress(completed, len(jobs), unit="configs", detail=label)
             try:
                 process = subprocess.run(command, cwd=ROOT, capture_output=True, text=True,
                                          timeout=settings["timeout_seconds_per_library"], check=False)
@@ -282,6 +283,7 @@ def main():
             rows += parse(process.stdout, **options)
             TABLE3.write_csv(args.output / "data.csv", rows, FIELDS)
             TABLE3.atomic_json(args.output / "metadata.json", metadata)
+            TABLE3.report_progress(completed + 1, len(jobs), unit="configs", detail=label)
         table = summarize(rows)
         TABLE3.write_csv(args.output / "table.csv", table, TABLE_FIELDS)
         present = {(row["library"], row["variant"]) for row in table}

@@ -289,13 +289,48 @@ from the same source. Use separate collections for smoke and paper runs.
 Results from another account or machine are added with
 `--import-result EVALUATION=DIR` (the complete result directory) and `--part`.
 
+## Progress and logs
+
+On a terminal, `./run.sh` maintains one updating row for each of A100, H100
+and B200. Named evaluations and local-only runs show one GPU row. For example:
+
+```text
+A100 | 1/10 steps | Table3 36/56 configs
+H100 | 0/2 steps  | Table3 44/56 configs
+B200 | 0/2 steps  | Table3 40/56 configs
+```
+
+The first fraction counts completed evaluations; the second counts work in
+the current evaluation. These are work counts, not a remaining-time estimate.
+Native filter sweeps keep their existing batching and advance after results
+are validated. Table 5 counts phase/size groups; expanding a boundary window
+does not count the same group twice.
+
+`--progress auto` is the default: terminals update in place, while redirected
+output prints only stage changes. Use `--progress plain` to force those plain
+messages, or `--progress off` to hide the progress display. No additional
+`tqdm` dependency is required. Standalone `--backend vast` commands retain
+their existing text logs.
+
+Detailed output remains in each evaluation's `run.log`, the complete
+workflow's `a100.log`, and the downloaded `cloud-worker/jobs.log`.
+Controller messages are retained in `result/pipelines/<run_id>/pipeline.log`
+for the complete workflow and `result/runs/<run_id>/runner.log` for standalone
+local runs. Measurement adapters publish `progress.json` snapshots as counted
+work runs; each runner also saves its current progress. The complete workflow
+additionally reads `a100-progress.json` in its pipeline
+directory. Progress snapshots are replaced in place, not appended.
+
 ## Results
 
 ```text
 result/<evaluation>/<run_id>/                  data.csv, table.csv or figure.pdf, logs, metadata.json
 result/runs/<run_id>/summary.csv               status of each evaluation
+result/runs/<run_id>/runner.log                standalone local runner messages
+result/runs/<run_id>/progress.json             latest evaluation/measurement progress
 result/pipelines/<run_id>/pipeline.json        complete-workflow stages and results
 result/pipelines/<run_id>/summary.csv          complete-workflow stage summary
+result/pipelines/<run_id>/pipeline.log         complete-workflow controller messages
 result/collections/<name>/assembled/<evaluation>/
 result/collections/<name>/assembled/missing.csv
 ```

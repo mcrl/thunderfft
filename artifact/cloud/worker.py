@@ -154,6 +154,17 @@ def run_jobs(root, request, output, deadline):
             try:
                 remaining = time_left(deadline, request["execution_seconds"])
                 job_environment = dict(environment, **job["environment"])
+                # A single aggregate file is polled beside worker.exit.json.
+                # Reset it before every job so a new job cannot show the prior
+                # job's final evaluation while its runner starts up.
+                progress_path = root.parent / "progress.json"
+                job_environment["THUNDERFFT_RUN_PROGRESS_FILE"] = str(progress_path)
+                try:
+                    atomic_json(progress_path, {"schema_version": 1, "completed": 0,
+                                "total": len(job["evaluations"]), "evaluation": "",
+                                "status": "running", "detail": None, "updated_at": time.time()})
+                except OSError:
+                    pass  # Optional telemetry cannot fail an otherwise valid job.
                 modes = {}
                 for field, key, choices, default in (
                         ("cufftdx_mode", "THUNDERFFT_TABLE3_CUFFTDX_MODE", ("preset", "all"), "preset"),

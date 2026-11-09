@@ -140,7 +140,7 @@ class Backends(unittest.TestCase):
 
 
 class CudnnWorkSelection(unittest.TestCase):
-    def collect(self, spec, mode=None, overrides=None):
+    def collect(self, spec, mode=None, overrides=None, expected_exit=0):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         directory = Path(temporary.name)
@@ -166,8 +166,10 @@ class CudnnWorkSelection(unittest.TestCase):
                 patch.object(MEASURE, "measured_identity", return_value=("A100", "NVIDIA A100", "8.0", "GPU-fixture", "580")), \
                 patch.object(MEASURE.subprocess, "run", side_effect=native):
             result = MEASURE.collect(spec, runners, directory, directory / "result", "paper", [HERE / "policy.py"])
-        self.assertEqual(result, 0)
+        self.assertEqual(result, expected_exit)
         metadata = json.loads((directory / "result/metadata.json").read_text())
+        if result:
+            return metadata, []
         with (directory / "result/data.csv").open() as stream:
             rows = list(csv.DictReader(stream))
         return metadata, rows
@@ -185,6 +187,35 @@ class CudnnWorkSelection(unittest.TestCase):
                 self.assertEqual(metadata["policy_skipped"], MEASURE.POLICY.skipped_cells(
                     spec["evaluation"], spec["filters"]["paper"], spec["libraries"], "fast"))
                 self.assertFalse(metadata["coverage_complete"])
+
+    def test_progress_excludes_policy_skips_without_splitting_native_sweeps(self):
+        figure5 = module("progress_figure5", HERE.parent / "figure5/measure.py").FIGURE5
+        for spec, total in ((MEASURE.FIGURE4, 64), (figure5, 83)):
+            with self.subTest(evaluation=spec['evaluation']), \
+                    patch.object(MEASURE.TABLE3, 'report_progress') as progress:
+                metadata, rows = self.collect(spec)
+                self.assertEqual(len(metadata['commands']), len(spec['libraries']))
+                self.assertEqual(progress.call_args_list[0].args, (0, total))
+                self.assertEqual(progress.call_args.args, (total, total))
+                self.assertEqual(len(progress.call_args_list), 2 * len(metadata['commands']))
+                self.assertEqual(total, len({(r['library'], r['filter']) for r in rows}))
+
+    def test_progress_truncation_excludes_omitted_tail_from_done_and_total(self):
+        with patch.object(MEASURE.TABLE3, 'report_progress') as progress:
+            _, rows = self.collect(MEASURE.FIGURE4, overrides={'THUNDERFFT_FIGURE4_SLOW_RATIO': '0.5'})
+        self.assertEqual(progress.call_args_list[0].args, (0, 64))
+        measured = len({(r['library'], r['filter']) for r in rows})
+        self.assertEqual(measured, 53)
+        self.assertEqual(progress.call_args.args, (measured, measured))
+        self.assertTrue(any('11 larger filters skipped' in call.kwargs['detail']
+                            for call in progress.call_args_list))
+
+    def test_failed_correctness_does_not_advance_progress(self):
+        with patch.object(MEASURE.TABLE3, 'report_progress') as progress, \
+                patch.object(MEASURE, 'check_row', side_effect=ValueError('invalid output')):
+            metadata, _ = self.collect(MEASURE.FIGURE4, expected_exit=1)
+        self.assertEqual(metadata['status'], 'failed')
+        self.assertEqual([call.args for call in progress.call_args_list], [(0, 64)])
 
     def test_full_measures_every_filter_and_disables_ratio_cutoff(self):
         metadata, rows = self.collect(MEASURE.FIGURE4, "full", {"THUNDERFFT_FIGURE4_SLOW_RATIO": "0.1"})

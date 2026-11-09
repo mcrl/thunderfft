@@ -132,7 +132,7 @@ class GroupTests(unittest.TestCase):
         self.prepared.add(ssh.gpu)
         self.client.events.append(('prepared', ssh.gpu))
 
-    def worker(self, ssh, remote, settings, cancel_event=None):
+    def worker(self, ssh, remote, settings, cancel_event=None, progress_callback=None):
         self.assertEqual(self.prepared, set(self.configs))
         self.workers.append(ssh.gpu)
         self.client.events.append(('worker', ssh.gpu))
@@ -180,11 +180,46 @@ class GroupTests(unittest.TestCase):
         stack.enter_context(redirect_stdout(io.StringIO()))
         return stack
 
-    def run_group(self, *, local=True, ready_check=None):
+    def run_group(self, *, local=True, ready_check=None, log=None, tick=None):
         return group.run(self.args, self.registry, self.repo, collection, self.selected,
                          argparse.ArgumentParser(), self.configs, [],
                          local_run=self.local if local else None, stage_update=self.stage_update,
-                         ready_check=ready_check)
+                         ready_check=ready_check, log=log, tick=tick)
+
+    def test_progress_and_logs_are_delivered_only_on_controller_thread(self):
+        received, ticks = [], []
+        snapshot = {'schema_version': 1, 'completed': 0, 'total': 2,
+                    'evaluation': 'table3', 'status': 'running', 'updated_at': 123.0,
+                    'detail': {'schema_version': 1, 'done': 36, 'total': 50,
+                               'unit': 'cases', 'detail': 'cuFFTDx', 'status': 'running',
+                               'updated_at': 123.0}}
+        def worker(ssh, remote, settings, cancel_event=None, progress_callback=None):
+            self.assertNotEqual(threading.get_ident(), self.controller_thread)
+            progress_callback(snapshot)
+            return self.worker(ssh, remote, settings, cancel_event=cancel_event)
+        def log(message):
+            self.assertEqual(threading.get_ident(), self.controller_thread)
+            received.append(message)
+        def tick():
+            self.assertEqual(threading.get_ident(), self.controller_thread)
+            ticks.append(time.monotonic())
+        with self.patches(), mock.patch.object(coordinator, 'execute_worker', side_effect=worker):
+            result = self.run_group(log=log, tick=tick)
+        self.assertEqual(result['exit_code'], 0)
+        self.assertEqual({gpu for gpu, patch in self.updates if patch.get('progress') == snapshot},
+                         {'H100', 'B200'})
+        self.assertTrue(any('running cloud measurements' in line for line in received))
+        self.assertTrue(ticks)
+        self.assertTrue(all(second - first >= .99 for first, second in zip(ticks, ticks[1:])))
+        self.assertTrue(result['cleanup_confirmed'])
+
+    def test_optional_display_failure_cannot_skip_measurement_or_cleanup(self):
+        with self.patches():
+            result = self.run_group(log=mock.Mock(side_effect=OSError('terminal closed')),
+                                    tick=mock.Mock(side_effect=ValueError('invalid display')))
+        self.assertEqual(result['exit_code'], 0)
+        self.assertTrue(result['cleanup_confirmed'])
+        self.assertEqual(self.client.rows, [])
 
     def test_all_acquired_and_ready_before_three_measurements_overlap(self):
         self.barrier = threading.Barrier(3)
@@ -292,7 +327,7 @@ class GroupTests(unittest.TestCase):
 
     def test_worker_failure_cancels_peer_and_local_before_cleanup(self):
         self.barrier = threading.Barrier(3)
-        def worker(ssh, remote, settings, cancel_event=None):
+        def worker(ssh, remote, settings, cancel_event=None, progress_callback=None):
             self.barrier.wait(timeout=3)
             if ssh.gpu == 'H100':
                 return 1
@@ -388,7 +423,7 @@ class GroupTests(unittest.TestCase):
         self.assertGreater(stage['cloud']['reserved_total_usd'], 0)
 
     def test_interrupt_while_workers_active_cancels_all_and_preserves_costs(self):
-        def worker(ssh, remote, settings, cancel_event=None):
+        def worker(ssh, remote, settings, cancel_event=None, progress_callback=None):
             self.assertTrue(cancel_event.wait(3))
             raise InterruptedError('cancelled worker')
         def local(cancel):
@@ -447,7 +482,7 @@ class GroupTests(unittest.TestCase):
                 interrupted = True
                 raise KeyboardInterrupt
             return future
-        def worker(ssh, remote, settings, cancel_event=None):
+        def worker(ssh, remote, settings, cancel_event=None, progress_callback=None):
             self.assertTrue(cancel_event.wait(3))
             raise InterruptedError('worker cancelled')
         finish_original = group._finish

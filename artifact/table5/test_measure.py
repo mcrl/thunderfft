@@ -61,6 +61,34 @@ class BoundaryMeasurement(unittest.TestCase):
         self.assertEqual(len(measure.read_rows(self.root / 'range_fp16.csv')), 4)
         self.assertFalse(result['full_range_scan'])
 
+    def test_progress_counts_phase_size_groups_not_boundary_attempts(self):
+        self.thresholds['fp16'] = 24
+        self.metadata['selected_phases'] = ['accuracy_reduced', 'range_fp16']
+        with patch.object(measure, 'report_progress') as progress:
+            self.collect()
+        self.assertEqual([call.args for call in progress.call_args_list],
+                         [(0, 2), (1, 2), (1, 2), (1, 2), (1, 2), (2, 2)])
+        self.assertTrue(all(call.kwargs['unit'] == 'groups' for call in progress.call_args_list))
+        self.assertIn('alpha=2^[0,29]', progress.call_args_list[-2].kwargs['detail'])
+
+    def test_full_progress_counts_groups_not_exponent_trials(self):
+        self.metadata.update(N=[64, 128], range_mode='full',
+                             selected_phases=['accuracy_reduced', 'range_fp16'])
+        with patch.object(measure, 'report_progress') as progress:
+            self.collect()
+        self.assertEqual([call.args for call in progress.call_args_list], [(0, 4), (2, 4), (2, 4), (4, 4)])
+
+    def test_invalid_boundary_is_not_counted_completed(self):
+        def incomplete(command, **kwargs):
+            result = self.native(command, **kwargs)
+            path = Path(command[command.index('--csv') + 1])
+            measure.write_rows(path, measure.read_rows(path)[:-1])
+            return result
+        with patch.object(measure, 'report_progress') as progress:
+            with self.assertRaisesRegex(ValueError, 'incomplete exponent'):
+                self.collect(incomplete)
+        self.assertEqual([call.args for call in progress.call_args_list], [(0, 1)])
+
     def test_shifted_boundary_expands_and_reports_observed_value(self):
         self.thresholds['fp16'] = 12
         result = self.collect()

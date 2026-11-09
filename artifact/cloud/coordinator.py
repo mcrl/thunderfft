@@ -18,6 +18,7 @@ from .config import (ARCHS, MATHDX_ARCHIVES, CUDNN_ARCHIVES, TORCH_HEADERS_VERSI
 from .provider import VastClient, ProviderError, CreateRejected, plan_cost
 from .transport import SSH, build_source_bundle, safe_extract_result, validate_private_key
 from .watchdog import destroy_owned, write_json
+from ..progress import validate_snapshot
 
 
 def add_arguments(parser):
@@ -262,7 +263,8 @@ def fetch_results(ssh, remote, folder, config, absolute_deadline=None):
     return folder / "download/result"
 
 
-def execute_worker(ssh, remote, config, cancel_event=None):
+def execute_worker(ssh, remote, config, cancel_event=None, progress_callback=None):
+    poll_progress = progress_callback is not None
     if cancel_event is not None and cancel_event.is_set():
         raise InterruptedError("Cloud group execution cancelled")
     command = shlex.join([remote + "/venv/bin/python", remote + "/source/artifact/cloud/worker.py",
@@ -270,14 +272,57 @@ def execute_worker(ssh, remote, config, cancel_event=None):
     script = f"cd -- {shlex.quote(remote)}; nohup {command} >worker-console.log 2>&1 </dev/null & echo $! > worker.pid"
     ssh.run(["bash", "-c", script], timeout=20)
     deadline = time.time() + config["execution_seconds"]
+    # One SSH request per poll retrieves both files. The optional telemetry is
+    # bounded and validated independently; malformed terminal exit evidence
+    # must still fail the execution instead of looking like a running worker.
+    poll_script = '''import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+sys.path.insert(0, str(root / "source"))
+from artifact.progress import read_snapshot
+exit_path = root / "worker.exit.json"
+exit_value = None
+if exit_path.exists():
+    with exit_path.open("rb") as stream:
+        data = stream.read(4097)
+    if len(data) > 4096:
+        raise ValueError("Worker exit evidence exceeds its size bound")
+    exit_value = json.loads(data)
+value = {"exit": exit_value, "progress": read_snapshot(root / "progress.json")}
+encoded = json.dumps(value, ensure_ascii=True)
+if len(encoded.encode()) >= 65536:
+    value["progress"] = None
+    encoded = json.dumps(value)
+print(encoded)
+'''
     while time.time() < deadline:
         if cancel_event is not None and cancel_event.is_set():
             raise InterruptedError("Cloud group execution cancelled")
-        reply = ssh.run(["bash", "-c", f"cat {shlex.quote(remote + '/worker.exit.json')} 2>/dev/null || true"],
-                        timeout=remaining(deadline, 15))
-        if reply.stdout.strip():
-            value = json.loads(reply.stdout)
-            return int(value["exit_code"])
+        if not poll_progress:
+            reply = ssh.run(["bash", "-c", f"cat {shlex.quote(remote + '/worker.exit.json')} 2>/dev/null || true"],
+                            timeout=remaining(deadline, 15))
+            if reply.stdout.strip():
+                value = json.loads(reply.stdout)
+                return int(value["exit_code"])
+        else:
+            reply = ssh.run([remote + "/venv/bin/python", "-c", poll_script, remote],
+                            timeout=remaining(deadline, 15))
+            if len(reply.stdout.encode()) >= 65536:
+                raise ValueError("Remote worker status exceeds its size bound")
+            envelope = json.loads(reply.stdout)
+            if not isinstance(envelope, dict) or "exit" not in envelope:
+                raise ValueError("Invalid remote worker status envelope")
+            snapshot = validate_snapshot(envelope.get("progress"))
+            if snapshot is not None and progress_callback is not None:
+                try:
+                    progress_callback(snapshot)
+                except InterruptedError:
+                    raise
+                except Exception:
+                    # Display is optional. Keep parsing the same combined
+                    # envelope so a callback failure cannot hide worker exits.
+                    progress_callback = None
+            if envelope["exit"] is not None:
+                return int(envelope["exit"]["exit_code"])
         delay = min(3, remaining(deadline, 3))
         if cancel_event is None:
             time.sleep(delay)

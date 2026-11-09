@@ -19,10 +19,13 @@ from artifact.cloud.config import (CUFFTDX_MODE_ENV, cufftdx_mode, CUDNN_MODE_EN
                                    TABLE5_RANGE_MODE_ENV, table5_range_mode,
                                    inherited_environment, load_config, preview_modes)
 from artifact.cloud.provider import VastClient, ProviderError
+from artifact import progress
 from artifact.cloud.transport import validate_private_key
 
 
 def add_arguments(parser):
+    parser.add_argument('--progress', choices=('auto', 'plain', 'off'), default='auto',
+                        help='live GPU progress on terminals; plain emits stage changes; off hides progress')
     parser.add_argument("--a100-backend", choices=("auto", "local", "vast"), default="auto",
                         help="complete pipeline: use an idle local A100, otherwise rent one (auto)")
     parser.add_argument("--local-wait-seconds", type=nonnegative, default=120,
@@ -156,6 +159,7 @@ def preflight(config, a100_backend, args, root):
 
 def unavailable_notice(args, error, *, new_collection=False):
     common = ['--profile', args.profile]
+    common += ['--progress', getattr(args, 'progress', 'auto')]
     for flag, value in (('--cufftdx-mode', args.cufftdx_mode), ('--cudnn-mode', args.cudnn_mode),
                         ('--table5-range-mode', args.table5_range_mode)):
         common += [flag, value]
@@ -195,7 +199,7 @@ def unavailable_notice(args, error, *, new_collection=False):
               file=sys.stderr, flush=True)
 
 
-def run_local(args, root, folder, stop_process, gpu_uuid=None, cancel_event=None):
+def run_local(args, root, folder, stop_process, gpu_uuid=None, cancel_event=None, *, quiet=False):
     if not gpu_uuid:
         raise ValueError("Local execution requires the selected GPU UUID")
     if cancel_event is not None and cancel_event.is_set():
@@ -216,6 +220,7 @@ def run_local(args, root, folder, stop_process, gpu_uuid=None, cancel_event=None
             process = subprocess.Popen(command, cwd=root, stdout=log, stderr=subprocess.STDOUT,
                                        start_new_session=True,
                                        env=dict(os.environ, CUDA_VISIBLE_DEVICES=gpu_uuid,
+                                                THUNDERFFT_RUN_PROGRESS_FILE=str(folder / 'a100-progress.json'),
                                                 **{CUFFTDX_MODE_ENV: mode, CUDNN_MODE_ENV: convolution_mode,
                                                    TABLE5_RANGE_MODE_ENV: range_mode}))
             last_progress = 0.0
@@ -223,7 +228,7 @@ def run_local(args, root, folder, stop_process, gpu_uuid=None, cancel_event=None
                 if cancel_event is not None and cancel_event.is_set():
                     stop_process(process)
                     return 130
-                if time.monotonic() - last_progress >= 30:
+                if not quiet and time.monotonic() - last_progress >= 30:
                     print(f"[A100] local experiments running; log: {folder / 'a100.log'}", flush=True)
                     last_progress = time.monotonic()
                 try:
@@ -360,6 +365,8 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
             writer.writerows({k: s.get(k, "") for k in writer.fieldnames} for s in state["stages"])
 
     save()
+    print(f"Detailed logs: {folder}", flush=True)
+    display = progress.Dashboard(mode=getattr(args, 'progress', 'auto'), log_path=folder / 'pipeline.log')
     def update_stage(gpu, update):
         stage = next((item for item in state['stages'] if item['gpu'] == gpu), None)
         if stage is None:
@@ -367,7 +374,20 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
             state['stages'].append(stage)
         stage.update(update)
         state['stages'].sort(key=lambda item: ('A100', 'H100', 'B200').index(item['gpu']))
-        save()
+        # Progress is optional telemetry. Persist it with the next real stage
+        # transition; a display-only update must not abort rented measurements.
+        if set(update) != {'progress'}:
+            save()
+        display.update(gpu, update)
+        display.refresh()
+
+    def tick():
+        if a100_backend == 'local':
+            snapshot = progress.read_snapshot(folder / 'a100-progress.json')
+            stage = next((item for item in state['stages'] if item['gpu'] == 'A100'), {})
+            if snapshot is not None and 'completed' in snapshot and snapshot != stage.get('progress'):
+                update_stage('A100', {'progress': snapshot})
+        display.refresh()
 
     def local_ready():
         if a100_backend == 'local':
@@ -386,25 +406,57 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
     save()
     code = 1
     try:
-        outcome = cloud_group.run(
-            args, registry, root, collection, select_tasks, parser, configs, preview['proposals'],
-            local_run=(lambda cancel: run_local(args, root, folder, stop_process,
-                                               observed.get('uuid'), cancel_event=cancel))
-                      if a100_backend == 'local' else None,
-            stage_update=update_stage, ready_check=local_ready)
+        for gpu in ('A100', 'H100', 'B200'):
+            update_stage(gpu, {'status': 'waiting', 'progress': {
+                'schema_version': 1, 'completed': 0,
+                'total': len([entry for entry in entries if entry['id'] != 'figure2']) if gpu == 'A100' else 2,
+                'evaluation': '', 'status': 'waiting', 'detail': None, 'updated_at': time.time()}})
+        try:
+            outcome = cloud_group.run(
+                args, registry, root, collection, select_tasks, parser, configs, preview['proposals'],
+                local_run=(lambda cancel: run_local(args, root, folder, stop_process,
+                                                   observed.get('uuid'), cancel_event=cancel, quiet=True))
+                          if a100_backend == 'local' else None,
+                stage_update=update_stage, ready_check=local_ready,
+                log=display.log, tick=tick)
+        finally:
+            try:
+                try:
+                    tick()
+                except Exception:
+                    pass  # Optional final telemetry cannot mask the group outcome.
+            finally:
+                display.close()
         state['cloud_group'] = outcome
+        previous_progress = {item['gpu']: item.get('progress') for item in state['stages']}
+        for stage in outcome['stages']:
+            if 'progress' not in stage and previous_progress.get(stage['gpu']) is not None:
+                stage['progress'] = previous_progress[stage['gpu']]
         state['stages'] = sorted(outcome['stages'], key=lambda item: ('A100', 'H100', 'B200').index(item['gpu']))
         state['reserved_total_usd'] = outcome['reserved_total_usd']
         code = outcome['exit_code']
+        for stage in state['stages']:
+            if stage.get('exit_code'):
+                details = (str(folder / 'a100.log') if stage['backend'] == 'local' else
+                           (stage.get('cloud') or {}).get('audit_folder') or outcome.get('audit_folder'))
+                print(f"[{stage['gpu']}] {stage['status']} (exit {stage['exit_code']}); details: {details}",
+                      file=sys.stderr, flush=True)
         if outcome.get('error'):
             state['error'] = outcome['error']
             print(f"Complete pipeline failed: {outcome['error']}", file=sys.stderr, flush=True)
         if not outcome['cleanup_confirmed']:
             code = 1
             state['error'] = 'Cloud cleanup is unconfirmed; inspect the group audit and active watchdogs.'
+            print(state['error'], file=sys.stderr, flush=True)
+            for stage in outcome['stages']:
+                audit = stage.get('cloud') or {}
+                if not audit.get('cleanup_confirmed', True) and audit.get('audit_folder'):
+                    print('Recovery: ' + shlex.join(['./run.sh', '--backend', 'vast', '--cloud-recover',
+                                                    audit['audit_folder']]), file=sys.stderr, flush=True)
         if state['reserved_total_usd'] > config['budget_usd']:
             code = 1
             state['error'] = 'Observed conservative reservations exceeded the aggregate budget.'
+            print(state['error'], file=sys.stderr, flush=True)
         save()
     except cloud_group.PreflightUnavailable as error:
         code = 1
@@ -417,9 +469,11 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
         state["error"] = str(error)
         print(f"Complete pipeline failed: {error}", file=sys.stderr, flush=True)
     finally:
+        display.close()
         # Offline assembly must also preserve successful parts on exceptions or
         # interruption. It never starts another GPU execution.
         try:
+            print('Assembling tables and figures from the collected results...', flush=True)
             assembled = collection.assemble_collection(destination, entries, args.profile)
             state["assembly"] = assembly_result(assembled, destination / "assembled", entries, args.profile, root,
                                                 cudnn_mode=args.cudnn_mode, table5_range_mode=args.table5_range_mode)

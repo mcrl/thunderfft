@@ -171,9 +171,14 @@ class LibrarySelectionTests(unittest.TestCase):
             with patch.dict("os.environ", env, clear=True), patch("sys.argv", argv), \
                     patch.object(measure, "capture", return_value={}), \
                     patch.object(measure, "source_hashes", return_value={"source.cu": "a" * 64}), \
+                    patch.object(measure, "report_progress") as progress, \
                     patch.object(measure.subprocess, "run", side_effect=execute):
                 self.assertEqual(measure.main(), 0)
             self.assertEqual(len(calls), 1)
+            # A full native candidate search is one configuration, not one trial.
+            self.assertEqual([call.args for call in progress.call_args_list], [(0, 1), (1, 1)])
+            self.assertTrue(all(call.kwargs["unit"] == "configs" for call in progress.call_args_list))
+            self.assertIn("candidate search", progress.call_args.kwargs["detail"])
             self.assertEqual(calls[0][1:3], ["--library", "cufftdx"])
             metadata = json.loads((output / "metadata.json").read_text())
             self.assertIsNone(metadata["binary_sha256"])

@@ -16,6 +16,10 @@ import subprocess
 import sys
 
 HERE = Path(__file__).resolve().parent
+if str(HERE.parents[1]) not in sys.path:
+    sys.path.insert(0, str(HERE.parents[1]))
+from artifact.progress import report as report_progress
+
 _UTILIZATION_SPEC = importlib.util.spec_from_file_location("table7_utilization", HERE / "utilization.py")
 utilization = importlib.util.module_from_spec(_UTILIZATION_SPEC)
 _UTILIZATION_SPEC.loader.exec_module(utilization)
@@ -268,7 +272,7 @@ def main():
         metadata["compile_commands"] = json.loads(compilation.read_text())
     rows, summaries, identities = [], [], []
     try:
-        for variant in variants:
+        for completed, variant in enumerate(variants):
             identifier = variant["id"]
             summary = dict.fromkeys(TABLE_FIELDS, "")
             summary.update(variant=identifier, N=64, batch=batch, precision="tf32",
@@ -283,6 +287,7 @@ def main():
                 command.append("--timing-only")
             metadata["commands"].append(command)
             (args.output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+            report_progress(completed, len(variants), unit="variants", detail=identifier)
             with (args.output / f"{identifier}.csv").open("w") as out, (args.output / f"{identifier}.log").open("w") as log:
                 run = subprocess.run(command, stdout=out, stderr=log, timeout=180)
             if run.returncode:
@@ -310,6 +315,7 @@ def main():
                            max_transform_relative_l2="" if timing_only else max(r["max_transform_relative_l2"] for r in measured),
                            timing_status="collected_unvalidated" if timing_only else "collected")
             summary.update(utilization_summary(identifier, batch, median_us, identity["name"], timing_only))
+            report_progress(completed + 1, len(variants), unit="variants", detail=identifier)
         add_baseline_speedups(summaries)
         write_csv(args.output / "data.csv", [dict(r, passed=int(r["passed"])) for r in rows], RAW_FIELDS)
         write_csv(args.output / "table.csv", summaries, TABLE_FIELDS)

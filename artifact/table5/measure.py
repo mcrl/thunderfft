@@ -9,8 +9,13 @@ import math
 from pathlib import Path
 import shlex
 import subprocess
+import sys
 
 HERE = Path(__file__).resolve().parent
+if str(HERE.parents[1]) not in sys.path:
+    sys.path.insert(0, str(HERE.parents[1]))
+from artifact.progress import report as report_progress
+
 FIELDS = ('N', 'batch', 'mode', 'alpha', 'precision', 'rel_l2', 'max_abs', 'rel_linf', 'all_finite')
 RANGES = {'range_fp16': 'fp16', 'range_tf32': 'tf32', 'range_fp16_cufftdx': 'fp16_cufftdx',
           'range_fp32_cufftdx': 'fp32_cufftdx'}
@@ -112,6 +117,8 @@ def collect(output, binary, cufftdx_binary, timeout):
     commands = metadata.setdefault('execution', {}).setdefault('commands', [])
     raw = output / 'raw'
     raw.mkdir(exist_ok=True)
+    completed = 0
+    total = len(metadata['selected_phases']) * len(metadata['N'])
 
     def execute(phase, sizes, extra, label):
         target = cufftdx_binary if phase.endswith('_cufftdx') else binary
@@ -123,6 +130,14 @@ def collect(output, binary, cufftdx_binary, timeout):
                   'csv': str(csv_path.relative_to(output)), 'environment': str(env_path.relative_to(output)),
                   'log': str(log_path.relative_to(output))}
         commands.append(record)
+        detail = f'{phase} N=' + ','.join(map(str, sizes))
+        if '--alpha-exp-min' in extra:
+            lower = extra[extra.index('--alpha-exp-min') + 1]
+            upper = extra[extra.index('--alpha-exp-max') + 1]
+            detail += f' alpha=2^[{lower},{upper}]'
+        else:
+            detail += ' alpha=1'
+        report_progress(completed, total, unit='groups', detail=detail)
         write_json(metadata_path, metadata)
         with (output / 'commands.txt').open('a') as stream:
             stream.write(shlex.join(command) + '\n')
@@ -183,6 +198,9 @@ def collect(output, binary, cufftdx_binary, timeout):
                             check['boundary_matches_preset'] = None if expected is None else found == expected
                             rows.extend(measured)
                             write_json(metadata_path, metadata)
+                            completed += 1
+                            report_progress(completed, total, unit='groups',
+                                            detail=f'{phase} N={n} boundary=2^{found}')
                             break
                         if wider == window:
                             raise ValueError(f'{phase} N={n}: no finite/nonfinite pair in {window}; '
@@ -193,6 +211,9 @@ def collect(output, binary, cufftdx_binary, timeout):
             raise ValueError(f'unsupported phase: {phase}')
         write_rows(output / (phase + '.csv'), rows)
         write_json(metadata_path, metadata)
+        if phase in ACCURACY or mode == 'full':
+            completed += len(metadata['N'])
+            report_progress(completed, total, unit='groups', detail=f'{phase} recorded')
     return metadata
 
 

@@ -111,8 +111,12 @@ def _finish(member, collection_module, code, *, collect):
                 pass
     else:
         code = code or 1
-        print(f"[{member['gpu']}] cleanup unresolved; watchdog remains active. "
-              f"Use --cloud-recover {folder}", flush=True)
+        message = (f"[{member['gpu']}] cleanup unresolved; watchdog remains active. "
+                   f"Use --cloud-recover {folder}")
+        if member.get('log') is not None:
+            member['log'](message)
+        else:
+            print(message, flush=True)
     if fetched is not None:
         try:
             imported = cloud.register_results(member['args'], member['jobs'], fetched, collection_module)
@@ -149,14 +153,16 @@ def _finish(member, collection_module, code, *, collect):
 
 
 def run(args, registry, root, collection_module, select_tasks, parser, configs, proposals,
-        *, local_run=None, stage_update=None, ready_check=None):
+        *, local_run=None, stage_update=None, ready_check=None, log=None, tick=None):
     """Run one fixed-budget group; callbacks never receive provider credentials.
 
     ``configs`` maps cloud GPU names to validated configurations with disjoint
     budget allocations. Their sum is this group's ceiling. ``local_run(event)``
     cooperatively stops its subprocess on cancellation. ``ready_check()`` runs
     after every remote environment is ready and before any benchmark starts.
-    ``stage_update(gpu, patch)`` is called only on the controller thread.
+    ``stage_update(gpu, patch)``, ``log(message)`` and ``tick()`` are called only
+    on the controller thread. ``tick`` refreshes local progress at most once
+    per second while remote preparation or measurement owners are pending.
     """
     if not configs or set(configs) - set(ARCHS):
         raise ValueError('A cloud group requires supported GPU configurations')
@@ -177,6 +183,7 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
     callback_failed = False
     gate_opened = False
     group_started = time.monotonic()
+    next_tick = group_started
     for gpu in (['A100'] if local_run else []) + order:
         stages[gpu] = {'gpu': gpu, 'backend': 'local' if gpu not in configs else 'vast',
                        'status': 'pending', 'exit_code': None, 'elapsed_seconds': 0.0}
@@ -196,13 +203,41 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
                 group_error = {'error_type': type(error).__name__,
                                'error': 'Stage audit callback failed; cleanup continues'}
 
+    def emit(message):
+        nonlocal log
+        if log is None:
+            try:
+                print(message, flush=True)
+            except OSError:
+                pass
+        else:
+            try:
+                log(message)
+            except Exception:
+                # Optional display failures cannot interrupt cleanup owners.
+                log = None
+                emit(message)
+
+    def refresh():
+        nonlocal next_tick, tick
+        now = time.monotonic()
+        if tick is not None and now >= next_tick:
+            next_tick = now + 1
+            try:
+                tick()
+            except Exception:
+                tick = None
+
     def drain():
         while True:
             try:
                 gpu, patch = updates.get_nowait()
             except queue.Empty:
                 break
-            update(gpu, patch)
+            if gpu is None:
+                emit(patch)
+            else:
+                update(gpu, patch)
 
     def settle(futures):
         """Join every owner, including after repeated Ctrl-C during cleanup."""
@@ -211,11 +246,12 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
         while True:
             try:
                 drain()
+                refresh()
                 if all(future.done() for future in futures):
                     break
                 if time.monotonic() >= heartbeat:
-                    print('Cloud group progress: ' + ', '.join(
-                        f"{gpu}={stage['status']}" for gpu, stage in stages.items()), flush=True)
+                    emit('Cloud group progress: ' + ', '.join(
+                        f"{gpu}={stage['status']}" for gpu, stage in stages.items()))
                     heartbeat = time.monotonic() + 30
                 time.sleep(.1)
             except KeyboardInterrupt:
@@ -244,8 +280,10 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
         try:
             _cancelled(cancel)
             updates.put((gpu, {'status': 'running'}))
-            print(f'[{gpu}] running cloud measurements', flush=True)
-            outcome = cloud.execute_worker(member['ssh'], member['remote'], member['config'], cancel_event=cancel)
+            updates.put((None, f'[{gpu}] running cloud measurements'))
+            outcome = cloud.execute_worker(member['ssh'], member['remote'], member['config'],
+                cancel_event=cancel,
+                progress_callback=lambda snapshot: updates.put((gpu, {'progress': snapshot})))
             code = outcome if outcome in (0, 2, 124, 130) else 1
             if code:
                 cancel.set()
@@ -346,7 +384,8 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
             members.append({'gpu': gpu, 'args': child, 'config': configs[gpu], 'jobs': jobs,
                             'dependencies': dependencies, 'folder': member_folder, 'proposal': fresh[gpu],
                             'label': label, 'remote': '/workspace/' + label, 'client': client,
-                            'public': public_keys[gpu], 'finished': False})
+                            'public': public_keys[gpu], 'finished': False,
+                            'log': lambda message: updates.put((None, message))})
         with ThreadPoolExecutor(max_workers=len(members) + bool(local_run)) as pool:
             phase, active_gpu = 'acquisition', None
             try:
@@ -358,9 +397,9 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
                     active_gpu = gpu
                     update(gpu, {'status': 'acquiring'})
                     _cancelled(cancel)
-                    print(f"[{gpu}] acquiring cloud server; all-in plan "
-                          f"${member['proposal']['cost']['planned_total_usd']:.4f}, "
-                          f"allocation ${config['budget_usd']:.4f}", flush=True)
+                    emit(f"[{gpu}] acquiring cloud server; all-in plan "
+                         f"${member['proposal']['cost']['planned_total_usd']:.4f}, "
+                         f"allocation ${config['budget_usd']:.4f}")
                     created = time.time()
                     state = {'label': member['label'], 'api_key_file': config['api_key_file'],
                              'created_at': created,
@@ -386,13 +425,14 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
                 prepare_futures = []
                 for member in members:
                     update(member['gpu'], {'status': 'preparing'})
-                    print(f"[{member['gpu']}] server acquired; waiting for SSH and preparing build environment; "
-                          f"audit: {member['folder']}", flush=True)
+                    emit(f"[{member['gpu']}] server acquired; waiting for SSH and preparing build environment; "
+                         f"audit: {member['folder']}")
                     prepare_futures.append(pool.submit(_prepare, member, root, deadline, cancel))
                 # A failed preparation cancels peers immediately instead of
                 # letting a slow bootstrap run until its full startup allowance.
                 heartbeat = time.monotonic() + 30
                 while True:
+                    refresh()
                     failures = [(member, future.exception()) for member, future in zip(members, prepare_futures)
                                 if future.done() and future.exception() is not None]
                     if failures:
@@ -406,13 +446,13 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
                     for member, future in zip(members, prepare_futures):
                         if future.done() and future.exception() is None and stages[member['gpu']]['status'] == 'preparing':
                             update(member['gpu'], {'status': 'ready'})
-                            print(f"[{member['gpu']}] environment ready; waiting for all GPUs", flush=True)
+                            emit(f"[{member['gpu']}] environment ready; waiting for all GPUs")
                     if all(future.done() for future in prepare_futures):
                         break
                     if time.monotonic() >= heartbeat:
                         pending = [member['gpu'] for member, future in zip(members, prepare_futures) if not future.done()]
-                        print('Waiting for cloud preparation: ' + ', '.join(pending) +
-                              f'; {max(0, int(deadline - time.time()))}s until the shared startup deadline', flush=True)
+                        emit('Waiting for cloud preparation: ' + ', '.join(pending) +
+                             f'; {max(0, int(deadline - time.time()))}s until the shared startup deadline')
                         heartbeat = time.monotonic() + 30
                     time.sleep(.1)
                 if failures:
@@ -427,7 +467,7 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
                 gate_opened = True
                 write_json(folder / 'ready.json', {'all_cloud_ready_at': time.time(),
                                                   'startup_deadline': deadline, 'gpus': order})
-                print('All required GPU environments are ready; starting measurements in parallel.', flush=True)
+                emit('All required GPU environments are ready; starting measurements in parallel.')
                 phase, active_gpu = 'measurement', None
                 futures = [pool.submit(measure, member) for member in members]
                 if local_run is not None:

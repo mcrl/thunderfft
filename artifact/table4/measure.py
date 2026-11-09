@@ -18,6 +18,9 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from artifact.progress import report as report_progress
 
 
 def module(name, path):
@@ -175,12 +178,13 @@ def measure(args):
         metadata["gpu_inventory_before"] = capture(inventory)
         DERIVE.write_json(measured / "ideal_metadata.json", metadata)
         all_rows, device = [], None
-        for candidate, (threads, chains) in CANDIDATES.items():
+        for completed, (candidate, (threads, chains)) in enumerate(CANDIDATES.items()):
             argv = [str(binary), "--iterations", str(args.iterations), "--trials", str(args.trials),
                     "--warmups", str(args.warmups), "--waves", str(args.waves),
                     "--chains", str(chains), "--threads", str(threads)]
             record = {"argv": argv, "stdout": f"raw/{candidate}.csv", "stderr": f"raw/{candidate}.log"}
             metadata["commands"].append(record)
+            report_progress(completed, len(CANDIDATES), unit="configs", detail=candidate)
             with (measured / record["stdout"]).open("w") as out, (measured / record["stderr"]).open("w") as err:
                 run = subprocess.run(argv, cwd=ROOT, env=environment, stdout=out, stderr=err, timeout=args.timeout)
             record["exit_code"] = run.returncode
@@ -196,6 +200,7 @@ def measure(args):
             metadata.update(device)
             metadata["multiprocessor_count"] = device["sm_count"]
             DERIVE.write_json(measured / "ideal_metadata.json", metadata)
+            report_progress(completed + 1, len(CANDIDATES), unit="configs", detail=candidate)
         DERIVE.write_csv(measured / "ideal.csv", all_rows, FIELDS)
         metadata.update(status="completed", finished_at=now(), selected_candidate=selected_candidate(all_rows),
                         gpu_inventory_after=capture(inventory))

@@ -20,6 +20,11 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
+# Adapters are also launched by filename, without the repository on sys.path.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from artifact.progress import report as report_progress
+
 SIZES = (64, 128, 256, 512, 1024, 2048, 4096)
 PRECISIONS = ("fp16", "tf32")
 PLACEMENTS = ("register", "shared")
@@ -434,7 +439,7 @@ def main():
         if cufftdx and args.cufftdx_mode == "preset" and "ThunderFFT" not in libraries:
             identity = preset_preflight(metadata)
             atomic_json(args.output / "metadata.json", metadata)
-        for library, n, precision, placement in jobs:
+        for completed, (library, n, precision, placement) in enumerate(jobs):
             dx = library == "cuFFTDx"
             if dx and args.cufftdx_mode == "preset" and "preset" not in metadata["cufftdx"]:
                 identity = preset_preflight(metadata, native_device=True)
@@ -459,6 +464,10 @@ def main():
             with (args.output / "commands.txt").open("a") as stream:
                 stream.write(shlex.join(command) + "\n")
             print(f"Table 3 [{label}] batch={settings['batch']} R={settings['repeats']}", flush=True)
+            detail = f"{library} N={n} {precision} {placement}"
+            if dx:
+                detail += " preset" if preset else " candidate search"
+            report_progress(completed, len(jobs), unit="configs", detail=detail)
             with csv_path.open("w") as stdout, log_path.open("w") as stderr:
                 try:
                     process = subprocess.run(command, cwd=ROOT, stdout=stdout, stderr=stderr,
@@ -505,6 +514,7 @@ def main():
             else:
                 metadata["coverage"]["measured_thunderfft_configurations"] += 1
             atomic_json(args.output / "metadata.json", metadata)
+            report_progress(completed + 1, len(jobs), unit="configs", detail=detail)
         table, candidates, speedups = summarize(output_rows, args.profile)
         write_csv(args.output / "table.csv", table, tuple(table[-1]))
         if cufftdx:

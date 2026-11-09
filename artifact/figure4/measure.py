@@ -324,6 +324,8 @@ def collect(spec, runners, build_dir, output, profile, sources):
         if metadata["external_build"].get("binary_sha256") != metadata["binary_sha256"]["FlashFFTConv"]:
             raise ValueError("FlashFFTConv build manifest does not match the selected binary")
     rows, identity, shape = [], None, None
+    completed = 0
+    total = sum(len(filters_by_library[r[0]]) for r in runners)
     TABLE3.atomic_json(output / "metadata.json", metadata)
     try:
         for library, binary, command, parse, filter_fft in runners:
@@ -343,6 +345,8 @@ def collect(spec, runners, build_dir, output, profile, sources):
                 with (output / "commands.txt").open("a") as stream:
                     stream.write(shlex.join(argv) + "\n")
                 print(f"{spec['title']} [{label}] {shape} trials={trials}", flush=True)
+                detail = f"{library} filter={group[0]}" + (f"..{group[-1]}" if len(group) > 1 else "")
+                TABLE3.report_progress(completed, total, unit="cases", detail=detail)
                 # Shared exclusive-process GPUs: another user may hold the device between
                 # runs. Only that start-up failure is retried; nothing is timed concurrently.
                 for attempt in range(BUSY_RETRIES + 1):
@@ -384,7 +388,13 @@ def collect(spec, runners, build_dir, output, profile, sources):
                                           "rule": f"median > {slow_ratio:g}x the fastest other library"}
                     print(f"{spec['title']}: {library} is over {slow_ratio:g}x slower at f={group[0]}; "
                           "larger filters are not measured", flush=True)
+                    # Exclude a newly skipped tail; skipped work is never counted done.
+                    omitted = len(selected) - selected.index(group[0]) - 1
+                    total -= omitted
+                    detail += f"; {omitted} larger filters skipped"
                 TABLE3.atomic_json(output / "metadata.json", metadata)
+                completed += len(group)
+                TABLE3.report_progress(completed, total, unit="cases", detail=detail)
         backend_rows, metadata["backend_sha256"], metadata["backend_imports"] = snapshot_backends(
             backends, output, spec, identity[0], shape, filters, tuple(r[0] for r in runners))
         rows += backend_rows

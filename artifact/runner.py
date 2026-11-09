@@ -25,6 +25,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from artifact.cloud import coordinator as cloud
 from artifact import full_pipeline
+from artifact import progress
 from artifact.cloud import transport as cloud_transport
 from artifact.cloud.config import (CUFFTDX_MODE_ENV, CUFFTDX_MODES, cufftdx_mode,
                                    CUDNN_MODE_ENV, CUDNN_MODES, cudnn_mode,
@@ -134,6 +135,68 @@ def stop_process(process):
         pass
 
 
+class RunProgress:
+    """One runner owns aggregate progress; adapters only write task snapshots."""
+
+    def __init__(self, entries, args, folder):
+        external = os.environ.get('THUNDERFFT_RUN_PROGRESS_FILE')
+        self.path = Path(external) if external else folder / 'progress.json'
+        self.archive_path = folder / 'progress.json'
+        self.gpu = args.gpu
+        self.panel = None if external else progress.Dashboard(
+            (self.gpu,), mode=getattr(args, 'progress', 'auto'), log_path=folder / 'runner.log')
+        self.value = {'schema_version': 1, 'completed': 0, 'total': len(entries),
+                      'evaluation': '', 'status': 'starting', 'detail': None, 'updated_at': time.time()}
+        self.finished = False
+
+    def __enter__(self):
+        self.publish()
+        return self
+
+    def publish(self, *, stage='running'):
+        self.value['updated_at'] = time.time()
+        progress.write_snapshot(self.path, self.value)
+        if self.archive_path != self.path:
+            progress.write_snapshot(self.archive_path, self.value)
+        if self.panel:
+            self.panel.update(self.gpu, {'status': stage, 'progress': dict(self.value)})
+            self.panel.refresh()
+
+    def begin(self, entry):
+        self.value.update(evaluation=entry['id'], status='building', detail=None)
+        self.publish()
+
+    def log(self, message):
+        if self.panel:
+            self.panel.log(message)
+        else:
+            print(message, flush=True)
+
+    def poll(self, output):
+        detail = progress.read_snapshot(output / 'progress.json')
+        if detail is not None and 'done' in detail:
+            self.value.update(status=detail['status'], detail=detail)
+        self.publish()
+
+    def end(self, state):
+        self.value['completed'] += int(state['status'] == 'completed')
+        self.value['status'] = 'finalizing' if state['status'] == 'completed' else state['status']
+        self.value['detail'] = None
+        self.publish()
+
+    def finish(self, code):
+        self.finished = True
+        status = 'completed' if code == 0 else 'interrupted' if code == 130 else 'partial' if code == 2 else 'failed'
+        self.value['status'] = status
+        self.publish(stage=status)
+
+    def __exit__(self, exc_type, exc, traceback):
+        if not self.finished:
+            self.finish(130 if isinstance(exc, KeyboardInterrupt) else 1)
+        if self.panel:
+            self.panel.close()
+
+
 def execute(entry, output, args, dependency_results=None):
     mode = cufftdx_mode(getattr(args, "cufftdx_mode", None))
     convolution_mode = cudnn_mode(getattr(args, "cudnn_mode", None))
@@ -159,6 +222,7 @@ def execute(entry, output, args, dependency_results=None):
                         "THUNDERFFT_PYTHON": sys.executable,
                         "THUNDERFFT_RUN_ID": args.run_id,
                         "THUNDERFFT_RESULTS_ROOT": str(args.result_dir),
+                        "THUNDERFFT_PROGRESS_FILE": str(output / "progress.json"),
                         "THUNDERFFT_DEPENDENCY_RESULTS": json.dumps(dependency_results or {})})
     environment[CUFFTDX_MODE_ENV] = mode
     environment[CUDNN_MODE_ENV] = convolution_mode
@@ -174,7 +238,33 @@ def execute(entry, output, args, dependency_results=None):
             process = subprocess.Popen(command, cwd=ROOT, env=environment,
                                        stdout=log, stderr=subprocess.STDOUT,
                                        start_new_session=True)
-            code = process.wait(timeout=args.timeout or None)
+            callback = getattr(args, '_progress_callback', None)
+            if callback is None:
+                code = process.wait(timeout=args.timeout or None)
+            else:
+                deadline = time.monotonic() + args.timeout if args.timeout else None
+                def update_progress():
+                    nonlocal callback
+                    if callback is not None:
+                        try:
+                            callback(output)
+                        except Exception:
+                            callback = None  # Display failures must not stop the adapter.
+                while True:
+                    update_progress()
+                    remaining = deadline - time.monotonic() if deadline is not None else 1
+                    if remaining <= 0:
+                        code = process.poll()
+                        if code is None:
+                            raise subprocess.TimeoutExpired(command, args.timeout)
+                        break
+                    try:
+                        code = process.wait(timeout=min(1, remaining))
+                        update_progress()
+                        break
+                    except subprocess.TimeoutExpired:
+                        if deadline is not None and time.monotonic() >= deadline:
+                            raise
         state["exit_code"] = code
         state["status"] = "completed" if code == 0 else "pending" if code == 78 else "failed"
         if code == 0:
@@ -422,54 +512,63 @@ def main():
             print("Warning: source differs from the distributed manifest; see manifest.json distribution_check",
                   file=sys.stderr)
     atomic_json(batch_dir / "manifest.json", metadata)
-    states, by_id = [], {}
-    interrupted = False
-    for entry in entries:
-        output = args.result_dir / entry["id"] / run_id
-        output.mkdir(parents=True, exist_ok=False)
-        dependencies = [d for d in entry.get("depends_on", []) if by_id[d]["status"] != "completed"]
-        if interrupted or dependencies:
-            state = {"evaluation": entry["id"], "profile": args.profile,
-                     "status": "interrupted" if interrupted else "blocked", "exit_code": 130 if interrupted else 78,
-                     "elapsed_seconds": 0, "result_dir": str(output),
-                     "scientific_validation": "not_assessed",
-                     "detail": "runner interrupted" if interrupted else "dependencies not completed: " + ", ".join(dependencies)}
-            (output / "run.log").write_text(state["detail"] + "\n", encoding="utf-8")
-            atomic_json(output / "status.json", state)
-        else:
-            print(f'[{entry["id"]}] running; log: {output / "run.log"}', flush=True)
-            dependency_results = {d: by_id[d]["result_dir"] for d in entry.get("depends_on", [])}
-            # A selected optional dependency is passed on only when it completed.
-            dependency_results.update({d: by_id[d]["result_dir"] for d in entry.get("optional_depends_on", [])
-                                       if d in by_id and by_id[d]["status"] == "completed"})
-            state = execute(entry, output, args, dependency_results)
-            recover_checkpoint = (entry["id"] == "table3" and state["status"] in ("failed", "interrupted")
-                                  and (output / "data.csv").is_file())
-            if collection_dir and (state["status"] == "completed" or recover_checkpoint):
-                try:
-                    record = collection.add_part(collection_dir, entry["id"], args.part or run_id,
-                                                 output, args.profile)
-                    state["collection_part"] = record["path"]
-                except (ValueError, OSError, KeyError, TypeError) as error:
-                    if recover_checkpoint:
-                        state["checkpoint_import_error"] = str(error)
-                    else:
-                        state.update(status="failed", runner_exit_code=65,
-                                     detail="measurement retained, collection import failed: " + str(error))
+    with RunProgress(entries, args, batch_dir) as display:
+        args._progress_callback = display.poll
+        states, by_id = [], {}
+        interrupted = False
+        for entry in entries:
+            display.begin(entry)
+            output = args.result_dir / entry["id"] / run_id
+            output.mkdir(parents=True, exist_ok=False)
+            dependencies = [d for d in entry.get("depends_on", []) if by_id[d]["status"] != "completed"]
+            if interrupted or dependencies:
+                state = {"evaluation": entry["id"], "profile": args.profile,
+                         "status": "interrupted" if interrupted else "blocked", "exit_code": 130 if interrupted else 78,
+                         "elapsed_seconds": 0, "result_dir": str(output),
+                         "scientific_validation": "not_assessed",
+                         "detail": "runner interrupted" if interrupted else "dependencies not completed: " + ", ".join(dependencies)}
+                (output / "run.log").write_text(state["detail"] + "\n", encoding="utf-8")
                 atomic_json(output / "status.json", state)
-        interrupted = interrupted or state["status"] == "interrupted"
-        states.append(state)
-        by_id[entry["id"]] = state
-        write_summary(batch_dir, states)
-        print(f'[{entry["id"]}] {state["status"]} (exit {state["exit_code"]})', flush=True)
-    if interrupted:
-        exit_code = 130
-    elif any(s["status"] == "failed" for s in states):
-        exit_code = 1
-    elif any(s["status"] != "completed" for s in states):
-        exit_code = 2
-    else:
-        exit_code = 0
+            else:
+                display.log(f'[{entry["id"]}] running; log: {output / "run.log"}')
+                dependency_results = {d: by_id[d]["result_dir"] for d in entry.get("depends_on", [])}
+                # A selected optional dependency is passed on only when it completed.
+                dependency_results.update({d: by_id[d]["result_dir"] for d in entry.get("optional_depends_on", [])
+                                           if d in by_id and by_id[d]["status"] == "completed"})
+                state = execute(entry, output, args, dependency_results)
+                recover_checkpoint = (entry["id"] == "table3" and state["status"] in ("failed", "interrupted")
+                                      and (output / "data.csv").is_file())
+                if collection_dir and (state["status"] == "completed" or recover_checkpoint):
+                    try:
+                        record = collection.add_part(collection_dir, entry["id"], args.part or run_id,
+                                                     output, args.profile)
+                        state["collection_part"] = record["path"]
+                    except (ValueError, OSError, KeyError, TypeError) as error:
+                        if recover_checkpoint:
+                            state["checkpoint_import_error"] = str(error)
+                        else:
+                            state.update(status="failed", runner_exit_code=65,
+                                         detail="measurement retained, collection import failed: " + str(error))
+                    atomic_json(output / "status.json", state)
+            interrupted = interrupted or state["status"] == "interrupted"
+            states.append(state)
+            by_id[entry["id"]] = state
+            write_summary(batch_dir, states)
+            display.end(state)
+            display.log(f'[{entry["id"]}] {state["status"]} (exit {state["exit_code"]})')
+        if interrupted:
+            exit_code = 130
+        elif any(s["status"] == "failed" for s in states):
+            exit_code = 1
+        elif any(s["status"] != "completed" for s in states):
+            exit_code = 2
+        else:
+            exit_code = 0
+        display.finish(exit_code)
+    for state in states:
+        if state['status'] != 'completed':
+            print(f"[{state['evaluation']}] {state['status']} (exit {state['exit_code']}); "
+                  f"details: {state.get('result_dir', batch_dir)}/run.log", file=sys.stderr, flush=True)
     metadata.update(finished_at=now(), exit_code=exit_code)
     atomic_json(batch_dir / "manifest.json", metadata)
     print(f"Summary: {batch_dir / 'summary.csv'}", flush=True)

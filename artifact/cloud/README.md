@@ -128,6 +128,21 @@ outside the source directory.
 
 ## Results
 
+The complete `./run.sh` workflow shows one updating terminal row per GPU,
+including completed evaluations and current measurement counts, such as
+`H100 | 0/2 steps | Table3 36/56 configs`. Counts describe work, not remaining
+time. `--progress auto` uses plain stage changes when output is redirected;
+`--progress plain` forces these messages, and `--progress off` hides the
+progress display. No additional `tqdm` dependency is needed. Standalone
+`--backend vast` commands retain their existing text logs.
+
+Complete-workflow controller messages are saved to
+`result/pipelines/<run_id>/pipeline.log`. Detailed cloud measurements remain
+in the downloaded per-evaluation `run.log` and `cloud-worker/jobs.log`;
+downloaded run and evaluation directories also contain `progress.json`
+snapshots. Local-only runs retain their controller messages in
+`result/runs/<run_id>/runner.log`.
+
 The complete parallel workflow records its group plan, readiness gate and
 per-instance evidence under:
 

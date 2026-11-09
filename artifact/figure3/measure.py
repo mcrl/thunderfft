@@ -210,7 +210,7 @@ def main():
     rows, identity = [], None
     TABLE3.atomic_json(args.output / "metadata.json", metadata)
     try:
-        for n, library, precision in jobs:
+        for completed, (n, library, precision) in enumerate(jobs):
             label = f"n{n}-{precision}-{library}"
             binary = args.cufftdx_binary if library == "cufftdx" else args.binary
             command = [str(binary.resolve()), "--library", library, str(n), precision,
@@ -223,6 +223,8 @@ def main():
             with (args.output / "commands.txt").open("a") as stream:
                 stream.write(shlex.join(command) + "\n")
             print(f"Figure 3 [{label}] batch={settings['batch']}", flush=True)
+            detail = f"{NATIVE[library][0]} N={n} {precision}"
+            TABLE3.report_progress(completed, len(jobs), unit="configs", detail=detail)
             with csv_path.open("w") as stdout, log_path.open("w") as stderr:
                 try:
                     process = subprocess.run(command, cwd=ROOT, stdout=stdout, stderr=stderr,
@@ -250,6 +252,7 @@ def main():
                 rows += parse_native(csv_path.read_text(), library=library, **options)
             TABLE3.write_csv(args.output / "data.csv", rows, FIELDS)
             TABLE3.atomic_json(args.output / "metadata.json", metadata)
+            TABLE3.report_progress(completed + 1, len(jobs), unit="configs", detail=detail)
         # Baselines are also kept as their own CSV (Figure 3's separate comparison file).
         TABLE3.write_csv(args.output / "baselines.csv",
                          [row for row in rows if row["library"] in ("cuFFT", "cuFFTDx")], FIELDS)

@@ -122,6 +122,35 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(command[command.index("--cudnn-mode") + 1], "fast")
         self.assertEqual(command[command.index("--table5-range-mode") + 1], "boundary")
 
+    def test_each_job_gets_aggregate_progress_path_and_resets_prior_job(self):
+        self.request["jobs"].append({"part": "second-part", "evaluations": ["fixture", "other"],
+                                     "environment": {}})
+        self.write_request()
+        snapshots = []
+        def launch(command, **kwargs):
+            path = Path(kwargs["env"]["THUNDERFFT_RUN_PROGRESS_FILE"])
+            self.assertEqual(path, self.parent / "progress.json")
+            snapshots.append(json.loads(path.read_text()))
+            path.write_text('{"stale": "prior completed job"}')
+            process = Mock()
+            process.wait.return_value = 0
+            return process
+        with patch.object(worker.subprocess, "Popen", side_effect=launch):
+            self.assertEqual(self.run_fixture(), 0)
+        self.assertEqual([snapshot["total"] for snapshot in snapshots], [1, 2])
+        self.assertTrue(all(snapshot["completed"] == 0 and snapshot["detail"] is None
+                            and snapshot["evaluation"] == "" for snapshot in snapshots))
+
+    def test_progress_write_failure_does_not_fail_measurements(self):
+        original = worker.atomic_json
+        def write(path, value):
+            if path.name == "progress.json":
+                raise OSError("optional telemetry unavailable")
+            return original(path, value)
+        with patch.object(worker, "atomic_json", side_effect=write):
+            self.assertEqual(self.run_fixture(), 0)
+        self.assertTrue((self.root / "result/fixture/data.csv").is_file())
+
     def test_worker_passes_requested_mode_to_cli_environment_and_job_metadata(self):
         key = "THUNDERFFT_TABLE3_CUFFTDX_MODE"
         script = self.root / "run.sh"
@@ -364,7 +393,7 @@ class ModelRoundTripTests(unittest.TestCase):
             temporary = Path(name)
             source = temporary / "source"
             source.mkdir()
-            selected = ["run.sh", "artifact/runner.py", "artifact/full_pipeline.py", "artifact/collection.py",
+            selected = ["run.sh", "artifact/runner.py", "artifact/full_pipeline.py", "artifact/collection.py", "artifact/progress.py",
                         "artifact/common.sh", "artifact/registry.json"]
             selected += [str(path.relative_to(repository))
                          for directory in (repository / "artifact/cloud", repository / "artifact/table2",

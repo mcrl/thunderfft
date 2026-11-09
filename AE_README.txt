@@ -71,6 +71,25 @@ Artifact: thunderfft.zip
 - ./run.sh all is equivalent. No manual merging or plotting is required.
 - The command prints the collection name (full-<run_id> by default).
 
+Progress display (illustrative):
+  A100 | 1/10 steps | Table3 36/56 configs
+  H100 | 0/2 steps  | Table3 44/56 configs
+  B200 | 0/2 steps  | Table3 40/56 configs
+
+- On a terminal, each GPU keeps one updating line instead of accumulating
+  progress messages. Named/local runs show one GPU line.
+- Fractions show completed steps and work in the current experiment, not
+  estimated remaining time. Batched native sweeps advance after validation;
+  Table 5 counts phase/size groups, including any boundary rechecks.
+- --progress auto is the default. Redirected output uses plain stage changes;
+  --progress plain requests these explicitly, and --progress off hides the
+  progress display. No additional tqdm installation is needed.
+- Detailed logs remain in each experiment's run.log, pipeline a100.log and
+  cloud-worker/jobs.log. Controller messages are saved to
+  result/pipelines/<run_id>/pipeline.log, or result/runs/<run_id>/runner.log
+  for a standalone local run. progress.json files retain current snapshots.
+- Standalone --backend vast commands retain their existing text logs.
+
 Final outputs:
   result/collections/<name>/assembled/table2/ ... table7/
   result/collections/<name>/assembled/figure2/figure.pdf

@@ -577,6 +577,104 @@ class CoordinatorTests(unittest.TestCase):
 
 
 
+class WorkerProgressTests(unittest.TestCase):
+    def snapshot(self):
+        return {"schema_version": 1, "completed": 0, "total": 2,
+                "evaluation": "table3", "status": "running", "updated_at": 123.0,
+                "detail": {"schema_version": 1, "done": 36, "total": 50,
+                           "unit": "cases", "detail": "cuFFTDx", "status": "running",
+                           "updated_at": 123.0}}
+
+    def reply(self, value):
+        return subprocess.CompletedProcess([], 0, value, "")
+
+    def test_progress_and_terminal_exit_use_one_ssh_call_per_poll(self):
+        snapshot = self.snapshot()
+        ssh = mock.Mock()
+        ssh.run.side_effect = [self.reply(""),
+            self.reply(json.dumps({"exit": None, "progress": snapshot})),
+            self.reply(json.dumps({"exit": {"exit_code": 2}, "progress": snapshot}))]
+        received = []
+        with mock.patch.object(coordinator.time, "sleep") as delay:
+            code = coordinator.execute_worker(ssh, "/workspace/fixture", {"execution_seconds": 30},
+                                              progress_callback=received.append)
+        self.assertEqual(code, 2)
+        self.assertEqual(received, [snapshot, snapshot])
+        self.assertEqual(ssh.run.call_count, 3)  # launch + two combined polls
+        delay.assert_called_once()
+
+    def test_legacy_worker_exit_poll_is_unchanged_without_progress_callback(self):
+        ssh = mock.Mock()
+        ssh.run.side_effect = [self.reply(""), self.reply('{"exit_code": 7}')]
+        self.assertEqual(coordinator.execute_worker(ssh, "/workspace/fixture", {"execution_seconds": 30}), 7)
+        self.assertIn("cat /workspace/fixture/worker.exit.json", ssh.run.call_args.args[0][2])
+
+    def test_invalid_progress_is_ignored_but_worker_failure_is_returned(self):
+        for progress in (None, {"completed": "36/50"}, {**self.snapshot(), "completed": 99}):
+            with self.subTest(progress=progress):
+                ssh, callback = mock.Mock(), mock.Mock()
+                ssh.run.side_effect = [self.reply(""), self.reply(json.dumps(
+                    {"exit": {"exit_code": 7}, "progress": progress}))]
+                self.assertEqual(coordinator.execute_worker(ssh, "/workspace/fixture",
+                    {"execution_seconds": 30}, progress_callback=callback), 7)
+                callback.assert_not_called()
+
+    def test_progress_callback_failure_keeps_polling_and_returns_terminal_exit(self):
+        ssh = mock.Mock()
+        ssh.run.side_effect = [self.reply(""),
+            self.reply(json.dumps({"exit": None, "progress": self.snapshot()})),
+            self.reply(json.dumps({"exit": {"exit_code": 0}, "progress": self.snapshot()}))]
+        callback = mock.Mock(side_effect=OSError("display unavailable"))
+        with mock.patch.object(coordinator.time, "sleep"):
+            self.assertEqual(coordinator.execute_worker(ssh, "/workspace/fixture",
+                {"execution_seconds": 30}, progress_callback=callback), 0)
+        callback.assert_called_once()
+        self.assertEqual(ssh.run.call_count, 3)
+        self.assertTrue(all(call.args[0][0].endswith("/venv/bin/python")
+                            for call in ssh.run.call_args_list[1:]))
+
+    def test_malformed_terminal_evidence_is_not_ignored_as_telemetry(self):
+        for envelope in ({"progress": self.snapshot()},
+                         {"exit": {"exit_code": "invalid"}, "progress": None},
+                         {"exit": {}, "progress": None}):
+            with self.subTest(envelope=envelope):
+                ssh = mock.Mock()
+                ssh.run.side_effect = [self.reply(""), self.reply(json.dumps(envelope))]
+                with self.assertRaises((ValueError, KeyError)):
+                    coordinator.execute_worker(ssh, "/workspace/fixture", {"execution_seconds": 30},
+                                               progress_callback=lambda value: None)
+
+    def test_remote_transport_cancellation_is_not_swallowed(self):
+        ssh = mock.Mock()
+        ssh.run.side_effect = [self.reply(""), InterruptedError("cancelled transport")]
+        with self.assertRaisesRegex(InterruptedError, "cancelled transport"):
+            coordinator.execute_worker(ssh, "/workspace/fixture", {"execution_seconds": 30},
+                                       progress_callback=lambda value: None)
+
+    def test_real_remote_poll_script_ignores_bad_progress_and_bounds_output(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "source").symlink_to(Path(__file__).resolve().parents[2], target_is_directory=True)
+            (root / "worker.exit.json").write_text('{"exit_code": 0}')
+            for payload in (json.dumps(self.snapshot()), "{bad JSON", "x" * 70000):
+                with self.subTest(size=len(payload)):
+                    (root / "progress.json").write_text(payload)
+                    responses = []
+                    def run(command, **kwargs):
+                        if command[0] == "bash":
+                            return self.reply("")
+                        response = subprocess.run([sys.executable, *command[1:]], text=True,
+                                                  capture_output=True, check=True, timeout=5)
+                        responses.append(response.stdout)
+                        return response
+                    received = []
+                    code = coordinator.execute_worker(SimpleNamespace(run=run), str(root),
+                        {"execution_seconds": 30}, progress_callback=received.append)
+                    self.assertEqual(code, 0)
+                    self.assertLess(len(responses[0].encode()), 65536)
+                    self.assertEqual(len(received), int(payload.startswith('{"schema_version"')))
+
+
 class DependencyBootstrapTests(unittest.TestCase):
     def test_bootstrap_scripts_match_cuda_major_and_pin_download_hashes(self):
         from artifact.cloud.config import CUDNN_ARCHIVES

@@ -136,6 +136,20 @@ class RunnerChecks(unittest.TestCase):
         for evaluation in tasks:
             self.assertIn(evaluation, output)
 
+    def test_progress_off_does_not_hide_adapter_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = {'evaluation': 'table3', 'status': 'failed', 'exit_code': 9,
+                     'result_dir': str(Path(temporary) / 'details')}
+            output = io.StringIO()
+            with patch('sys.argv', ['run.sh', 'table3', '--progress', 'off', '--result-dir', temporary]), \
+                    patch.object(runner, 'capture', return_value={}), \
+                    patch.object(runner, 'execute', return_value=state), \
+                    redirect_stdout(io.StringIO()), redirect_stderr(output):
+                self.assertEqual(runner.main(), 1)
+            self.assertIn('[table3] failed (exit 9)', output.getvalue())
+            self.assertIn('/run.log', output.getvalue())
+            self.assertNotIn('\x1b', output.getvalue())
+
     def test_available_default_omits_unfinished_and_orders_dependencies(self):
         entries = [{"id": "figure", "available": True, "depends_on": ["data"]},
                    {"id": "external", "available": False},

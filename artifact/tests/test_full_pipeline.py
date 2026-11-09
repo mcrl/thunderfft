@@ -78,7 +78,8 @@ class PipelineTests(unittest.TestCase):
         return self.stage_codes.get("A100", 0)
 
     def fake_group(self, args, registry, root, collection_module, select_tasks, parser,
-                   configs, proposals, *, local_run=None, stage_update=None, ready_check=None):
+                   configs, proposals, *, local_run=None, stage_update=None, ready_check=None,
+                   log=None, tick=None):
         self.group_request = {"args": args, "configs": copy.deepcopy(configs),
                               "proposals": copy.deepcopy(proposals)}
         stages, reserved = [], 0.0
@@ -122,6 +123,8 @@ class PipelineTests(unittest.TestCase):
         if stage_update:
             for stage in stages:
                 stage_update(stage["gpu"], dict(stage))
+        if tick:
+            tick()
         code = 130 if self.interrupted else int(any(stage["exit_code"] for stage in stages))
         return {"exit_code": code, "stages": stages, "reserved_total_usd": reserved,
                 "cleanup_confirmed": self.cleanup and not self.no_evidence,
@@ -186,6 +189,37 @@ class PipelineTests(unittest.TestCase):
             self.assertAlmostEqual(value, self.plan_costs[gpu] + 4.0 / 3.0)
         self.assertEqual(self.plan_calls, ["A100", "H100", "B200"])
         self.assertEqual(self.summary()["reserved_total_usd"], 4.0)
+
+    def test_local_and_remote_progress_survive_final_merge_without_audit_writes_per_tick(self):
+        snapshot = {'schema_version': 1, 'completed': 0, 'total': 2, 'evaluation': 'table3',
+                    'status': 'measuring', 'updated_at': 10.,
+                    'detail': {'schema_version': 1, 'done': 36, 'total': 56, 'unit': 'configs',
+                               'detail': 'cuFFTDx', 'status': 'measuring', 'updated_at': 10.}}
+
+        def group(*args, **kwargs):
+            folder = next((self.args.result_dir / 'pipelines').iterdir())
+            pipeline.progress.write_snapshot(folder / 'a100-progress.json', snapshot)
+            with mock.patch.object(pipeline, 'write_json', side_effect=AssertionError('telemetry wrote required audit')):
+                kwargs['stage_update']('H100', {'progress': snapshot})
+                kwargs['tick']()
+            kwargs['log']('Detailed cloud fixture log')
+            return self.fake_group(*args, **kwargs)
+
+        with self.patches(), mock.patch.object(pipeline.cloud_group, 'run', side_effect=group):
+            self.assertEqual(self.execute(), 0)
+        stages = {stage['gpu']: stage for stage in self.summary()['stages']}
+        self.assertEqual(stages['A100']['progress']['detail']['done'], 36)
+        self.assertEqual(stages['H100']['progress']['detail']['done'], 36)
+        self.assertIn('Detailed cloud fixture log', next((self.args.result_dir / 'pipelines').glob('*/pipeline.log')).read_text())
+
+    def test_progress_off_keeps_gpu_failure_visible(self):
+        self.args.progress = 'off'
+        self.stage_codes['H100'] = 1
+        output = io.StringIO()
+        with self.patches(), redirect_stderr(output):
+            self.assertEqual(self.execute(), 1)
+        self.assertIn('[H100] failed (exit 1)', output.getvalue())
+        self.assertNotIn('\x1b', output.getvalue())
 
     def test_configured_all_mode_reaches_local_and_cloud_stages_and_metadata(self):
         self.config["environment"][CUFFTDX_MODE_ENV] = "all"
@@ -555,6 +589,8 @@ class LocalInventoryTests(unittest.TestCase):
             self.assertEqual(launch.call_args.kwargs["env"][CUFFTDX_MODE_ENV], "preset")
             self.assertEqual(launch.call_args.kwargs["env"][CUDNN_MODE_ENV], "full")
             self.assertEqual(launch.call_args.kwargs["env"][TABLE5_RANGE_MODE_ENV], "full")
+            self.assertEqual(launch.call_args.kwargs['env']['THUNDERFFT_RUN_PROGRESS_FILE'],
+                             str(folder / 'a100-progress.json'))
 
     def test_local_child_requires_a_previously_checked_uuid(self):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.object(pipeline.subprocess, "Popen") as launch:
