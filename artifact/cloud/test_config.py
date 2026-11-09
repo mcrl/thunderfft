@@ -88,11 +88,13 @@ class ConfigurationTests(unittest.TestCase):
             folder = Path(temporary)
             settings, batch, output = folder / "config.json", folder / "batch.json", folder / "results"
             settings.write_text(json.dumps({"budget_usd": 1.5, "api_key_file": str(folder / "missing-key"),
-                "environment": {config.CUFFTDX_MODE_ENV: "preset", config.CUDNN_MODE_ENV: "fast"}}))
+                "environment": {config.CUFFTDX_MODE_ENV: "preset", config.CUDNN_MODE_ENV: "fast",
+                                config.TABLE5_RANGE_MODE_ENV: "boundary"}}))
             command = [str(ROOT / "run.sh"), "--backend", "vast", "--cloud-batch", str(batch),
                        "--cloud-config", str(settings), "--result-dir", str(output), "--full", "--dry-run"]
             batch.write_text(json.dumps([{"evaluations": ["figure4"], "part": "requested-fast",
-                "environment": {config.CUFFTDX_MODE_ENV: "preset", config.CUDNN_MODE_ENV: "fast"}}]))
+                "environment": {config.CUFFTDX_MODE_ENV: "preset", config.CUDNN_MODE_ENV: "fast",
+                                config.TABLE5_RANGE_MODE_ENV: "boundary"}}]))
             result = subprocess.run(command, text=True, capture_output=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
             preview = json.loads(result.stdout)
@@ -102,12 +104,29 @@ class ConfigurationTests(unittest.TestCase):
             self.assertEqual((preview["jobs"][0]["cufftdx_mode"], preview["jobs"][0]["cudnn_mode"]),
                              ("all", "full"))
             self.assertEqual(preview["jobs"][0]["environment"][config.CUDNN_MODE_ENV], "full")
+            self.assertEqual(preview["jobs"][0]["table5_range_mode"], "full")
+            self.assertEqual(preview["jobs"][0]["environment"][config.TABLE5_RANGE_MODE_ENV], "full")
             self.assertFalse(output.exists())
             batch.write_text(json.dumps([{"evaluations": ["figure2"], "part": "unsupported"}]))
             rejected = subprocess.run(command, text=True, capture_output=True, timeout=20)
             self.assertEqual(rejected.returncode, 2)
             self.assertIn("--backend vast is not supported for: figure2", rejected.stderr)
             self.assertFalse(output.exists())
+
+    def test_table5_range_mode_defaults_validation_and_offline_config_precedence(self):
+        key = config.TABLE5_RANGE_MODE_ENV
+        self.assertEqual(config.table5_range_mode(environment={}), "boundary")
+        self.assertEqual(config.table5_range_mode("boundary", {key: "full"}), "boundary")
+        for mode in ("boundary", "full"):
+            self.assertEqual(self.load({"environment": {key: mode}})["environment"][key], mode)
+        for mode in ("", "all", "FULL", True):
+            with self.subTest(mode=mode), self.assertRaises(ValueError):
+                self.load({"environment": {key: mode}})
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {key: "full"}):
+            path = Path(folder) / "config.json"
+            path.write_text(json.dumps({"environment": {key: "boundary"}}))
+            self.assertEqual(config.preview_modes(path)["table5_range_mode"], "boundary")
+            self.assertEqual(config.preview_modes(path, explicit_table5_range="full")["table5_range_mode"], "full")
 
     def test_startup_attempts_and_machine_exclusions_are_bounded(self):
         for overrides in ({"max_startup_attempts": 0}, {"max_startup_attempts": 4},

@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "purpose": "Starting windows only; every reported boundary is measured again. This file supplies no timing or accuracy output.",
+  "profile": "paper",
+  "batch": 65536,
+  "seed": 1234,
+  "gpu_name": "NVIDIA A100 80GB PCIe",
+  "entries": {
+    "fp16": {
+      "64": 11,
+      "256": 9,
+      "1024": 8,
+      "4096": 7
+    },
+    "tf32": {
+      "64": 123,
+      "256": 122,
+      "1024": 120,
+      "4096": 119
+    },
+    "fp32": {
+      "64": 123,
+      "256": 121,
+      "1024": 120,
+      "4096": 119
+    },
+    "fp16_cufftdx": {
+      "64": 11,
+      "256": 9,
+      "1024": 8,
+      "4096": 7
+    }
+  },
+  "sources": [
+    {
+      "id": "a100-full-20261109",
+      "commit": "6864641058f2f4abd0875ff20b0f912b04416343",
+      "collection": "full-20261109T031050Z-fc3a57ec",
+      "precision": "fp16",
+      "csv": "range_fp16.csv",
+      "sha256": "b3f873f2543c77e592341f2dc154599f58c8933e65b5fe01f68a4ff2417a9b7e",
+      "exponent_window": [
+        0,
+        127
+      ]
+    },
+    {
+      "id": "a100-full-20261109",
+      "commit": "6864641058f2f4abd0875ff20b0f912b04416343",
+      "collection": "full-20261109T031050Z-fc3a57ec",
+      "precision": "tf32",
+      "csv": "range_tf32.csv",
+      "sha256": "73074f4a1ed3a1d70fa54cd428db3e33e7cbe6821c96132fd26d59ffea31732f",
+      "exponent_window": [
+        0,
+        127
+      ]
+    },
+    {
+      "id": "a100-full-20261109",
+      "commit": "6864641058f2f4abd0875ff20b0f912b04416343",
+      "collection": "full-20261109T031050Z-fc3a57ec",
+      "precision": "fp32",
+      "csv": "range_fp32_cufft.csv",
+      "sha256": "4981830a021a60e31d7489f630f66979cd2df61a029ee29701154917c2930c88",
+      "exponent_window": [
+        0,
+        127
+      ]
+    },
+    {
+      "id": "a100-cufftdx-boundary-20261109",
+      "commit": "730e768fb1bf5538e07dc8cc02d41e2ce93b1f95",
+      "precision": "fp16_cufftdx",
+      "csv": "cufftdx-probe.csv",
+      "sha256": "03a69c64c8a981d52acc0d3d54ecbb58ecc64547a85a414036b18b4c3ce4406c",
+      "exponent_window": [
+        6,
+        13
+      ],
+      "scope": "Adjacent boundary observed in local window; no full 0..127 scan for this source.",
+      "binary_sha256": "37c8d3a63b4e48e2514c2a548dce9aa981f7a208867996303db72da2edf2c240",
+      "native_source_sha256": "33c33e5365de7a79ea2df9f0bfabe9ee70dd641281fc96e26aa65653d25feefe"
+    }
+  ]
+}

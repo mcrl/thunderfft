@@ -13,6 +13,7 @@ import uuid
 
 from .config import (ARCHS, MATHDX_ARCHIVES, CUDNN_ARCHIVES, TORCH_HEADERS_VERSION,
                      CUFFTDX_MODE_ENV, cufftdx_mode, CUDNN_MODE_ENV, cudnn_mode,
+                     TABLE5_RANGE_MODE_ENV, table5_range_mode,
                      inherited_environment, load_config, measurement_environment, required_dependencies)
 from .provider import VastClient, ProviderError, CreateRejected, plan_cost
 from .transport import SSH, build_source_bundle, safe_extract_result, validate_private_key
@@ -37,10 +38,12 @@ def make_jobs(args, entries, registry, config, select_tasks, parser):
         effective = dict(environment, **measurement_environment({} if overrides is None else overrides))
         mode = cufftdx_mode(getattr(args, "cufftdx_mode", None), effective)
         convolution_mode = cudnn_mode(getattr(args, "cudnn_mode", None), effective)
+        range_mode = table5_range_mode(getattr(args, "table5_range_mode", None), effective)
         effective[CUFFTDX_MODE_ENV] = mode
         effective[CUDNN_MODE_ENV] = convolution_mode
+        effective[TABLE5_RANGE_MODE_ENV] = range_mode
         return {"evaluations": evaluations, "part": part, "environment": effective,
-                "cufftdx_mode": mode, "cudnn_mode": convolution_mode}
+                "cufftdx_mode": mode, "cudnn_mode": convolution_mode, "table5_range_mode": range_mode}
 
     if not args.cloud_batch:
         return [job([e["id"] for e in entries], args.part)]

@@ -27,7 +27,8 @@ from artifact.cloud import coordinator as cloud
 from artifact import full_pipeline
 from artifact.cloud import transport as cloud_transport
 from artifact.cloud.config import (CUFFTDX_MODE_ENV, CUFFTDX_MODES, cufftdx_mode,
-                                   CUDNN_MODE_ENV, CUDNN_MODES, cudnn_mode)
+                                   CUDNN_MODE_ENV, CUDNN_MODES, cudnn_mode,
+                                   TABLE5_RANGE_MODE_ENV, TABLE5_RANGE_MODES, table5_range_mode)
 
 # Also works when CPU tests load this file by path rather than as a module.
 _spec = importlib.util.spec_from_file_location("artifact_collection", Path(__file__).with_name("collection.py"))
@@ -136,9 +137,11 @@ def stop_process(process):
 def execute(entry, output, args, dependency_results=None):
     mode = cufftdx_mode(getattr(args, "cufftdx_mode", None))
     convolution_mode = cudnn_mode(getattr(args, "cudnn_mode", None))
+    range_mode = table5_range_mode(getattr(args, "table5_range_mode", None))
     command = ["bash", str(ROOT / "artifact" / entry["id"] / "run.sh")]
     state = {"evaluation": entry["id"], "title": entry["title"],
              "profile": args.profile, "cufftdx_mode": mode, "cudnn_mode": convolution_mode,
+             "table5_range_mode": range_mode,
              "status": "running", "exit_code": None,
              "implementation": entry["implementation"], "owner": entry.get("owner"),
              "coverage": entry.get("coverage", "See the task README"),
@@ -159,6 +162,7 @@ def execute(entry, output, args, dependency_results=None):
                         "THUNDERFFT_DEPENDENCY_RESULTS": json.dumps(dependency_results or {})})
     environment[CUFFTDX_MODE_ENV] = mode
     environment[CUDNN_MODE_ENV] = convolution_mode
+    environment[TABLE5_RANGE_MODE_ENV] = range_mode
     if getattr(args, "collection", None):
         environment["THUNDERFFT_COLLECTION"] = args.collection
     started = time.monotonic()
@@ -219,8 +223,10 @@ def main():
                         help="Table 3 cuFFTDx configuration selection: preset (default) or all; overrides environment/config")
     parser.add_argument("--cudnn-mode", choices=CUDNN_MODES, default=None,
                         help="Figure 4/5 cuDNN coverage: fast (default, skips slow filters) or full; overrides environment/config")
+    parser.add_argument("--table5-range-mode", choices=TABLE5_RANGE_MODES, default=None,
+                        help="Table 5 finite-range checks: boundary (default) or full exponent sweep; overrides environment/config")
     parser.add_argument("--full", action="store_true",
-                        help="run the cuFFTDx candidate search and every cuDNN filter (--cufftdx-mode all --cudnn-mode full)")
+                        help="run the cuFFTDx candidate search, every cuDNN filter and full Table 5 exponent sweep")
     parser.add_argument("--result-dir", type=Path, default=ROOT / "result")
     parser.add_argument("--build-dir", type=Path, default=ROOT / "build_artifact")
     parser.add_argument("--device", type=nonnegative, default=0,
@@ -238,9 +244,10 @@ def main():
     full_pipeline.add_arguments(parser)
     args = parser.parse_args()
     if args.full:
-        if args.cufftdx_mode == "preset" or args.cudnn_mode == "fast":
-            parser.error("--full conflicts with --cufftdx-mode preset or --cudnn-mode fast")
+        if args.cufftdx_mode == "preset" or args.cudnn_mode == "fast" or args.table5_range_mode == "boundary":
+            parser.error("--full conflicts with --cufftdx-mode preset, --cudnn-mode fast or --table5-range-mode boundary")
         args.cufftdx_mode, args.cudnn_mode = "all", "full"
+        args.table5_range_mode = "full"
     complete = args.backend == "all" or (
         args.backend is None and args.evaluations in ([], ["all"]) and not
         (args.list or args.assemble or args.import_result or args.cloud_batch or args.cloud_recover)
@@ -308,6 +315,7 @@ def main():
     try:
         args.cufftdx_mode = cufftdx_mode(args.cufftdx_mode)
         args.cudnn_mode = cudnn_mode(args.cudnn_mode)
+        args.table5_range_mode = table5_range_mode(args.table5_range_mode)
     except ValueError as error:
         parser.error(str(error))
     if args.list or args.dry_run:
@@ -324,6 +332,7 @@ def main():
                 print(f"Profile: {args.profile}; device: {args.device}; sequential execution")
                 print(f"Table 3 cuFFTDx mode: {args.cufftdx_mode}")
                 print(f"Figure 4/5 cuDNN mode: {args.cudnn_mode}")
+                print(f"Table 5 range mode: {args.table5_range_mode}")
             if collection_dir:
                 print(f"Collection: {collection_dir}")
                 if args.assemble and (collection_dir / "assembled/manifest.json").is_file():
@@ -377,6 +386,7 @@ def main():
     batch_dir.mkdir(parents=True, exist_ok=False)
     metadata = {"schema_version": 1, "run_id": run_id, "started_at": now(),
                 "profile": args.profile, "cufftdx_mode": args.cufftdx_mode, "cudnn_mode": args.cudnn_mode,
+                "table5_range_mode": args.table5_range_mode,
                 "evaluations": [e["id"] for e in entries],
                 "selection": args.evaluations or ["available"],
                 "collection": args.collection, "part": args.part or run_id,
@@ -397,6 +407,7 @@ def main():
                 "paper": registry["paper"], "scientific_validation": "not_assessed"}
     metadata["configuration"][CUFFTDX_MODE_ENV] = args.cufftdx_mode
     metadata["configuration"][CUDNN_MODE_ENV] = args.cudnn_mode
+    metadata["configuration"][TABLE5_RANGE_MODE_ENV] = args.table5_range_mode
     cloud_source = ROOT / ".thunderfft-cloud-source.json"
     if cloud_source.is_file():
         # A source archive carries original revision + actual per-file hashes;

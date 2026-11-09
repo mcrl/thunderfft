@@ -51,11 +51,12 @@ tests.
 ## Complete reproduction with one command
 
 ```bash
-./run.sh                               # paper workflow: saved cuFFTDx parameters, short cuDNN sweep
+./run.sh                               # paper workflow: preset cuFFTDx, fast cuDNN, Table 5 boundary checks
 # Equivalent: ./run.sh all
-./run.sh --full                         # all cuFFTDx candidates and all cuDNN filters
+./run.sh --full                         # all candidates, all cuDNN filters, full Table 5 exponent scans
 ./run.sh --cufftdx-mode all             # Table 3 candidate search; retain the short cuDNN sweep
 ./run.sh --cudnn-mode full              # all cuDNN filters; retain Table 3 saved parameters
+./run.sh --table5-range-mode full       # full Table 5 scan; retain the other default modes
 ```
 
 The launcher loads `~/.thunderfft_env` when present. With no evaluation names,
@@ -81,8 +82,20 @@ slowdown relative to the fastest other library in the retained A100 sweep.
 The plot annotates the omitted cuDNN tail and leaves it blank; no timings
 are filled in for skipped filters.
 
-`--full` combines `--cufftdx-mode all --cudnn-mode full`. The individual
-options affect Table 3 and Figures 4/5 respectively. `THUNDERFFT_CUDNN_MODE`
+Table 5 defaults to `--table5-range-mode boundary`. For every FFT size, it
+measures fresh `alpha=1` accuracy and finite-range results for four rows:
+xFFT/ThunderFFT FP16, cuFFTDx FP16, xFFT/ThunderFFT TF32 and cuFFT FP32.
+The range check measures `k-1..k+2` around each retained last-finite exponent
+`k`, expanding the window if the boundary shifts or is not bracketed. The
+saved values choose the starting window; they do not supply the reported
+accuracy or finite flags. On the default paper grid, unchanged boundaries
+give 16 accuracy rows and 64 finite checks. This is a local boundary recheck;
+`--table5-range-mode full` scans every exponent `0..127` for all four rows
+(2,064 raw rows including accuracy). See [Table 5](table5/README.md).
+
+`--full` combines `--cufftdx-mode all --cudnn-mode full
+--table5-range-mode full`. The individual options affect Table 3, Figures 4/5
+and Table 5 respectively. `THUNDERFFT_CUDNN_MODE`
 also accepts `fast` or `full`; an explicit CLI option takes precedence.
 Full cuDNN mode measures every requested filter and disables the optional
 `THUNDERFFT_FIGURE4_SLOW_RATIO` / `THUNDERFFT_FIGURE5_SLOW_RATIO` cutoff.
@@ -90,13 +103,13 @@ Full cuDNN mode measures every requested filter and disables the optional
 Approximate paper-workflow times on the prepared evaluation account, with
 dependencies and local builds already available:
 
-| Step, in execution order | GPU | Default (`preset` + `fast`) | `--full` (`all` + `full`) |
+| Step, in execution order | GPU | Default (`preset` + `fast` + `boundary`) | `--full` |
 | --- | --- | --- | --- |
 | Validation | A100 | Under 1 minute | Under 1 minute |
 | Table 3 | A100 | 4–6 minutes | 8–12 minutes |
 | Table 2 | A100 | Under 1 minute | Under 1 minute |
 | Table 4 | A100 | Under 1 minute | Under 1 minute |
-| Table 5 | A100 | 18–22 minutes | 18–22 minutes |
+| Table 5 | A100 | 2–4 minutes (estimate) | 22–28 minutes (estimate) |
 | Table 6 | A100 | Under 1 minute | Under 1 minute |
 | Table 7 | A100 | Under 1 minute | Under 1 minute |
 | Figure 3 | A100 | Under 1 minute | Under 1 minute |
@@ -105,14 +118,16 @@ dependencies and local builds already available:
 | Tables 3 and 4, complete cloud stage | H100 PCIe | 8–12 minutes | 10–15 minutes |
 | Tables 3 and 4, complete cloud stage | B200 | 8–12 minutes | 10–15 minutes |
 | Final table assembly and Figure 2–5 PDFs | CPU | Under 1 minute | Under 1 minute |
-| **Total** |  | **About 50–70 minutes (estimate)** | **About 60–80 minutes** |
+| **Total** |  | **About 35–55 minutes (estimate)** | **About 65–85 minutes (estimate)** |
 
 Cloud-stage estimates include startup, builds, measurements, result download
 and cleanup. Initial setup/local builds, GPU waiting and cloud retries can add
 time. Figure 2 reuses Table 3 measurements during final assembly.
-The H100/B200 preset-stage and default total times remain estimates. The
-complete new `preset` + `fast` workflow has not been rerun end to end on all
-three GPUs.
+The new Table 5 times, H100/B200 preset-stage times and both workflow totals
+remain estimates. Table 5 full mode now adds the cuFFTDx finite-range scan,
+which the older full run did not include. The complete new
+`preset` + `fast` + `boundary` workflow has not been rerun end to end on all
+three GPUs; neither has the expanded `--full` workflow.
 A100 Table 3 preset measurement took 4 minutes 56 seconds, plus 2 minutes
 9 seconds for build/setup, compared with the previous full search's
 8 minutes 41 seconds of measurement. See the Table 3 README for details.
@@ -123,6 +138,8 @@ on A100/H100/B200, including automatic assembly. At commit `317593c`, a
 separate A100 preset check passed all 56 Table 3 configurations and Table 2 /
 Figure 2 assembly, plus 494 CPU tests. These checks describe those revisions
 and modes; they do not establish an end-to-end measurement of the new default.
+That historical Table 5 result covered all four accuracy rows per size and
+three finite-range implementations; cuFFTDx FP16 range was then uncollected.
 
 On 2026-11-09, commit `a0f5755` passed 525 CPU tests and actual A100 fast
 paper runs of Figures 4/5. Figure 4 took 1 minute 28 seconds and Figure 5
@@ -170,7 +187,10 @@ Startup, download, cleanup and delayed-billing reserves are accounted for
 separately. If an affordable compatible offer is unavailable, the workflow
 reports the stage and does not rent an incompatible GPU.
 
-Every runnable evaluation produces its output. Default Figures 4/5 record
+Every runnable evaluation produces its output. Table 5 labels its default
+range coverage `boundary_recheck`; full mode uses `full_profile_scan`.
+A boundary recheck does not establish global monotonicity or the maximum
+finite exponent across the entire `0..127` grid. Default Figures 4/5 record
 intentional cuDNN omissions in `policy_skipped` with `coverage_complete=false`;
 their assembly can complete with no unexpected missing cells. Their arithmetic
 means cover the measured sizes only: cuDNN uses `mean(12)` / `mean(5)`, while

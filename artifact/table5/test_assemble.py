@@ -24,14 +24,13 @@ ENVIRONMENT = {"gpu_uuid": "GPU-12345678-1234-5678-1234-123456789abc", "gpu_name
                "cuda_compile_version": 12090, "cufft_version": 11303}
 
 
-def make_part(path, phases=None, sizes=None, profile="smoke", batch=64, seed=1234):
+def make_part(path, phases=None, sizes=None, profile="smoke", batch=64, seed=1234, range_mode="full"):
     phases, sizes = list(summary.PHASES if phases is None else phases), sizes or [64]
     path.mkdir()
-    ranges = ({"fp16": [8, 13], "tf32": [120, 127], "fp32": [120, 127]} if profile == "smoke"
-              else {p: [0, 127] for p in summary.RANGE_PRECISIONS})
+    ranges = summary.profile_ranges(profile)
     metadata = {
         "evaluation": "table5", "profile": profile, "N": sizes, "batch": batch, "seed": seed,
-        "selected_phases": phases, "range_exponents": ranges,
+        "selected_phases": phases, "range_exponents": ranges, "range_mode": range_mode,
         "input": "complex Gaussian; per-FFT L2 norm / sqrt(N) = alpha",
         "reference": "cuFFT Z2Z (FP64) applied to the generated FP32 input",
         "implementations": dict(summary.IMPLEMENTATIONS),
@@ -40,7 +39,7 @@ def make_part(path, phases=None, sizes=None, profile="smoke", batch=64, seed=123
                   "cuda_compiler_version": {"exit_code": 0, "stdout": "synthetic compiler"}},
         "measured_environment": copy.deepcopy(ENVIRONMENT),
     }
-    if "accuracy_fp16_cufftdx" in phases:
+    if set(summary.CUFFTDX_PHASES) & set(phases):
         metadata["build"]["cufftdx"] = {"binary_sha256": "d" * 64, "target_files": {"flags.make": "-O3"}}
     (path / "metadata.json").write_text(json.dumps(metadata))
     (path / "status.json").write_text(json.dumps({"evaluation": "table5", "profile": profile,
@@ -57,11 +56,41 @@ def make_part(path, phases=None, sizes=None, profile="smoke", batch=64, seed=123
                     error = 1e-7 if precision == "fp32" else 1e-3 if precision == "fp16_cufftdx" else 1e-4
                     values = [n, batch, "gaussian", alpha, precision,
                               error if accuracy else "nan", error if accuracy else "nan", error if accuracy else "nan",
-                              int(accuracy or alpha <= 2.0**(11 if precision == "fp16" else 123))]
+                              int(accuracy or alpha <= 2.0**(11 if precision in ("fp16", "fp16_cufftdx") else 123))]
                     rows.append(dict(zip(summary.RAW_FIELDS, values)))
         summary.write_csv(path / f"{phase}.csv", summary.RAW_FIELDS, rows)
         (path / f"{phase}.environment.json").write_text(json.dumps(ENVIRONMENT))
+    if range_mode == "boundary":
+        for precision, phase in summary.RANGE_PHASE.items():
+            if phase in phases:
+                for n in sizes:
+                    last = 11 if precision in ("fp16", "fp16_cufftdx") else 123
+                    set_boundary_windows(path, precision, n, [[last - 1, last + 2]], expected=last)
     return path
+
+
+def set_boundary_windows(path, precision, n, windows, expected):
+    phase = summary.RANGE_PHASE[precision]
+    metadata = json.loads((path / "metadata.json").read_text())
+    metadata["range_mode"] = "boundary"
+    all_rows = summary.load_rows(path / f"{phase}.csv")
+    selected = [row for row in all_rows if int(row["N"]) == n]
+    (path / "raw").mkdir(exist_ok=True)
+    attempts = []
+    for index, (lower, upper) in enumerate(windows):
+        stem = f"raw/{phase}-n{n}-attempt{index}"
+        rows = [row for row in selected if lower <= round(math.log2(float(row["alpha"]))) <= upper]
+        summary.write_csv(path / (stem + ".csv"), summary.RAW_FIELDS, rows)
+        (path / (stem + ".environment.json")).write_text(json.dumps(ENVIRONMENT))
+        (path / (stem + ".log")).write_text("synthetic native finite-output scan\n")
+        attempts.append({"min": lower, "max": upper, "csv": stem + ".csv",
+                         "environment": stem + ".environment.json", "log": stem + ".log", "exit_code": 0})
+    metadata.setdefault("range_checks", {}).setdefault(precision, {})[str(n)] = {
+        "initial_window": windows[0], "window": windows[-1], "expected_last_finite": expected,
+        "preset_source": "synthetic CPU fixture", "attempts": attempts}
+    summary.write_csv(path / f"{phase}.csv", summary.RAW_FIELDS,
+                      [row for row in all_rows if int(row["N"]) != n] + rows)
+    (path / "metadata.json").write_text(json.dumps(metadata))
 
 
 def mutate_json(path, function):
@@ -86,10 +115,10 @@ class AssembleChecks(unittest.TestCase):
     def test_empty_collection_is_pending(self):
         result = assemble([], self.output, "paper")
         self.assertEqual(result["status"], "pending")
-        self.assertEqual(len(result["missing"]), 24)
+        self.assertEqual(len(result["missing"]), 28)
         self.assertEqual(len(self.read_table()), 16)
         self.assertTrue(all(row["largest_finite_exponent_observed"] == "" and
-                            row["range_status"] == ("not_measured" if row["precision"] == "fp16_cufftdx" else "pending")
+                            row["range_status"] == "pending"
                             for row in self.read_table()))
 
     def test_selected_accuracy_collects_successfully_with_pending_ranges(self):
@@ -99,17 +128,17 @@ class AssembleChecks(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         result = assemble([part], self.output, "smoke")
         self.assertEqual(result["status"], "partial")
-        self.assertEqual(len(result["missing"]), 5)
+        self.assertEqual(len(result["missing"]), 6)
         self.assertEqual([row["accuracy_status"] for row in self.read_table()], ["complete", "complete", "pending", "pending"])
         self.assertTrue(all(row["largest_finite_exponent_observed"] == "" for row in self.read_table()))
 
-    def test_six_independent_phases_complete_without_changing_parts(self):
+    def test_seven_independent_phases_complete_without_changing_parts(self):
         parts = [make_part(self.root / phase, [phase]) for phase in summary.PHASES]
         original = {str(path): path.read_bytes() for part in parts for path in part.iterdir()}
         result = assemble(parts, self.output, "smoke")
-        self.assertEqual(result, {"status": "complete", "missing": [], "full_paper_comparison": False})
-        self.assertEqual([row["largest_finite_exponent_observed"] for row in self.read_table()], ["11", "123", "123", ""])
-        self.assertEqual(self.read_table()[3]["range_status"], "not_measured")
+        self.assertEqual(result, {"status": "complete", "missing": [], "full_paper_comparison": False, "range_mode": "full"})
+        self.assertEqual([row["largest_finite_exponent_observed"] for row in self.read_table()], ["11", "123", "123", "11"])
+        self.assertEqual(self.read_table()[3]["range_status"], "complete")
         self.assertEqual(original, {str(path): path.read_bytes() for part in parts for path in part.iterdir()})
 
     def test_split_paper_sizes_complete(self):
@@ -121,7 +150,7 @@ class AssembleChecks(unittest.TestCase):
         part = make_part(self.root / "one", profile="paper")
         result = assemble([part], self.output, "paper")
         self.assertEqual(result["status"], "partial")
-        self.assertEqual(len(result["missing"]), 18)
+        self.assertEqual(len(result["missing"]), 21)
 
     def test_extra_sizes_must_be_complete(self):
         base = make_part(self.root / "base")
@@ -139,7 +168,7 @@ class AssembleChecks(unittest.TestCase):
         result = assemble(parts, self.output, "smoke")
         self.assertEqual(result["status"], "complete")
         with (self.output / "data.csv").open(newline="") as stream:
-            self.assertEqual(len(list(csv.DictReader(stream))), 26)
+            self.assertEqual(len(list(csv.DictReader(stream))), 32)
 
     def test_conflicting_duplicate_rejected(self):
         parts = [make_part(self.root / name) for name in ["first", "second"]]
@@ -195,10 +224,135 @@ class AssembleChecks(unittest.TestCase):
 
     def test_cufftdx_part_combines_with_build_without_mathdx(self):
         parts = [make_part(self.root / "core", list(summary.DEFAULT_PHASES)),
-                 make_part(self.root / "dx", ["accuracy_fp16_cufftdx"])]
+                 make_part(self.root / "dx", list(summary.CUFFTDX_PHASES))]
         self.assertEqual([item["item"] for item in assemble(parts[:1], self.output, "smoke")["missing"]],
-                         ["accuracy_fp16_cufftdx:N=64"])
+                         ["accuracy_fp16_cufftdx:N=64", "range_fp16_cufftdx:N=64"])
         self.assertEqual(assemble(parts, self.output, "smoke")["status"], "complete")
+
+    def test_historical_bundle_without_cufftdx_range_is_explicitly_partial(self):
+        part = make_part(self.root / "historical", [phase for phase in summary.PHASES if phase != "range_fp16_cufftdx"])
+        def historical(metadata):
+            metadata.pop("range_mode")
+            metadata["range_exponents"].pop("fp16_cufftdx")
+        mutate_json(part / "metadata.json", historical)
+        result = assemble([part], self.output, "smoke")
+        self.assertEqual((result["status"], result["range_mode"]), ("partial", "full"))
+        self.assertEqual([item["item"] for item in result["missing"]], ["range_fp16_cufftdx:N=64"])
+        dx = next(row for row in self.read_table() if row["precision"] == "fp16_cufftdx")
+        self.assertEqual((dx["accuracy_status"], dx["range_status"], dx["largest_finite_exponent_observed"]),
+                         ("complete", "pending", ""))
+
+    def test_boundary_mode_requires_and_reports_four_fresh_accuracy_and_range_rows(self):
+        part = make_part(self.root / "boundary", range_mode="boundary")
+        result = assemble([part], self.output, "smoke")
+        self.assertEqual((result["status"], result["range_mode"]), ("complete", "boundary"))
+        rows = self.read_table()
+        self.assertEqual(len(rows), 4)
+        for row in rows:
+            self.assertEqual((row["accuracy_status"], row["range_status"], row["range_coverage"]),
+                             ("complete", "complete", "boundary_recheck"))
+            self.assertEqual(row["full_range_scan"], "False")
+            self.assertEqual(int(row["first_nonfinite_exponent_observed"]), int(row["largest_finite_exponent_observed"]) + 1)
+        metadata = json.loads((self.output / "metadata.json").read_text())
+        self.assertFalse(metadata["full_range_scan"])
+        self.assertEqual(metadata["range_coverage"], "boundary_recheck")
+        self.assertIn("xFFT (ThunderFFT)", (self.output / "table.md").read_text())
+        self.assertIn("does not claim a full-grid scan or a global maximum", (self.output / "table.md").read_text())
+        self.assertTrue(any(name.startswith("raw/") for name in metadata["assembled_from"][0]["sha256"]))
+        for row in self.read_csv("comparison.csv"):
+            self.assertEqual((row["boundary_fully_observed"], row["boundary_bracketed"]), ("False", "True"))
+
+    def test_split_boundary_sizes_with_distinct_windows_are_compatible(self):
+        parts = [make_part(self.root / str(n), sizes=[n], profile="paper")
+                 for n in (64, 256, 1024, 4096)]
+        for part, n in zip(parts, (64, 256, 1024, 4096)):
+            for precision in summary.RANGE_PRECISIONS:
+                last = 11 if precision in ("fp16", "fp16_cufftdx") else 123
+                interval = [8, 13] if precision == "fp16" and n == 256 else [last - 1, last + 2]
+                set_boundary_windows(part, precision, n, [interval], expected=last)
+        mutate_json(parts[1] / "metadata.json", lambda m: m["range_checks"]["fp16"]["256"].update(expected_last_finite=10))
+        result = assemble(parts, self.output, "paper")
+        self.assertEqual(result["status"], "complete")
+        metadata = json.loads((self.output / "metadata.json").read_text())
+        self.assertEqual(set(metadata["range_checks"]["fp16"]), {"64", "256", "1024", "4096"})
+        row = next(row for row in self.read_table() if row["precision"] == "fp16" and row["N"] == "256")
+        self.assertEqual(row["boundary_matches_preset"], "False")
+
+    def test_boundary_expansion_uses_final_measured_window_and_preserves_attempts(self):
+        part = make_part(self.root / "expanded", phases=["range_fp16"])
+        set_boundary_windows(part, "fp16", 64, [[8, 10], [8, 13]], expected=9)
+        result = assemble([part], self.output, "smoke")
+        self.assertEqual(result["status"], "partial")
+        row = self.read_table()[0]
+        self.assertEqual((row["scan_exponent_min"], row["scan_exponent_max"], row["largest_finite_exponent_observed"],
+                          row["boundary_matches_preset"]), ("8", "13", "11", "False"))
+        metadata = json.loads((self.output / "metadata.json").read_text())
+        self.assertEqual(len(metadata["range_checks"]["fp16"]["64"]["attempts"]), 2)
+
+    def test_boundary_without_a_finite_nonfinite_pair_is_rejected(self):
+        for label, limits in (("finite", [8, 10]), ("nonfinite", [12, 13])):
+            with self.subTest(label=label):
+                part = make_part(self.root / label, phases=["range_fp16"])
+                set_boundary_windows(part, "fp16", 64, [limits], expected=None)
+                with self.assertRaisesRegex(ValueError, "adjacent finite/nonfinite"):
+                    assemble([part], self.output, "smoke")
+
+    def test_boundary_attempt_failures_and_tampering_are_rejected(self):
+        for label in ("missing_row", "environment", "failed", "escaping", "log", "final_window", "combined", "nonmonotone"):
+            with self.subTest(label=label):
+                part = make_part(self.root / label, phases=["range_fp16"], range_mode="boundary")
+                metadata = json.loads((part / "metadata.json").read_text())
+                check = metadata["range_checks"]["fp16"]["64"]
+                attempt = check["attempts"][0]
+                if label in ("missing_row", "nonmonotone"):
+                    path = part / attempt["csv"]
+                    rows = summary.load_rows(path)
+                    if label == "missing_row": rows.pop()
+                    else: rows[-1]["all_finite"] = "1"
+                    summary.write_csv(path, summary.RAW_FIELDS, rows)
+                elif label == "environment":
+                    mutate_json(part / attempt["environment"], lambda e: e.update(gpu_name="different"))
+                elif label == "failed": attempt["exit_code"] = 124
+                elif label == "escaping": attempt["csv"] = "../outside.csv"
+                elif label == "log": (part / attempt["log"]).unlink()
+                elif label == "final_window": check["window"] = [8, 13]
+                elif label == "combined":
+                    path = part / "range_fp16.csv"
+                    rows = summary.load_rows(path)
+                    rows[0]["all_finite"] = "0"
+                    summary.write_csv(path, summary.RAW_FIELDS, rows)
+                (part / "metadata.json").write_text(json.dumps(metadata))
+                with self.assertRaisesRegex(ValueError, "phase validation failed"):
+                    assemble([part], self.output, "smoke")
+
+    def test_boundary_expansion_cannot_change_repeated_finite_observations(self):
+        part = make_part(self.root / "expanded", phases=["range_fp16"])
+        set_boundary_windows(part, "fp16", 64, [[8, 10], [8, 13]], expected=9)
+        metadata = json.loads((part / "metadata.json").read_text())
+        first = part / metadata["range_checks"]["fp16"]["64"]["attempts"][0]["csv"]
+        rows = summary.load_rows(first)
+        rows[-1]["all_finite"] = "0"
+        summary.write_csv(first, summary.RAW_FIELDS, rows)
+        with self.assertRaisesRegex(ValueError, "disagree on repeated"):
+            assemble([part], self.output, "smoke")
+
+    def test_boundary_and_full_parts_cannot_be_combined(self):
+        full = make_part(self.root / "full", phases=["accuracy_reduced"])
+        boundary = make_part(self.root / "boundary", phases=["range_fp16"], range_mode="boundary")
+        with self.assertRaisesRegex(ValueError, "incompatible.*range_mode"):
+            assemble([full, boundary], self.output, "smoke")
+
+    def test_full_mode_cannot_relabel_a_boundary_subset_as_full_scan(self):
+        part = make_part(self.root / "boundary", phases=["range_fp16"], range_mode="boundary")
+        mutate_json(part / "metadata.json", lambda m: m.update(range_mode="full"))
+        with self.assertRaisesRegex(ValueError, "missing, duplicate, or out-of-range"):
+            assemble([part], self.output, "smoke")
+
+    def test_cufftdx_range_alone_requires_its_native_binary_provenance(self):
+        part = make_part(self.root / "dx", phases=["range_fp16_cufftdx"])
+        mutate_json(part / "metadata.json", lambda m: m["build"].pop("cufftdx"))
+        with self.assertRaisesRegex(ValueError, "cuFFTDx phase requires"):
+            assemble([part], self.output, "smoke")
 
     def test_different_cufftdx_builds_rejected(self):
         parts = [make_part(self.root / name, ["accuracy_fp16_cufftdx"], sizes=[n], profile="paper")

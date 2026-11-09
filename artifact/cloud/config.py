@@ -40,6 +40,8 @@ CUFFTDX_MODE_ENV = "THUNDERFFT_TABLE3_CUFFTDX_MODE"
 CUFFTDX_MODES = ("preset", "all")
 CUDNN_MODE_ENV = "THUNDERFFT_CUDNN_MODE"
 CUDNN_MODES = ("fast", "full")
+TABLE5_RANGE_MODE_ENV = "THUNDERFFT_TABLE5_RANGE_MODE"
+TABLE5_RANGE_MODES = ("boundary", "full")
 ENVIRONMENT = {
     "THUNDERFFT_TABLE3_" + suffix for suffix in
     ("BATCH", "N_LIST", "PLACEMENTS", "PRECISIONS", "REPEATS", "TIMEOUT", "CUFFTDX_TIMEOUT", "CUFFTDX_MODE", "TRIALS", "LIBRARIES")
@@ -47,7 +49,7 @@ ENVIRONMENT = {
     "THUNDERFFT_TABLE4_" + suffix for suffix in
     ("MODE", "ITERATIONS", "TRIALS", "WARMUPS", "WAVES", "TIMEOUT")
 } | {
-    "THUNDERFFT_TABLE5_" + suffix for suffix in ("BATCH", "N_LIST", "PHASES", "SEED", "TIMEOUT")
+    "THUNDERFFT_TABLE5_" + suffix for suffix in ("BATCH", "N_LIST", "PHASES", "SEED", "TIMEOUT", "RANGE_MODE")
 } | {
     "THUNDERFFT_TABLE7_" + suffix for suffix in ("BATCH", "REPEATS", "TRIALS", "VARIANTS", "TIMING_ONLY")
 } | {
@@ -96,6 +98,8 @@ def measurement_environment(values):
         cufftdx_mode(environment=result)
     if CUDNN_MODE_ENV in result:
         cudnn_mode(environment=result)
+    if TABLE5_RANGE_MODE_ENV in result:
+        table5_range_mode(environment=result)
     return result
 
 
@@ -117,6 +121,15 @@ def cudnn_mode(explicit=None, environment=None):
     return value
 
 
+def table5_range_mode(explicit=None, environment=None):
+    """Table 5 defaults to boundary checks; explicit CLI overrides configured values."""
+    values = os.environ if environment is None else environment
+    value = explicit if explicit is not None else values.get(TABLE5_RANGE_MODE_ENV, "boundary")
+    if value not in TABLE5_RANGE_MODES:
+        raise ValueError(f"{TABLE5_RANGE_MODE_ENV} must be boundary or full")
+    return value
+
+
 def supplied_config(path=None):
     """Read non-secret settings only; suitable for an offline selection preview."""
     selected = Path(path).expanduser() if path else Path("~/cloud_key/thunderfft/config.json").expanduser()
@@ -132,11 +145,12 @@ def preview_cufftdx_mode(path=None, explicit=None):
     return preview_modes(path, explicit)["cufftdx_mode"]
 
 
-def preview_modes(path=None, explicit_cufftdx=None, explicit_cudnn=None):
+def preview_modes(path=None, explicit_cufftdx=None, explicit_cudnn=None, explicit_table5_range=None):
     configured = measurement_environment(supplied_config(path).get("environment", {}))
     environment = inherited_environment({"environment": configured})
     return {"cufftdx_mode": cufftdx_mode(explicit_cufftdx, environment),
-            "cudnn_mode": cudnn_mode(explicit_cudnn, environment)}
+            "cudnn_mode": cudnn_mode(explicit_cudnn, environment),
+            "table5_range_mode": table5_range_mode(explicit_table5_range, environment)}
 
 
 def load_config(path=None):

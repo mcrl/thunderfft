@@ -61,22 +61,25 @@ class RunnerChecks(unittest.TestCase):
             self.assertIn("cuFFTDx mode: all", self.dry_plan("table3"))
             self.assertIn("cuFFTDx mode: preset", self.dry_plan("table3", "--cufftdx-mode", "preset"))
 
-    def test_fast_default_and_full_shorthand_report_both_effective_modes(self):
+    def test_fast_default_and_full_shorthand_report_all_effective_modes(self):
         with patch.dict(os.environ, {}, clear=True):
             output = self.dry_plan("figure4")
             self.assertIn("cuFFTDx mode: preset", output)
             self.assertIn("cuDNN mode: fast", output)
+            self.assertIn("Table 5 range mode: boundary", output)
             output = self.dry_plan("figure4", "--cufftdx-mode", "all")
             self.assertIn("cuFFTDx mode: all", output)
             self.assertIn("cuDNN mode: fast", output)
-        with patch.dict(os.environ, {runner.CUFFTDX_MODE_ENV: "preset", runner.CUDNN_MODE_ENV: "fast"}):
+        with patch.dict(os.environ, {runner.CUFFTDX_MODE_ENV: "preset", runner.CUDNN_MODE_ENV: "fast",
+                                    runner.TABLE5_RANGE_MODE_ENV: "boundary"}):
             for arguments in (("--full",), ("figure4", "--full")):
                 output = self.dry_plan(*arguments)
                 self.assertIn("cuFFTDx mode: all", output)
                 self.assertIn("cuDNN mode: full", output)
+                self.assertIn("Table 5 range mode: full", output)
 
     def test_full_conflicts_fail_before_any_dispatch(self):
-        for options in (("--cufftdx-mode", "preset"), ("--cudnn-mode", "fast")):
+        for options in (("--cufftdx-mode", "preset"), ("--cudnn-mode", "fast"), ("--table5-range-mode", "boundary")):
             with self.subTest(options=options), patch("sys.argv", ["run.sh", "--full", *options]), \
                     patch.object(runner.full_pipeline, "run", side_effect=AssertionError("pipeline dispatched")), \
                     patch.object(runner.cloud, "run", side_effect=AssertionError("cloud dispatched")), \
@@ -84,22 +87,29 @@ class RunnerChecks(unittest.TestCase):
                 runner.main()
             self.assertEqual(raised.exception.code, 2)
 
-    def test_full_cloud_dispatch_carries_both_explicit_overrides(self):
+    def test_full_cloud_dispatch_carries_all_explicit_overrides(self):
         with patch("sys.argv", ["run.sh", "figure4", "--backend", "vast", "--full"]), \
                 patch.object(runner.cloud, "run", return_value=0) as cloud_run:
             self.assertEqual(runner.main(), 0)
         args = cloud_run.call_args.args[0]
         self.assertEqual((args.cufftdx_mode, args.cudnn_mode), ("all", "full"))
+        self.assertEqual(args.table5_range_mode, "full")
 
     def test_cudnn_environment_and_explicit_cli_precedence(self):
         with patch.dict(os.environ, {runner.CUDNN_MODE_ENV: "full"}):
             self.assertIn("cuDNN mode: full", self.dry_plan("figure5"))
             self.assertIn("cuDNN mode: fast", self.dry_plan("figure5", "--cudnn-mode", "fast"))
 
+    def test_table5_range_environment_and_explicit_cli_precedence(self):
+        with patch.dict(os.environ, {runner.TABLE5_RANGE_MODE_ENV: "full"}):
+            self.assertIn("Table 5 range mode: full", self.dry_plan("table5"))
+            self.assertIn("Table 5 range mode: boundary", self.dry_plan("table5", "--table5-range-mode", "boundary"))
+
     def test_cufftdx_mode_manifest_records_effective_cli_value(self):
         with tempfile.TemporaryDirectory() as temporary:
             result = Path(temporary) / "result"
-            argv = ["run.sh", "table3", "--cufftdx-mode", "preset", "--cudnn-mode", "full", "--result-dir", str(result)]
+            argv = ["run.sh", "table3", "--cufftdx-mode", "preset", "--cudnn-mode", "full",
+                    "--table5-range-mode", "full", "--result-dir", str(result)]
             state = {"evaluation": "table3", "status": "completed", "exit_code": 0}
             with patch("sys.argv", argv), patch.dict(os.environ, {runner.CUFFTDX_MODE_ENV: "all"}), \
                     patch.object(runner, "capture", return_value={}), \
@@ -110,6 +120,8 @@ class RunnerChecks(unittest.TestCase):
             self.assertEqual(manifest["configuration"][runner.CUFFTDX_MODE_ENV], "preset")
             self.assertEqual(manifest["cudnn_mode"], "full")
             self.assertEqual(manifest["configuration"][runner.CUDNN_MODE_ENV], "full")
+            self.assertEqual(manifest["table5_range_mode"], "full")
+            self.assertEqual(manifest["configuration"][runner.TABLE5_RANGE_MODE_ENV], "full")
 
     def test_cloud_worker_expanded_full_task_list_does_not_start_nested_pipeline(self):
         registry = json.loads(runner.REGISTRY.read_text())
@@ -139,7 +151,7 @@ class RunnerChecks(unittest.TestCase):
         self.assertEqual([e["id"] for e in runner.select_tasks(["model"], entries, parser)], ["model"])
         self.assertEqual([e["id"] for e in runner.select_tasks([], entries, parser)], ["data", "model"])
 
-    def run_adapter(self, script, required=("data.csv",), mode=None, convolution_mode=None):
+    def run_adapter(self, script, required=("data.csv",), mode=None, convolution_mode=None, range_mode=None):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             task = root / "artifact" / "test"
@@ -152,7 +164,7 @@ class RunnerChecks(unittest.TestCase):
                      "required_outputs": {"smoke": list(required)}}
             args = SimpleNamespace(profile="smoke", build_dir=root / "build", device=0,
                                    jobs=1, run_id="test-run", result_dir=output, timeout=2,
-                                   cufftdx_mode=mode, cudnn_mode=convolution_mode)
+                                   cufftdx_mode=mode, cudnn_mode=convolution_mode, table5_range_mode=range_mode)
             with patch.object(runner, "ROOT", root):
                 state = runner.execute(entry, output, args)
             self.assertEqual(json.loads((output / "status.json").read_text()), state)
@@ -177,6 +189,13 @@ class RunnerChecks(unittest.TestCase):
                                      'printf "fixture\\n" > "$THUNDERFFT_RESULT_DIR/data.csv"\n', convolution_mode="full")
             self.assertEqual(os.environ[runner.CUDNN_MODE_ENV], "fast")
         self.assertEqual((state["status"], state["cudnn_mode"]), ("completed", "full"))
+
+    def test_adapter_receives_table5_range_mode_without_changing_parent_environment(self):
+        with patch.dict(os.environ, {runner.TABLE5_RANGE_MODE_ENV: "full"}):
+            state = self.run_adapter('test "$THUNDERFFT_TABLE5_RANGE_MODE" = boundary || exit 9\n'
+                                     'printf "fixture\\n" > "$THUNDERFFT_RESULT_DIR/data.csv"\n', range_mode="boundary")
+            self.assertEqual(os.environ[runner.TABLE5_RANGE_MODE_ENV], "full")
+        self.assertEqual((state["status"], state["table5_range_mode"]), ("completed", "boundary"))
 
     def test_zero_exit_without_output_fails(self):
         self.assertEqual(self.run_adapter("exit 0\n")["status"], "failed")

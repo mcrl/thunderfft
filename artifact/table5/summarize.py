@@ -7,14 +7,15 @@ import json
 import math
 from pathlib import Path
 
-# The first five phases need only CUDA Toolkit; accuracy_fp16_cufftdx needs a
+# The first five phases need only CUDA Toolkit; the two cuFFTDx phases need a
 # MathDX build. A legacy bundle without selected_phases selected the first five.
 DEFAULT_PHASES = ("accuracy_reduced", "accuracy_fp32_cufft", "range_fp16", "range_tf32", "range_fp32_cufft")
-CUFFTDX_PHASES = ("accuracy_fp16_cufftdx",)
+CUFFTDX_PHASES = ("accuracy_fp16_cufftdx", "range_fp16_cufftdx")
 PHASES = DEFAULT_PHASES + CUFFTDX_PHASES
-RANGE_PRECISIONS = ("fp16", "tf32", "fp32")
-PRECISIONS = RANGE_PRECISIONS + ("fp16_cufftdx",)
-RANGE_PHASE = {"fp16": "range_fp16", "tf32": "range_tf32", "fp32": "range_fp32_cufft"}
+RANGE_PRECISIONS = ("fp16", "tf32", "fp32", "fp16_cufftdx")
+PRECISIONS = RANGE_PRECISIONS
+RANGE_PHASE = {"fp16": "range_fp16", "tf32": "range_tf32", "fp32": "range_fp32_cufft",
+               "fp16_cufftdx": "range_fp16_cufftdx"}
 ACCURACY_PRECISIONS = {"accuracy_reduced": {"fp16", "tf32"}, "accuracy_fp32_cufft": {"fp32"},
                        "accuracy_fp16_cufftdx": {"fp16_cufftdx"}}
 ACCURACY_PHASE = {p: name for name, precisions in ACCURACY_PRECISIONS.items() for p in precisions}
@@ -34,7 +35,111 @@ TABLE_FIELDS = ["N", "batch", "precision", "implementation", "implementation_inp
                 "largest_finite_exponent_observed", "largest_finite_alpha_observed",
                 "first_nonfinite_exponent_observed", "scan_exponent_min", "scan_exponent_max",
                 "overflow_observed", "left_censored", "right_censored", "finite_boundary_monotone",
-                "boundary_status", "accuracy_status", "range_status"]
+                "boundary_status", "accuracy_status", "range_status", "range_coverage", "full_range_scan",
+                "expected_last_finite_exponent", "boundary_matches_preset"]
+
+
+def range_mode(metadata):
+    mode = metadata.get("range_mode", "full")
+    if mode not in ("boundary", "full"):
+        raise ValueError("range_mode must be boundary or full")
+    return mode
+
+
+def profile_ranges(profile):
+    if profile not in ("smoke", "paper"):
+        raise ValueError("unsupported Table 5 profile")
+    return {precision: ([8, 13] if precision in ("fp16", "fp16_cufftdx") else [120, 127])
+            if profile == "smoke" else [0, 127] for precision in RANGE_PRECISIONS}
+
+
+def validate_base_ranges(metadata):
+    expected = profile_ranges(metadata["profile"])
+    actual = metadata.get("range_exponents", {})
+    legacy = "range_mode" not in metadata and "range_fp16_cufftdx" not in selected_phases(metadata)
+    required = set(expected) - ({"fp16_cufftdx"} if legacy else set())
+    if not isinstance(actual, dict) or not required <= set(actual) <= set(expected) \
+            or any(actual[key] != expected[key] for key in actual):
+        raise ValueError(f"finite scan ranges do not match the {metadata['profile']} profile")
+    return expected
+
+
+def evidence_file(root, relative):
+    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+        raise ValueError("boundary attempt evidence must use relative paths")
+    path = (root / relative).resolve()
+    if not path.is_relative_to(root.resolve()) or not path.is_file():
+        raise ValueError(f"missing or escaping boundary attempt evidence: {relative}")
+    return path
+
+
+def window(value, bounds):
+    if not isinstance(value, list) or len(value) != 2 or any(type(k) is not int for k in value) \
+            or not bounds[0] <= value[0] <= value[1] <= bounds[1]:
+        raise ValueError("invalid boundary window within profile exponent grid")
+    return value
+
+
+def attempt_values(rows, n, precision, batch, bounds):
+    values = []
+    for row in rows:
+        if int(row["N"]) != n or row["precision"] != precision or int(row["batch"]) != batch \
+                or row["mode"] != "gaussian" or row["all_finite"] not in ("0", "1"):
+            raise ValueError("boundary attempt has inconsistent input configuration")
+        alpha = float(row["alpha"])
+        if not math.isfinite(alpha) or alpha <= 0:
+            raise ValueError("boundary attempt has invalid alpha")
+        exponent = round(math.log2(alpha))
+        if not math.isclose(alpha, math.ldexp(1.0, exponent), rel_tol=1e-7):
+            raise ValueError("boundary attempt alpha is not a power of two")
+        values.append((exponent, row["all_finite"] == "1"))
+    values.sort()
+    if [k for k, _ in values] != list(range(bounds[0], bounds[1] + 1)):
+        raise ValueError("boundary attempt has missing, duplicate, or out-of-range exponents")
+    finite, nonfinite = [k for k, ok in values if ok], [k for k, ok in values if not ok]
+    if finite and nonfinite and max(finite) >= min(nonfinite):
+        raise ValueError("boundary attempt has a nonmonotonic finite-output boundary")
+    return dict(values)
+
+
+def boundary_check(root, metadata, precision, n, rows, environment):
+    """Revalidate retained adaptive attempts and the final combined CSV slice."""
+    check = metadata.get("range_checks", {}).get(precision, {}).get(str(n))
+    if not isinstance(check, dict):
+        raise ValueError(f"missing boundary range_checks for {precision}:N={n}")
+    bounds = profile_ranges(metadata["profile"])[precision]
+    initial, final = window(check.get("initial_window"), bounds), window(check.get("window"), bounds)
+    expected = check.get("expected_last_finite")
+    if expected is not None and (type(expected) is not int or not bounds[0] <= expected <= bounds[1]):
+        raise ValueError("invalid expected_last_finite boundary provenance")
+    if not isinstance(check.get("preset_source"), str) or not check["preset_source"]:
+        raise ValueError("boundary preset_source provenance is required")
+    attempts = check.get("attempts")
+    if not isinstance(attempts, list) or not attempts:
+        raise ValueError("boundary attempts must be nonempty")
+    previous, evidence, observed = None, set(), {}
+    for index, attempt in enumerate(attempts):
+        if not isinstance(attempt, dict) or attempt.get("exit_code") != 0:
+            raise ValueError("boundary attempt did not complete successfully")
+        current = window([attempt.get("min"), attempt.get("max")], bounds)
+        if index == 0 and current != initial or previous and not (current[0] <= previous[0] and current[1] >= previous[1]):
+            raise ValueError("boundary attempts must start at initial_window and expand contiguously")
+        paths = {key: evidence_file(root, attempt.get(key)) for key in ("csv", "environment", "log")}
+        if json.loads(paths["environment"].read_text()) != environment:
+            raise ValueError("GPU/library environment changed between boundary attempts")
+        attempted_rows = load_rows(paths["csv"])
+        values = attempt_values(attempted_rows, n, precision, metadata["batch"], current)
+        if any(k in observed and observed[k] != finite for k, finite in values.items()):
+            raise ValueError("boundary attempts disagree on repeated finite-output measurements")
+        observed.update(values)
+        evidence.update(attempt[key] for key in paths)
+        previous = current
+    if previous != final:
+        raise ValueError("final boundary attempt does not match window")
+    canonical = lambda values: sorted(values, key=lambda row: float(row["alpha"]))
+    if canonical(attempted_rows) != canonical(rows):
+        raise ValueError("combined phase CSV disagrees with final boundary attempt")
+    return check, evidence
 
 
 def data_row(phase_name, source_csv, metadata, row):
@@ -65,18 +170,22 @@ def validate_bundle(root, metadata):
     """Read and validate a bundle without modifying its metadata or measurements."""
     sizes, batch = metadata["N"], metadata["batch"]
     phases = selected_phases(metadata)
+    mode = range_mode(metadata)
+    base_ranges = validate_base_ranges(metadata)
     if not sizes or len(set(sizes)) != len(sizes) or set(sizes) - {64, 128, 256, 512, 1024, 2048, 4096}:
         raise ValueError("metadata N must contain unique supported FFT sizes")
     if not isinstance(batch, int) or batch <= 0 or batch % 16:
         raise ValueError("metadata batch must be a positive multiple of 16")
     errors, raw_data, environments = [], [], []
-    accuracy, ranges, components = {}, {}, {}
+    accuracy, ranges, components, evidence = {}, {}, {}, set()
     for name in phases:
         environment_path = root / f"{name}.environment.json"
+        phase_environment = None
         if not environment_path.exists():
             errors.append(f"{name}: missing selected-GPU/library environment record")
         else:
-            environments.append(json.loads(environment_path.read_text()))
+            phase_environment = json.loads(environment_path.read_text())
+            environments.append(phase_environment)
         try:
             rows = load_rows(root / f"{name}.csv")
         except (OSError, ValueError) as error:
@@ -111,9 +220,6 @@ def validate_bundle(root, metadata):
                 errors.append(f"{name}: missing expected configurations")
         else:
             precision = next(p for p, phase_name in RANGE_PHASE.items() if phase_name == name)
-            lower, upper = metadata["range_exponents"][precision]
-            if not isinstance(lower, int) or not isinstance(upper, int) or not 0 <= lower <= upper <= 127:
-                raise ValueError(f"{name}: invalid range_exponents")
             groups = {n: [] for n in sizes}
             for row in rows:
                 try:
@@ -136,6 +242,17 @@ def validate_bundle(root, metadata):
                 except (TypeError, ValueError, OverflowError) as error:
                     errors.append(f"{name}: malformed measurement row: {error}")
             for n, values in groups.items():
+                lower, upper = base_ranges[precision]
+                check = None
+                if mode == "boundary":
+                    try:
+                        check, attempt_files = boundary_check(root, metadata, precision, n,
+                            [row for row in rows if int(row["N"]) == n], phase_environment)
+                        lower, upper = check["window"]
+                        evidence.update(attempt_files)
+                    except (OSError, KeyError, TypeError, ValueError, OverflowError) as error:
+                        errors.append(f"{name}: N={n}: {error}")
+                        continue
                 values.sort()
                 complete = [e for e, _ in values] == list(range(lower, upper + 1))
                 if not complete:
@@ -145,8 +262,11 @@ def validate_bundle(root, metadata):
                 monotone = not finite or not nonfinite or max(finite) < min(nonfinite)
                 if not monotone:
                     errors.append(f"{name}: N={n} has a nonmonotonic finite-output boundary")
+                bracketed = bool(finite and nonfinite and max(finite) + 1 == min(nonfinite))
+                if mode == "boundary" and not bracketed:
+                    errors.append(f"{name}: N={n} boundary recheck requires adjacent finite/nonfinite exponents")
                 # An interrupted/incomplete scan must never become a boundary observation.
-                if complete and monotone:
+                if complete and monotone and (mode == "full" or bracketed):
                     status = ("observed" if finite and nonfinite else
                               "left_censored" if nonfinite else "right_censored")
                     ranges[n, precision] = {
@@ -157,6 +277,12 @@ def validate_bundle(root, metadata):
                         "overflow_observed": bool(nonfinite), "left_censored": status == "left_censored",
                         "right_censored": status == "right_censored",
                         "finite_boundary_monotone": monotone, "boundary_status": status,
+                        "range_coverage": "boundary_recheck" if mode == "boundary" else "full_profile_scan",
+                        "full_range_scan": mode == "full",
+                        "expected_last_finite_exponent": check["expected_last_finite"]
+                            if check and check["expected_last_finite"] is not None else "",
+                        "boundary_matches_preset": max(finite) == check["expected_last_finite"]
+                            if check and finite and check["expected_last_finite"] is not None else "",
                     }
         if len(errors) == phase_errors_before:
             for n in sizes:
@@ -164,7 +290,8 @@ def validate_bundle(root, metadata):
     if environments and any(environment != environments[0] for environment in environments[1:]):
         errors.append("GPU/library environment changed between measurement invocations")
     return {"errors": errors, "raw_data": raw_data, "accuracy": accuracy, "ranges": ranges,
-            "components": components, "environment": environments[0] if environments else None}
+            "components": components, "environment": environments[0] if environments else None,
+            "evidence_files": sorted(evidence)}
 
 
 def summary_rows(sizes, metadata, accuracy, ranges):
@@ -179,7 +306,8 @@ def summary_rows(sizes, metadata, accuracy, ranges):
                        boundary_status="pending" if precision in RANGE_PHASE else "not_measured",
                        accuracy_status="complete" if (n, precision) in accuracy else "pending",
                        range_status="complete" if (n, precision) in ranges else
-                                    "pending" if precision in RANGE_PHASE else "not_measured")
+                                    "pending" if precision in RANGE_PHASE else "not_measured",
+                       range_coverage="pending", full_range_scan=False)
             row.update(ranges.get((n, precision), {}))
             summary.append(row)
     return summary
@@ -225,10 +353,12 @@ def write_outputs(root, metadata, raw_data, summary):
                 if row["rel_l2_alpha1"] != "" and expected_error else "",
             "measured_largest_finite_exponent": row["largest_finite_exponent_observed"],
             "measured_boundary_status": row["boundary_status"],
+            "range_coverage": row["range_coverage"], "full_range_scan": row["full_range_scan"],
             "retained_reference_finite_exponent": expected_exponent,
             "finite_exponent_delta": row["largest_finite_exponent_observed"] - int(expected_exponent)
                 if observed and expected_exponent else "",
-            "boundary_fully_observed": observed,
+            "boundary_fully_observed": observed and row["full_range_scan"],
+            "boundary_bracketed": observed,
             "comparison_status": "informational; Table 5 seed and input details are not stated in the paper",
         })
     if comparisons:
@@ -237,10 +367,10 @@ def write_outputs(root, metadata, raw_data, summary):
              f"Profile: `{metadata['profile']}`; batch: {metadata.get('batch', 'pending')}; seed: {metadata.get('seed', 'pending')}.", "",
              "Accuracy reference: cuFFT Z2Z FP64 of the FP32-generated input. "
              "FP16 receives that input rounded to half, so its error includes input rounding. "
-             "FP16/TF32 measure ThunderFFT; FP32 measures cuFFT C2C; fp16_cufftdx measures cuFFTDx FP16 "
+             "FP16/TF32 measure xFFT (ThunderFFT); FP32 measures cuFFT C2C; fp16_cufftdx measures cuFFTDx FP16 "
              "(ElementsPerThread 8, FFTsPerBlock 2) with the same input and reference.", "",
-             "| N | Precision / implementation | Relative L2 at alpha=1 | Largest finite exponent observed | Boundary |",
-             "|---:|---|---:|---:|---|"]
+             "| N | Precision / implementation | Relative L2 at alpha=1 | Largest finite exponent observed | Boundary | Measured exponent window / coverage |",
+             "|---:|---|---:|---:|---|---|"]
     for row in summary:
         status = row["boundary_status"]
         boundary = {"pending": "pending", "not_measured": "not measured",
@@ -251,10 +381,14 @@ def write_outputs(root, metadata, raw_data, summary):
         exponent = {"pending": "pending", "not_measured": "not measured", "left_censored": f"< {row['scan_exponent_min']}",
                     "right_censored": f">= {row['scan_exponent_max']}"}.get(
                         status, row["largest_finite_exponent_observed"])
-        lines.append(f"| {row['N']} | {row['precision']} / {row['implementation']} | {error_text} | {exponent} | {boundary} |")
+        coverage = (f"{row['scan_exponent_min']}..{row['scan_exponent_max']} / {row['range_coverage']}"
+                    if row["range_status"] == "complete" else "pending")
+        implementation = "xFFT (ThunderFFT)" if row["implementation"] == "ThunderFFT" else row["implementation"]
+        lines.append(f"| {row['N']} | {row['precision']} / {implementation} | {error_text} | {exponent} | {boundary} | {coverage} |")
     lines += ["", "Finite exponents refer to alpha=2^k; finite-only scan errors are intentionally not measured.", "",
-              "Uncollected phases remain pending. Only a complete validated scan contributes a range observation; "
-              "a censored scan reports a bound, not an overflow boundary.", "",
+              "Uncollected phases remain pending. A boundary_recheck measures every exponent in its displayed window "
+              "and requires adjacent finite/nonfinite outputs; it does not claim a full-grid scan or a global maximum. "
+              "A full_profile_scan measures the profile exponent grid. A censored full sweep reports a bound.", "",
               "`comparison.csv` compares retained source reference values for context. "
               "The paper does not state Table 5's seed or several input details, so this is not an exact-paper acceptance test.", ""]
     (root / "table.md").write_text("\n".join(lines))
@@ -268,6 +402,11 @@ def main():
     result = validate_bundle(root, metadata)
     metadata["measured_environment"] = result["environment"]
     metadata["missing_components"] = missing_components(metadata["N"], result["components"])
+    metadata["range_exponents"] = validate_base_ranges(metadata)
+    metadata["range_mode"] = range_mode(metadata)
+    metadata["range_coverage"] = "boundary_recheck" if metadata["range_mode"] == "boundary" else "full_profile_scan"
+    metadata["full_range_scan"] = metadata["range_mode"] == "full" and all(
+        (phase, n) in result["components"] for n in metadata["N"] for phase in RANGE_PHASE.values())
     metadata["full_paper_comparison"] = False
     (root / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     summary = summary_rows(metadata["N"], metadata, result["accuracy"], result["ranges"])

@@ -35,6 +35,8 @@ def _identity(metadata, environment):
     try:
         identity = {key: metadata[key] for key in (
             "profile", "batch", "seed", "input", "reference", "implementations", "range_exponents")}
+        identity["range_exponents"] = _summary.validate_base_ranges(metadata)
+        identity["range_mode"] = _summary.range_mode(metadata)
         source = metadata["source"]["sha256"]
         build = metadata["build"]
         binary = build["binary_sha256"]
@@ -73,10 +75,9 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     expected_sizes = [64] if profile == "smoke" else [64, 256, 1024, 4096]
-    expected_ranges = ({"fp16": [8, 13], "tf32": [120, 127], "fp32": [120, 127]}
-                       if profile == "smoke" else {precision: [0, 127] for precision in _summary.RANGE_PRECISIONS})
+    expected_ranges = _summary.profile_ranges(profile)
     base, identity, cufftdx_build = None, None, None
-    components, accuracy, ranges, raw_data, sources = {}, {}, {}, [], []
+    components, accuracy, ranges, raw_data, sources, range_checks = {}, {}, {}, [], [], {}
     seen_parts = set()
     for part in parts:
         part = Path(part).resolve()
@@ -93,8 +94,7 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
         metadata = _read_json(part / "metadata.json")
         if metadata.get("evaluation") != "table5" or metadata.get("profile") != profile:
             raise ValueError(f"{part}: metadata evaluation/profile does not match Table 5 assembly")
-        if metadata.get("range_exponents") != expected_ranges:
-            raise ValueError(f"{part}: finite scan ranges do not match the {profile} profile")
+        _summary.validate_base_ranges(metadata)
         checked = _summary.validate_bundle(part, metadata)
         if checked["errors"]:
             raise ValueError(f"{part}: phase validation failed: {'; '.join(checked['errors'])}")
@@ -113,7 +113,7 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
         elif identity != part_identity:
             differing = [key for key in identity if identity[key] != part_identity[key]]
             raise ValueError(f"{part}: incompatible Table 5 measurement conditions: {', '.join(differing)}")
-        if "accuracy_fp16_cufftdx" in _summary.selected_phases(metadata):
+        if set(_summary.CUFFTDX_PHASES) & set(_summary.selected_phases(metadata)):
             build = metadata["build"].get("cufftdx")
             if not isinstance(build, dict) or not isinstance(build.get("binary_sha256"), str) or \
                     re.fullmatch(r"[0-9a-f]{64}", build["binary_sha256"]) is None:
@@ -128,6 +128,8 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
             for suffix in ("csv", "environment.json"):
                 name = f"{phase}.{suffix}"
                 files[name] = _hash(part / name)
+        for name in checked["evidence_files"]:
+            files[name] = _hash(part / name)
         sources.append({"result_dir": str(part), "sha256": files,
                         "N": metadata["N"], "selected_phases": _summary.selected_phases(metadata)})
         for (phase, n), rows in checked["components"].items():
@@ -145,6 +147,9 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
                     accuracy[n, precision] = checked["accuracy"][n, precision]
                 else:
                     ranges[n, precision] = checked["ranges"][n, precision]
+                    if _summary.range_mode(metadata) == "boundary":
+                        range_checks.setdefault(precision, {})[str(n)] = dict(
+                            metadata["range_checks"][precision][str(n)], source_result_dir=str(part))
     # Sizes collected beyond the profile list must be as complete as the profile sizes.
     sizes = sorted(set(expected_sizes) | {n for _, n in components})
     missing = _summary.missing_components(sizes, components)
@@ -160,15 +165,22 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
                     device_identity_scope=("CUDA device UUID" if identity and _valid_gpu_uuid(identity["measured_environment"].get("gpu_uuid"))
                                            else "single legacy bundle without GPU UUID" if identity else "pending"),
                     assembly_scope="Completeness of the CSV grid over the profile sizes and every additionally collected size; Table 5 conditions the paper does not state remain unestablished.")
+    metadata.update(range_mode=identity["range_mode"] if identity else "full",
+                    range_exponents=expected_ranges, range_checks=range_checks)
+    metadata["range_coverage"] = "boundary_recheck" if metadata["range_mode"] == "boundary" else "full_profile_scan"
+    metadata["full_range_scan"] = metadata["range_mode"] == "full" and all(
+        (phase, n) in components for n in sizes for phase in _summary.RANGE_PHASE.values())
     _summary.write_outputs(output, metadata, raw_data, _summary.summary_rows(sizes, metadata, accuracy, ranges))
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     (output / "validation.json").write_text(json.dumps({
         "numerical_sanity": "passed" if components else "not_assessed", "errors": [],
         "assembly_status": state, "accepted_components": len(components),
         "missing_components": missing, "full_paper_comparison": False,
+        "range_coverage": metadata["range_coverage"], "full_range_scan": metadata["full_range_scan"],
         "scope": "Each imported phase is revalidated from its original CSV; missing phases remain pending.",
     }, indent=2) + "\n")
-    return {"status": state, "missing": missing, "full_paper_comparison": False}
+    return {"status": state, "missing": missing, "full_paper_comparison": False,
+            "range_mode": metadata["range_mode"]}
 
 
 def main():

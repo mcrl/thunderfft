@@ -254,6 +254,46 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual([job["cudnn_mode"] for job in jobs], ["full", "full"])
         self.assertEqual([job["environment"][key] for job in jobs], ["full", "full"])
 
+    def test_table5_range_mode_resolves_config_batch_and_explicit_cli(self):
+        key = config.TABLE5_RANGE_MODE_ENV
+        self.settings["environment"][key] = "full"
+        with mock.patch.dict(os.environ, {key: "boundary"}):
+            jobs = coordinator.make_jobs(self.args, self.entries, self.registry, self.settings, self.selected, self.parser)
+        self.assertEqual(jobs[0]["table5_range_mode"], "full")
+        self.args.cloud_batch = self.root / "batch.json"
+        self.args.cloud_batch.write_text(json.dumps([
+            {"evaluations": ["table2"], "part": "boundary", "environment": {key: "boundary"}},
+            {"evaluations": ["table2"], "part": "full"}]))
+        jobs = coordinator.make_jobs(self.args, self.entries, self.registry, self.settings, self.selected, self.parser)
+        self.assertEqual([job["table5_range_mode"] for job in jobs], ["boundary", "full"])
+        self.args.table5_range_mode = "full"
+        jobs = coordinator.make_jobs(self.args, self.entries, self.registry, self.settings, self.selected, self.parser)
+        self.assertEqual([job["table5_range_mode"] for job in jobs], ["full", "full"])
+        self.assertEqual([job["environment"][key] for job in jobs], ["full", "full"])
+
+    def test_invalid_table5_range_batch_mode_fails_before_provider_access(self):
+        self.args.cloud_batch = self.root / "batch.json"
+        self.args.cloud_batch.write_text(json.dumps([{"evaluations": ["table2"], "part": "bad",
+            "environment": {config.TABLE5_RANGE_MODE_ENV: "all"}}]))
+        with self.patches(), mock.patch.object(coordinator, "VastClient", side_effect=AssertionError("provider queried")):
+            with self.assertRaisesRegex(ValueError, "boundary or full"):
+                self.run_coordinator()
+        self.assertFalse(self.args.result_dir.exists())
+
+    def test_request_and_readonly_plan_retain_table5_range_mode(self):
+        self.args.table5_range_mode = "full"
+        with self.patches():
+            self.assertEqual(self.run_coordinator(), 0)
+        request = json.loads((self.session() / "request.json").read_text())
+        self.assertEqual(request["jobs"][0]["table5_range_mode"], "full")
+        self.assertEqual(request["jobs"][0]["environment"][config.TABLE5_RANGE_MODE_ENV], "full")
+        self.args.cloud_plan = True
+        output = io.StringIO()
+        with self.patches(), redirect_stdout(output):
+            self.assertEqual(self.run_coordinator(), 0)
+        proposal, _ = json.JSONDecoder().raw_decode(output.getvalue())
+        self.assertEqual(proposal["jobs"][0]["table5_range_mode"], "full")
+
     def test_invalid_cudnn_batch_mode_fails_before_provider_access(self):
         self.args.cloud_batch = self.root / "batch.json"
         self.args.cloud_batch.write_text(json.dumps([{"evaluations": ["table2"], "part": "bad",

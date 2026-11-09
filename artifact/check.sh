@@ -12,6 +12,7 @@ for suite in artifact/validation/test_evaluate.py artifact/table2/test_model.py 
              artifact/table7/test_profile.py artifact/table3/test_assemble.py \
              artifact/figure2/test_assemble.py artifact/table5/test_assemble.py \
              artifact/table5/test_gaussian_input_cache.py \
+             artifact/table5/test_measure.py \
              artifact/table4/test_derive.py artifact/table4/test_measure.py \
              artifact/table7/test_assemble.py artifact/table7/test_utilization.py \
              artifact/table7/test_project_baseline.py \
