@@ -103,8 +103,9 @@ Final outputs:
   the collected measurements/model. Table 5 keeps four implementations per N.
 - Expected exit status: 0.
 - Default Figures 4/5 show gaps and annotations for skipped cuDNN filters.
-  Table 5 reports local boundary coverage. Table 7 retains two unavailable
-  historical stages as blank cells in either mode (see Section 4).
+  Table 5 reports local boundary coverage. Table 7 estimates its first row
+  from Table 6 tcFFT while retaining utilization; the second historical stage
+  remains blank in either mode (see Section 4).
 
 
 2.3 One-step generation: full version
@@ -316,7 +317,13 @@ Table 5: boundary recheck or full exponent scan
   - Table 5 default: boundary_recheck confirms a local finite/non-finite
     bracket within the displayed window, not a global maximum over unmeasured
     exponents. Full mode records full_profile_scan.
-  - Table 7, both modes: two unavailable historical stages remain blank.
+  - Table 7, both modes: the first row is estimated from validated Table 6
+    tcFFT at batch 65536 on A100, assuming retained Tensor Core utilization:
+    N64 TF32 time = N256 FP16 time * (12288/65536) * (312/156)
+                 = N256 FP16 time * 0.375.
+    It uses measured utilization, not a fixed 70%. No extra GPU work is needed.
+    The estimate is labeled and recorded in metadata/coverage; without compatible
+    Table 6 tcFFT evidence it stays blank. The second historical stage stays blank.
 - The pipeline can report completed_with_coverage_limits with exit status 0.
 - Absolute timings depend on GPU clocks/load. Smoke timings are not paper results.
 
@@ -325,8 +332,10 @@ To regenerate tables from an existing paper collection, without GPU work:
   $ ./run.sh table2 table3 table4 table5 table6 table7 --assemble --collection NAME --profile paper
 
 - Replace NAME with the collection name printed by the original run.
-- Missing measurements remain unfilled, including Table 7's historical gaps.
-  An incomplete collection still renders and returns exit status 2.
+- Table 7-only assembly reuses any collected Table 6 tcFFT evidence without
+  rerunning GPU measurements. Missing measurements stay blank; the projected
+  first row is explicitly an estimate. An incomplete collection still renders
+  and returns exit status 2.
 - If rendering fails, the previous assembled output is retained.
 
 
@@ -345,7 +354,7 @@ Checks below were run on 2026-11-09 at the stated source revisions.
 - Historical full workflow: 500 FFT cases and 18 host API checks passed;
   all 168 Table 3 cells and all three Table 4 GPU rows were collected.
   An SSH startup failure was cleaned up and retried automatically.
-  Table 7 had the same two historical gaps.
+  At that revision, Table 7 had two unfilled historical stages.
 - Historical Table 5 measured four accuracy implementations but only three
   finite-range implementations. The new full mode also scans cuFFTDx FP16;
   its full paper runtime has not been measured.

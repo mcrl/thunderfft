@@ -16,9 +16,24 @@ Validated mode checks each kernel at R=1 against an FP64 DFT before timing.
 Timing-only mode (`THUNDERFFT_TABLE7_TIMING_ONLY=1`) skips that check and marks
 rows `accuracy_status=unchecked`; the two partial kernels run only in this mode.
 
-The paper stages `radix16` (radix-16 baseline) and `radix4_compute` (radix-4
-with stage-wise shared-memory exchange) have no recovered source. They cannot
-be collected and stay blank in the assembled `table.csv`.
+The first paper row, `radix16`, is an **estimate**, calculated during paper
+assembly from validated Table 6 tcFFT measurements on A100 at batch 65536.
+Assuming the same Tensor Core utilization is retained when moving from N=256
+FP16 to N=64 TF32:
+
+```
+t_N64_TF32 = t_tcFFT_N256_FP16 * (12288 / 65536) * (312 / 156)
+           = 0.375 * t_tcFFT_N256_FP16
+```
+
+The N64 target uses the theoretical radix-16 model `32*N*log2(N) = 12,288`
+FLOPs per FFT; the measured N256 tcFFT kernel uses 65,536. A100 dense
+Tensor Core peaks are 156 TFLOPS for TF32 and 312 TFLOPS for FP16. Utilization
+comes from the measured Table 6 time, not a fixed 70% assumption. This reuses
+collected evidence without GPU work and labels the row as estimated rather
+than measured. Without compatible Table 6 tcFFT evidence, the first row stays
+blank. The second row, `radix4_compute` (stage-wise shared-memory exchange),
+still has no recovered source and remains blank.
 
 ## Run
 
@@ -32,8 +47,10 @@ Run locally on an A100 80GB PCIe GPU.
 THUNDERFFT_TABLE7_TIMING_ONLY=1 ./run.sh table7 --profile paper
 ```
 
-To get the paper-shaped table with the missing stages as blank rows, collect
-the variants into a collection and assemble without a GPU:
+To get the paper-shaped table, collect the variants into a collection and
+assemble without a GPU. If that collection also contains Table 6 tcFFT evidence,
+assembly revalidates and reuses it for the first row; selecting Table 7 alone
+does not launch a Table 6 measurement:
 
 ```bash
 THUNDERFFT_TABLE7_TIMING_ONLY=1 \
@@ -66,6 +83,11 @@ Written to `result/table7/<run_id>/`:
 - `configure.log`, `build.log`: CMake output
 - `status.json`, `run.log`: runner status and console log
 
-Assembly writes `table.csv` (paper rows, missing stages blank, plus any collected
-partial kernels), `kernel_comparison.csv` (collected variants only), `data.csv` and
-`metadata.json` to `result/collections/<name>/assembled/table7/`.
+Assembly writes `table.csv` (paper rows, the estimated baseline when available,
+missing stages blank, plus any collected partial kernels), `kernel_comparison.csv`
+(collected variants only), `data.csv` and `metadata.json` to
+`result/collections/<name>/assembled/table7/`.
+`baseline_projection` in the metadata records the assumption, formula and input
+provenance. The measured timing/utilization fields remain empty for the
+estimated row; its projected values have separate columns. The pipeline records
+this estimate as a coverage limitation in both fast and full modes.

@@ -1,7 +1,7 @@
 """Paper-shaped presentation of validated Tables 5, 6 and 7.
 
-These adapters only read assembled measurements.  In particular, retained
-``paper_*`` comparison fields never supply an unmeasured presentation cell.
+These adapters read assembled measurements and explicitly identified estimates.
+Retained ``paper_*`` comparison fields never supply a presentation cell.
 """
 import csv
 import json
@@ -141,15 +141,27 @@ def _table6(rows, metadata):
 
 def _table7(rows, metadata):
     indexed = _index(rows, ("variant",))
-    displayed = [["Configuration", "Time (ms)", "Utilization", "Speedup"]]
     baseline = indexed.get(("radix16",), {})
     baseline_time = _number(baseline.get("median_time_ms"))
     baseline_ok = (baseline.get("timing_status") == "collected"
                    and baseline.get("accuracy_status") == "passed"
                    and baseline_time is not None and baseline_time > 0)
+    estimated_time = _number(baseline.get("estimated_time_ms"))
+    estimated_utilization = _number(baseline.get("estimated_utilization_pct"))
+    estimated_baseline = (baseline.get("timing_status") == "estimated"
+                          and baseline.get("utilization_status") == "estimated"
+                          and baseline.get("accuracy_status") == "not_applicable_projection"
+                          and estimated_time is not None and estimated_time > 0
+                          and estimated_utilization is not None and estimated_utilization > 0)
+    displayed = [["Configuration", "Time (ms)", "Utilization",
+                  "Speedup*" if estimated_baseline else "Speedup"]]
     unchecked = False
     for variant, label in ROLES:
         row = indexed.get((variant,), {})
+        if variant == "radix16" and estimated_baseline:
+            displayed.append([label + "*", _decimal(estimated_time, 4),
+                              _decimal(estimated_utilization, 0) + "%", "1.00"])
+            continue
         status = row.get("timing_status")
         collected = status in ("collected", "collected_unvalidated")
         unvalidated = collected and (status == "collected_unvalidated" or row.get("accuracy_status") != "passed")
@@ -160,12 +172,19 @@ def _table7(rows, metadata):
                        else MISSING)
         if utilization != MISSING:
             utilization += "%"
-        speedup = (_decimal(row.get("radix16_speedup"), 2)
-                   if baseline_ok and collected and not unvalidated else MISSING)
+        speedup_field = "speedup_vs_estimated_radix16" if estimated_baseline else "radix16_speedup"
+        speedup_value = _number(row.get(speedup_field))
+        measured_time = _number(row.get("median_time_ms"))
+        speedup = (_decimal(speedup_value, 2)
+                   if (baseline_ok or estimated_baseline) and collected and not unvalidated
+                   and measured_time is not None and measured_time > 0
+                   and speedup_value is not None and speedup_value > 0 else MISSING)
         displayed.append([label + ("†" if unvalidated else ""), timing, utilization, speedup])
     notes = ["— denotes an unavailable measurement. Missing original stages are not replaced by retained paper numbers.",
              "Recovered candidates are displayed under their proposed paper roles; exact original-stage identities remain unconfirmed."]
-    if not baseline_ok:
+    if estimated_baseline:
+        notes.append("* Assumes the tcFFT utilization measured in Table 6 is retained for N=64 TF32; the first-row time is estimated. Speedups use this estimated baseline.")
+    elif not baseline_ok:
         notes.append("The original radix-16 baseline is unavailable; speedups relative to that baseline remain unreported.")
     if unchecked:
         notes.append("† Timing-only measurement: FFT numerical correctness was not checked.")

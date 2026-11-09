@@ -271,6 +271,23 @@ def assembly_result(states, assembled, entries, profile, root, cudnn_mode=None, 
                 unresolved.append(record)
             else:
                 limits.append(record)
+        if evaluation == "table7" and state.get("baseline_projection"):
+            projection = state["baseline_projection"]
+            record = {"evaluation": evaluation, "item": "radix16.projection",
+                      "status": projection.get("status"),
+                      "assumption": projection.get("assumption"),
+                      "formula": projection.get("formula"),
+                      "reason": ("Radix-16 baseline is estimated from measured Table 6 tcFFT "
+                                 "with its utilization retained; it is not a measured N64 TF32 kernel."
+                                 if projection.get("status") == "estimated" else
+                                 projection.get("reason", "No usable measured Table 6 tcFFT baseline."))}
+            if (projection.get("status") not in ("estimated", "unavailable") or
+                    (projection.get("status") == "estimated" and
+                     (not projection.get("assumption") or not projection.get("formula") or
+                      state.get("full_paper_comparison")))):
+                unresolved.append(record)
+            else:
+                limits.append(record)
         skipped = state.get("policy_skipped", [])
         if skipped:
             filters = tuple(range(3, 54, 2)) if profile == "paper" else (

@@ -112,6 +112,74 @@ class PaperTableAccuracyTests(unittest.TestCase):
         self.assertEqual(row[1:], ["0.0035", "75%", "—"])
         self.assertIn("correctness was not checked", " ".join(layout["notes"]))
 
+    def test_table7_estimated_tcfft_baseline_is_labeled_and_uses_projection_speedups(self):
+        self.write([
+            {"variant": "radix16", "timing_status": "estimated", "utilization_status": "estimated",
+             "accuracy_status": "not_applicable_projection", "estimated_time_ms": .007875,
+             "estimated_utilization_pct": 35.6, "median_time_ms": "", "utilization_pct": ""},
+            {"variant": "register_branch", "median_time_ms": .004,
+             "timing_status": "collected", "accuracy_status": "passed",
+             "utilization_status": "calculated", "utilization_pct": 70.1,
+             "speedup_vs_estimated_radix16": 1.96875, "radix16_speedup": 99},
+            {"variant": "register_uniform", "median_time_ms": .0035,
+             "timing_status": "collected_unvalidated", "accuracy_status": "unchecked",
+             "speedup_vs_estimated_radix16": 2.25},
+            {"variant": "historical_e4aa1b0", "median_time_ms": .0001,
+             "timing_status": "collected", "accuracy_status": "passed",
+             "speedup_vs_estimated_radix16": 78.75}])
+        layout = tables.build("table7", self.directory)
+        rows = layout["panels"][0]["rows"]
+        self.assertEqual(len(rows), 5)
+        self.assertEqual(rows[0][-1], "Speedup*")
+        self.assertEqual(rows[1], ["radix-16 (tcFFT)*", "0.0079", "36%", "1.00"])
+        self.assertEqual(rows[2][1:], ["—", "—", "—"])
+        self.assertEqual(rows[3][1:], ["0.0040", "70%", "1.97"])
+        self.assertEqual(rows[4][-1], "—")
+        notes = " ".join(layout["notes"])
+        self.assertIn("utilization measured in Table 6", notes)
+        self.assertIn("first-row time is estimated", notes)
+        self.assertIn("identities remain unconfirmed", notes)
+        self.assertIn("kernel_comparison.csv", notes)
+
+    def test_table7_invalid_projection_does_not_create_baseline_cells_or_speedups(self):
+        baseline = {"variant": "radix16", "timing_status": "estimated",
+                    "utilization_status": "estimated", "accuracy_status": "not_applicable_projection",
+                    "estimated_time_ms": .007875, "estimated_utilization_pct": 35.6}
+        for field, value in (("timing_status", "pending"), ("utilization_status", "calculated"),
+                             ("accuracy_status", "passed"), ("estimated_time_ms", ""),
+                             ("estimated_time_ms", "nan"), ("estimated_time_ms", "inf"),
+                             ("estimated_time_ms", -1), ("estimated_time_ms", 0),
+                             ("estimated_utilization_pct", ""), ("estimated_utilization_pct", "nan"),
+                             ("estimated_utilization_pct", "inf"), ("estimated_utilization_pct", 0),
+                             ("estimated_utilization_pct", -1)):
+            with self.subTest(field=field, value=value):
+                self.write([dict(baseline, **{field: value}),
+                            {"variant": "register_branch", "median_time_ms": .004,
+                             "timing_status": "collected", "accuracy_status": "passed",
+                             "speedup_vs_estimated_radix16": 1.96875, "radix16_speedup": 99}])
+                rows = tables.build("table7", self.directory)["panels"][0]["rows"]
+                self.assertEqual(rows[0][-1], "Speedup")
+                self.assertEqual(rows[1], ["radix-16 (tcFFT)", "—", "—", "—"])
+                self.assertEqual(rows[3][-1], "—")
+
+    def test_table7_projection_speedups_require_validated_positive_measurements(self):
+        baseline = {"variant": "radix16", "timing_status": "estimated",
+                    "utilization_status": "estimated", "accuracy_status": "not_applicable_projection",
+                    "estimated_time_ms": .007875, "estimated_utilization_pct": 35.6}
+        measured = {"variant": "register_branch", "median_time_ms": .004,
+                    "timing_status": "collected", "accuracy_status": "passed",
+                    "speedup_vs_estimated_radix16": 1.96875}
+        for field, value in (("timing_status", "pending"), ("accuracy_status", "unchecked"),
+                             ("median_time_ms", ""), ("median_time_ms", "nan"),
+                             ("median_time_ms", "inf"), ("median_time_ms", 0),
+                             ("speedup_vs_estimated_radix16", ""),
+                             ("speedup_vs_estimated_radix16", "inf"),
+                             ("speedup_vs_estimated_radix16", -1)):
+            with self.subTest(field=field, value=value):
+                self.write([baseline, dict(measured, **{field: value})])
+                rows = tables.build("table7", self.directory)["panels"][0]["rows"]
+                self.assertEqual(rows[3][-1], "—")
+
     def test_render_spec_is_deterministic_and_does_not_mutate_csv(self):
         self.write([{"N": 64, "precision": "fp16", "accuracy_status": "complete", "rel_l2_alpha1": .000434}])
         before = (self.directory / "table.csv").read_bytes()

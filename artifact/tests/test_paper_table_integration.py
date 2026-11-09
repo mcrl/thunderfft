@@ -26,7 +26,7 @@ class PaperTableIntegrationTests(unittest.TestCase):
         self.directory = Path(temporary.name) / "collection"
 
     @staticmethod
-    def assemble_stub(sources, output, profile):
+    def assemble_stub(sources, output, profile, table6=None):
         (output / "data.csv").write_text("value\n1\n")
         (output / "table.csv").write_text("value\n1\n")
         return {"status": "partial", "full_paper_comparison": False,

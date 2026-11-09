@@ -216,6 +216,9 @@ def assemble_collection(directory, entries, profile):
                 visited.add(evaluation)
                 for dependency in registered[evaluation].get("depends_on", []):
                     visit(dependency)
+                for dependency in registered[evaluation].get("optional_depends_on", []):
+                    if dependency in selected:
+                        visit(dependency)
                 ordered.append(registered[evaluation])
             for evaluation in registered:
                 if evaluation in selected:
@@ -253,8 +256,19 @@ def assemble_collection(directory, entries, profile):
                     # Reuse collected timings directly, including Table 3 bundles
                     # with cuFFTDx rows. No GPU work or full Table 3 assembly is needed.
                     sources = [*by_id.get("table3", []), *sources]
-                state = (adapter.assemble(sources, output, profile) if adapter else
-                         simple_assembly(evaluation, sources, output, profile))
+                if evaluation == "table7" and adapter:
+                    table6 = staging / "table6"
+                    if not table6.is_dir():
+                        table6 = None
+                        if by_id.get("table6"):
+                            # A Table 7-only refresh may reuse existing Table 6
+                            # evidence, but must not schedule a new measurement.
+                            table6 = output / "inputs" / "table6"
+                            load_adapter("table6").assemble(by_id["table6"], table6, profile)
+                    state = adapter.assemble(sources, output, profile, table6=table6)
+                else:
+                    state = (adapter.assemble(sources, output, profile) if adapter else
+                             simple_assembly(evaluation, sources, output, profile))
                 if state.get("status") not in ("complete", "partial", "pending"):
                     raise ValueError(f"{evaluation}: assembler returned an invalid status")
                 if evaluation in ("table2", "table3", "table4", "table5", "table6", "table7"):

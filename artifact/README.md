@@ -198,8 +198,11 @@ editing or separate assembly command is needed.
 Each Table 2–7 directory includes `table.pdf`, `table.png` and `table.html`,
 with the paper's grouped headers, row order and numeric formatting. Values
 come from the assembled measurements/model; the original CSVs remain available.
-Table 5 uses the updated four implementations per size. Unavailable results,
-including the two historical Table 7 stages, remain unfilled.
+Table 5 uses the updated four implementations per size. Table 7's first row is
+an estimate from validated Table 6 tcFFT timings, assuming retained utilization:
+N64 TF32 time = 0.375 × N256 FP16 time (A100, batch 65536). It is marked as
+estimated; without compatible tcFFT evidence it stays blank. The second
+historical stage remains unfilled.
 
 Cloud stages require the evaluator account's Vast.ai credentials and incur
 charges. The combined conservative cost of all concurrent rentals, including
@@ -241,8 +244,10 @@ their assembly can complete with no unexpected missing cells. Figure 4's
 arithmetic means cover the measured sizes only: cuDNN uses `mean(12)`, while
 the other libraries use `mean(26)` on the paper grid. Figure 5's `summary.csv`
 holds per-filter means over trials and leaves skipped cuDNN cells empty. Use
-`--full` for all 26 cuDNN sizes. Table 7 still has two unavailable historical paper stages;
-its assembled table retains blank cells and coverage metadata for them.
+`--full` for all 26 cuDNN sizes. Table 7 records its estimated radix-16 baseline
+and the unavailable radix-4 stage as coverage limitations. The baseline uses
+tcFFT's measured utilization rather than a fixed percentage; its metadata
+retains the assumption, formula and source evidence.
 
 ## Run selected evaluations locally
 
@@ -359,8 +364,8 @@ additional comparison CSVs retain the machine-readable measurements.
 
 `run.sh` reports the stage results and assembly coverage. A complete workflow
 requires the selected measurements and their expected output files. Intentional
-fast-mode cuDNN omissions and unavailable historical Table 7 stages remain
-explicit in the coverage report.
+fast-mode cuDNN omissions, the estimated Table 7 baseline and its unavailable
+historical stage remain explicit in the coverage report.
 Named evaluation runs return 0 when every selected evaluation completed,
 1 on a failure, 2 when something is pending or blocked, and 130 when interrupted.
 

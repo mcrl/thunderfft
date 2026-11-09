@@ -78,7 +78,7 @@ def documented_sources(path=TABLE6 / "reference_a100.md"):
     return sources, [file_record(path)]
 
 
-def table6_sources(path):
+def table6_sources(path, libraries=None):
     """The Table 6 summary omits precision; its adjacent data.csv supplies that contract."""
     path = Path(path)
     _, rows = read_csv(path)
@@ -87,13 +87,21 @@ def table6_sources(path):
         raise ValueError("Table 6 table.csv requires adjacent data.csv to confirm FP16 input and kernel identity")
     _, raw_rows = read_csv(data_path)
     sources = []
-    for library, variant in LIBRARIES.items():
+    requested = tuple(LIBRARIES) if libraries is None else tuple(libraries)
+    if not requested or len(set(requested)) != len(requested) or any(name not in LIBRARIES for name in requested):
+        raise ValueError("Select supported, unique Table 6 projection libraries")
+    for library in requested:
+        variant = LIBRARIES[library]
         selected = [row for row in rows if row.get("library") == library]
         if not selected:
             continue
         if len(selected) != 1:
             raise ValueError(f"Expected one Table 6 summary row for {library}")
         row = selected[0]
+        if row.get("status") == "pending":
+            continue
+        if row.get("status", "collected") != "collected":
+            raise ValueError(f"{library} summary must be collected before projection")
         if (not is_a100(row.get("gpu")) or row.get("N") != "256" or row.get("batch") != str(BATCH)
                 or row.get("variant") != variant or row.get("selected_candidate") != variant):
             raise ValueError(f"{library} summary must describe the Table 6 A100 N256 batch65536 kernel")
@@ -101,7 +109,8 @@ def table6_sources(path):
         if not raw or any(not is_a100(item.get("gpu")) or item.get("N") != "256"
                           or item.get("batch") != str(BATCH) or item.get("precision") != "fp16"
                           or item.get("input") != "complex" or item.get("variant") != variant
-                          or item.get("candidate") != variant for item in raw):
+                          or item.get("candidate") != variant
+                          or str(item.get("passed", "true")).lower() not in ("1", "true") for item in raw):
             raise ValueError(f"{library} data.csv must confirm N256 FP16 complex batch65536 and the supported kernel")
         # Compare the rounded summary against its trials, avoiding a detached table.csv.
         median_ms = statistics.median(positive(item.get("time_ms"), "Table 6 raw time_ms") for item in raw)

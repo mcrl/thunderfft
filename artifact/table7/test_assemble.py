@@ -601,7 +601,10 @@ class CollectionChecks(unittest.TestCase):
                 result = assembly.assemble([output], root / "assembled", "smoke")
             self.assertEqual(result["status"], "complete")
             with (root / "assembled" / "table.csv").open() as stream:
-                self.assertEqual(list(csv.DictReader(stream)), rows)
+                assembled_rows = list(csv.DictReader(stream))
+            self.assertEqual([{field: row[field] for field in measure.TABLE_FIELDS}
+                              for row in assembled_rows], rows)
+            self.assertTrue(all(row[field] == "" for row in assembled_rows for field in assembly.ESTIMATE_FIELDS))
 
 
 if __name__ == "__main__":

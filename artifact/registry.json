@@ -157,6 +157,7 @@
       "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
+      "optional_depends_on": ["table6"],
       "required_outputs": {
         "smoke": [
           "data.csv",
@@ -170,7 +171,7 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "N64 TF32 unit-kernel timings: 51e346c branch and 5e37821 uniform complete-FFT candidates, plus optional e4aa1b0 and 652808b partial kernels in timing-only mode; collected rows retain accuracy and operation coverage; first two original paper sources missing and full paper-stage identity unconfirmed"
+      "coverage": "N64 TF32 unit-kernel timings: 51e346c branch and 5e37821 uniform complete-FFT candidates, plus optional e4aa1b0 and 652808b partial kernels in timing-only mode; radix16 baseline estimated from validated Table 6 tcFFT while retaining utilization (0.375 times N256 FP16 time at batch65536); radix4_compute source remains missing, and full paper-stage identity is unconfirmed"
     },
     {
       "id": "figure2",

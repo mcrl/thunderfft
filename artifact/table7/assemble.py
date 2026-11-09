@@ -9,6 +9,7 @@ import json
 import math
 from pathlib import Path
 import re
+import shutil
 import statistics
 
 HERE = Path(__file__).resolve().parent
@@ -23,7 +24,9 @@ def _module(name, filename):
 
 measure = _module("table7_assembly_measure", "measure.py")
 utilization = measure.utilization
-TABLE_FIELDS = measure.TABLE_FIELDS
+projection = _module("table7_assembly_projection", "project_baseline.py")
+ESTIMATE_FIELDS = ("estimated_time_ms", "estimated_utilization_pct", "speedup_vs_estimated_radix16")
+TABLE_FIELDS = (*measure.TABLE_FIELDS, *ESTIMATE_FIELDS)
 native_identity = measure.native_identity
 
 
@@ -100,7 +103,62 @@ def same_csv_rows(left, right):
     return normalize(left) == normalize(right)
 
 
-def assemble(parts: list[Path], output: Path, profile: str) -> dict:
+def apply_baseline_projection(table, missing, output, table6, profile, identities):
+    """Populate declared estimates without changing measured timing fields."""
+    def unavailable(reason):
+        return {"status": "unavailable", "reason": reason, "gpu_work_performed": False}
+
+    if profile != "paper":
+        return unavailable("The tcFFT projection requires the A100 paper workload with batch 65536.")
+    if table6 is None:
+        return unavailable("Collect Table 6 tcFFT in the same collection to estimate the radix-16 baseline.")
+    if identities and not projection.is_a100(identities[0]["name"]):
+        return unavailable("The Table 6 tcFFT projection applies only to A100 Table 7 results.")
+    baseline = next(row for row in table if row["variant"] == "radix16")
+    if baseline["timing_status"] != "missing":
+        return unavailable("An existing radix-16 measurement takes precedence over the estimate.")
+    source = Path(table6)
+    metadata = read_json(source / "metadata.json")
+    if (metadata.get("evaluation") != "table6" or metadata.get("profile") != "paper"
+            or metadata.get("assembly_schema") != "table6-validated-parts-v1"):
+        raise ValueError("Table 7 projection requires a validated paper Table 6 assembly")
+    for name in ("table.csv", "data.csv"):
+        if metadata.get("outputs", {}).get(name) != projection.file_record(source / name)["sha256"]:
+            raise ValueError("Table 6 projection input hash disagrees with assembly metadata")
+    _, candidates = projection.read_csv(source / "table.csv")
+    candidates = [row for row in candidates if row.get("library") == "tcFFT"]
+    if not candidates or all(row.get("status") == "pending" for row in candidates):
+        return unavailable("Table 6 tcFFT has not been collected; no reference timing is substituted.")
+    snapshot = output / "inputs/tcfft-table6"
+    snapshot.mkdir(parents=True, exist_ok=True)
+    for name in ("table.csv", "data.csv", "metadata.json"):
+        shutil.copy2(source / name, snapshot / name)
+    sources, records = projection.table6_sources(snapshot / "table.csv", libraries=("tcFFT",))
+    estimate = projection.project(sources[0])
+    baseline.update(batch=projection.BATCH, timing_status="estimated", utilization_status="estimated",
+                    accuracy_status="not_applicable_projection", implementation_kind="model_projection",
+                    operation_coverage="theoretical_32Nlog2N_work_model",
+                    estimated_time_ms=estimate["projected_time_us"] / 1000,
+                    estimated_utilization_pct=estimate["projected_utilization_pct"],
+                    speedup_vs_estimated_radix16=1.0)
+    for row in table:
+        if (row["timing_status"] == "collected" and row["accuracy_status"] == "passed"
+                and row["N"] == 64 and row["batch"] == projection.BATCH and row["precision"] == "tf32"):
+            row["speedup_vs_estimated_radix16"] = baseline["estimated_time_ms"] / row["median_time_ms"]
+    missing[:] = [item for item in missing if item["item"] not in ("radix16.timing", "radix16.utilization")]
+    records.append(projection.file_record(snapshot / "metadata.json"))
+    return {"status": "estimated", "estimate": estimate, "gpu_work_performed": False,
+            "assumption": "Source and target retain the same fraction of their respective dense hardware peaks.",
+            "formula": "estimated_time_us = source_time_us * (12288 / 65536) * (312 / 156) = source_time_us * 0.375",
+            "source_operation_count": "2 complex matrix products * 4 WMMA per product * (2*16*16*16) = 65536 FLOPs/FFT",
+            "target_work_model": "32*N*log2(N) = 12288 FLOPs at N=64; theoretical normalization, not an executed radix-16 kernel",
+            "inputs": [{"path": str(Path(record["path"]).relative_to(output.resolve())),
+                        "sha256": record["sha256"]} for record in records],
+            "calculation_sha256": hashlib.sha256((HERE / "project_baseline.py").read_bytes()).hexdigest(),
+            "full_paper_comparison": False}
+
+
+def assemble(parts: list[Path], output: Path, profile: str, table6=None) -> dict:
     if profile not in ("smoke", "paper"):
         raise ValueError("Unknown Table 7 protocol profile")
     manifest = read_json(HERE / "variants.json")
@@ -242,7 +300,9 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
             missing.append({"item": f"{variant}.utilization", "reason": "Utilization requires a collected timing CSV and a confirmed hardware peak reference"})
         table.append(row)
     measure.add_baseline_speedups(table)
-    status = "complete" if not missing else "partial" if timings else "pending"
+    output.mkdir(parents=True, exist_ok=True)
+    baseline_projection = apply_baseline_projection(table, missing, output, table6, profile, identities)
+    status = "complete" if not missing else "partial" if timings or baseline_projection["status"] == "estimated" else "pending"
     accuracy_statuses = {value["accuracy_status"] for value in variant_contracts.values()}
     accuracy_status = (next(iter(accuracy_statuses)) if len(accuracy_statuses) == 1
                        else "mixed" if accuracy_statuses else "not_collected")
@@ -251,6 +311,7 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
               "ignored_variants": ignored_variants,
               "measurement_contract": contract, "variant_contracts": variant_contracts,
               "accuracy_status": accuracy_status,
+              "baseline_projection": baseline_projection,
               "protocol_heterogeneous": bool(protocols) and any(protocol != protocols[0] for protocol in protocols[1:]),
               "gpu": identities[0] if identities else None,
               "utilization": {"method": utilization.METHOD, "reference": utilization.REFERENCE,
@@ -264,7 +325,9 @@ def assemble(parts: list[Path], output: Path, profile: str) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     measure.write_csv(output / "data.csv", raw_rows, measure.RAW_FIELDS)
     measure.write_csv(output / "table.csv", table, TABLE_FIELDS)
-    measure.write_csv(output / "kernel_comparison.csv", [row for row in table if row["variant"] in timings], TABLE_FIELDS)
+    measure.write_csv(output / "kernel_comparison.csv",
+                      [{field: row[field] for field in measure.TABLE_FIELDS} for row in table if row["variant"] in timings],
+                      measure.TABLE_FIELDS)
     (output / "metadata.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
 
@@ -274,8 +337,9 @@ def main():
     parser.add_argument("parts", type=Path, nargs="*")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--profile", choices=("smoke", "paper"), default="smoke")
+    parser.add_argument("--table6", type=Path, help="Validated assembled Table 6 directory for the tcFFT baseline estimate")
     args = parser.parse_args()
-    print(json.dumps(assemble(args.parts, args.output, args.profile), indent=2))
+    print(json.dumps(assemble(args.parts, args.output, args.profile, table6=args.table6), indent=2))
 
 
 if __name__ == "__main__":
