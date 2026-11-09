@@ -82,7 +82,8 @@ def main():
     runners = [(library, args.binary, command(library.lower()), parse, "n/a" if library == "cuDNN" else "true")
                for library in FIGURE5["libraries"] if library in available]
     sources = [*ROOT.glob("include/**/*.cuh"), *HERE.glob("conv2d/*"), HERE / "CMakeLists.txt",
-               *HERE.glob("*.py"), HERE / "run.sh", HERE.parent / "figure4/measure.py"]
+               *HERE.glob("*.py"), HERE / "run.sh", HERE.parent / "figure4/measure.py",
+               HERE.parent / "figure4/policy.py"]
     try:
         return SWEEP.collect(FIGURE5, runners, args.build_dir, args.output, args.profile, sources)
     except ValueError as error:

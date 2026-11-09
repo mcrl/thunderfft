@@ -119,6 +119,7 @@ class WorkerTests(unittest.TestCase):
         self.assertIn("all", command)
         self.assertEqual(command[command.index("--backend") + 1], "local")
         self.assertEqual(command[command.index("--cufftdx-mode") + 1], "preset")
+        self.assertEqual(command[command.index("--cudnn-mode") + 1], "fast")
 
     def test_worker_passes_requested_mode_to_cli_environment_and_job_metadata(self):
         key = "THUNDERFFT_TABLE3_CUFFTDX_MODE"
@@ -142,6 +143,33 @@ class WorkerTests(unittest.TestCase):
         for mode, environment in (("invalid", {}), ("all", {"THUNDERFFT_TABLE3_CUFFTDX_MODE": "preset"})):
             with self.subTest(mode=mode, environment=environment):
                 self.request["jobs"][0].update(cufftdx_mode=mode, environment=environment)
+                self.write_request()
+                with patch.object(worker.subprocess, "Popen") as launch:
+                    self.assertEqual(self.run_fixture(), 1)
+                launch.assert_not_called()
+
+    def test_worker_passes_cudnn_mode_to_cli_environment_and_metadata(self):
+        key = "THUNDERFFT_CUDNN_MODE"
+        script = self.root / "run.sh"
+        script.write_text('#!/bin/bash\nset -eu\nmkdir -p result/fixture\n'
+                          'printf "%s" "$THUNDERFFT_CUDNN_MODE" > result/fixture/data.csv\n')
+        manifest = json.loads((self.root / ".thunderfft-cloud-source.json").read_text())
+        manifest["files"]["run.sh"]["sha256"] = hashlib.sha256(script.read_bytes()).hexdigest()
+        (self.root / ".thunderfft-cloud-source.json").write_text(json.dumps(manifest))
+        self.request["jobs"][0].update(cudnn_mode="full", environment={key: "full"})
+        self.write_request()
+        with patch.dict(os.environ, {key: "fast"}):
+            self.assertEqual(self.run_fixture(), 0)
+            self.assertEqual(os.environ[key], "fast")
+        self.assertEqual((self.root / "result/fixture/data.csv").read_text(), "full")
+        command = json.loads((self.root / "result/cloud-worker/jobs.log").read_text().splitlines()[0])["command"]
+        self.assertEqual(command[command.index("--cudnn-mode") + 1], "full")
+        self.assertEqual(json.loads((self.root / "result/cloud-worker/jobs.json").read_text())[0]["cudnn_mode"], "full")
+
+    def test_worker_rejects_invalid_or_conflicting_cudnn_mode_before_launch(self):
+        for mode, environment in (("all", {}), ("full", {"THUNDERFFT_CUDNN_MODE": "fast"})):
+            with self.subTest(mode=mode, environment=environment):
+                self.request["jobs"][0].update(cudnn_mode=mode, environment=environment)
                 self.write_request()
                 with patch.object(worker.subprocess, "Popen") as launch:
                     self.assertEqual(self.run_fixture(), 1)

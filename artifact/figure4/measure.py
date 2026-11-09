@@ -32,6 +32,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 TABLE3 = module("conv_table3_measure", HERE.parent / "table3/measure.py")
 SELECTION = module("conv_selection", HERE / "selection.py")
+POLICY = module("conv_cudnn_policy", HERE / "policy.py")
 # Backend adapters (cuDNN, FlashFFTConv, cuFFT, cuFFTDx) write these columns.
 BACKEND_FIELDS = ("gpu", "filter", "library", "repeat", "time_ms", "rel_l2", "passed", "operation")
 FIELDS = ("gpu", "shape", "filter", "library", "precision", "repeat", "time_ms", "filter_fft_included",
@@ -238,7 +239,7 @@ def diverged(rows, library, size, ratio):
 
 
 def collect(spec, runners, build_dir, output, profile, sources):
-    """Run one native invocation per (filter, library, trial); write data/summary/metadata.
+    """Batch selected filters per library; write validated data and explicit omissions.
 
     runners: (library, binary, command, parse, filter_fft_included) tuples.
     """
@@ -254,17 +255,30 @@ def collect(spec, runners, build_dir, output, profile, sources):
     timeout = TABLE3.positive_env(f"{env}_TIMEOUT", 1800)
     filters = (TABLE3.selection_env(f"{env}_FILTERS", spec["allowed_filters"], int)
                if f"{env}_FILTERS" in os.environ else spec["filters"][profile])
+    cudnn_mode = POLICY.validate_mode(os.environ.get(POLICY.ENVIRONMENT, "fast"))
+    policy_skipped = POLICY.skipped_cells(spec["evaluation"], filters, chosen, cudnn_mode)
+    filters_by_library = {library: POLICY.selected_filters(spec["evaluation"], filters, library, cudnn_mode)
+                          for library in chosen}
+    runners = [r for r in runners if filters_by_library[r[0]]]
+    if not runners:
+        raise ValueError("fast mode skips every selected cuDNN filter; use --cudnn-mode full")
     backends = [Path(path) for path in os.environ.get(f"{env}_BACKENDS", "").split(",") if path]
     # Stop timing a direct baseline once it is far slower than the FFT paths and
     # still growing with the filter; the plot leaves the remaining sizes empty.
-    slow_ratio = float(os.environ.get(f"{env}_SLOW_RATIO", "0"))
+    requested_slow_ratio = float(os.environ.get(f"{env}_SLOW_RATIO", "0"))
+    if not math.isfinite(requested_slow_ratio) or requested_slow_ratio < 0:
+        raise ValueError(f"{env}_SLOW_RATIO must be finite and nonnegative")
+    slow_ratio = 0 if cudnn_mode == "full" else requested_slow_ratio
     truncated = {}
     metadata = {"schema_version": 1, "evaluation": spec["evaluation"], "profile": profile,
                 "started_at": TABLE3.now(), "status": "running", "operation": spec["operation"],
                 "notes": spec.get("notes"),
                 "settings": {"trials": trials, "filters": list(filters), "timeout_seconds": timeout,
+                             "cudnn_mode": cudnn_mode, "selected_libraries": list(chosen),
+                             "requested_slow_ratio": requested_slow_ratio,
                              "slow_ratio": slow_ratio, "truncatable": list(spec.get("truncate", ()))},
                 "truncated": truncated,
+                "policy_skipped": policy_skipped,
                 "scope": f"{', '.join(r[0] for r in runners)} measured here; other libraries from {env}_BACKENDS",
                 "full_paper_comparison_complete": False,
                 "timing": {"metric": "native mean over its timed launches per trial",
@@ -295,7 +309,8 @@ def collect(spec, runners, build_dir, output, profile, sources):
             # One process per library for the whole sweep; a truncatable library runs
             # one size per process so it can stop once it diverges.
             cut = library in spec.get("truncate", ()) and slow_ratio > 0
-            for group in ([[size] for size in filters] if cut else [list(filters)]):
+            selected = filters_by_library[library]
+            for group in ([[size] for size in selected] if cut else [list(selected)]):
                 if library in truncated:
                     break
                 argv, shape = command(binary.resolve(), group, profile, trials)
@@ -355,6 +370,9 @@ def collect(spec, runners, build_dir, output, profile, sources):
         TABLE3.write_csv(output / "data.csv", rows, FIELDS)
         TABLE3.write_csv(output / "summary.csv", summarize(rows), SUMMARY_FIELDS)
         metadata["libraries"] = sorted({row["library"] for row in rows})
+        measured_cells = {(row["library"], int(row["filter"])) for row in rows}
+        metadata["coverage_complete"] = all((library, size) in measured_cells
+            for library in spec["libraries"] for size in spec["filters"][profile])
         metadata.update(status="completed", numerical_and_timing_gates_passed=True)
     except (OSError, ValueError, RuntimeError) as error:
         metadata.update(status="failed", error=str(error), numerical_and_timing_gates_passed=False)
@@ -364,6 +382,8 @@ def collect(spec, runners, build_dir, output, profile, sources):
         metadata["finished_at"] = TABLE3.now()
         TABLE3.atomic_json(output / "metadata.json", metadata)
     print(f"Completed {spec['title']}: {len(filters)} filters, libraries={metadata['libraries']}. Results: {output}")
+    if policy_skipped:
+        print(f"Fast mode skipped {len(policy_skipped)} cuDNN filters; use --full to measure every filter.")
     return 0
 
 

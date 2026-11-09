@@ -35,7 +35,7 @@ def read_summary(path):
     return rows
 
 
-def make_plot(rows, output, evaluation):
+def make_plot(rows, output, evaluation, policy_skipped=()):
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -43,8 +43,18 @@ def make_plot(rows, output, evaluation):
     except ImportError as error:
         raise Pending("matplotlib is required: python3 -m pip install -r artifact/requirements.txt") from error
     xlabel, title = LABELS[evaluation]
-    filters = sorted({int(row["filter"]) for row in rows})
     values = {(row["library"], int(row["filter"])): float(row["median_time_ms"]) for row in rows}
+    for item in policy_skipped:
+        if "item" in item:
+            library, separator, size = item["item"].partition(":filter=")
+            if not separator:
+                raise ValueError("invalid skipped filter cell")
+        else:
+            library, size = item["library"], item["filter"]
+        # Both native bundles and assembled coverage retain the skipped x axis
+        # cells, even when no other measured library spans the tail.
+        values.setdefault((library, int(size)), math.nan)
+    filters = sorted({size for _, size in values})
     libraries = [library for library in SERIES if any(key[0] == library for key in values)]
     libraries += sorted({key[0] for key in values} - set(SERIES))
     plt.rcParams.update({"font.size": 11, "pdf.fonttype": 42, "ps.fonttype": 42})
@@ -70,7 +80,10 @@ def make_plot(rows, output, evaluation):
     axis.grid(axis="y", color="#d7d7d7", linewidth=0.6)
     axis.set_axisbelow(True)
     figure.legend(*axis.get_legend_handles_labels(), loc="upper center", ncol=len(libraries), frameon=False)
-    figure.tight_layout(rect=(0, 0, 1, 0.88))
+    if policy_skipped:
+        figure.text(0.5, 0.015, "Fast mode: cuDNN tail omitted; use --full for all filters.",
+                    ha="center", va="bottom", fontsize=8)
+    figure.tight_layout(rect=(0, 0.065 if policy_skipped else 0, 1, 0.88))
     figure.savefig(output, metadata={"CreationDate": None, "ModDate": None, "Title": title})
     plt.close(figure)
     return libraries
@@ -84,11 +97,13 @@ def main():
     try:
         output = args.output_dir.resolve()
         rows = read_summary(output / "summary.csv")
-        libraries = make_plot(rows, output / "figure.pdf", args.evaluation)
         metadata_path = output / "metadata.json"
         metadata = json.loads(metadata_path.read_text()) if metadata_path.is_file() else {}
+        policy_skipped = metadata.get("policy_skipped", [])
+        libraries = make_plot(rows, output / "figure.pdf", args.evaluation, policy_skipped=policy_skipped)
         metadata["plot"] = {"command": [sys.executable, *sys.argv], "script_sha256": sha256(Path(__file__)),
                             "series": libraries, "statistic": "median over trials",
+                            "policy_skipped": policy_skipped,
                             "outputs": {name: sha256(output / name) for name in ("data.csv", "summary.csv", "figure.pdf")
                                         if (output / name).is_file()}}
         metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")

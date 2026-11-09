@@ -154,14 +154,17 @@ def run_jobs(root, request, output, deadline):
             try:
                 remaining = time_left(deadline, request["execution_seconds"])
                 job_environment = dict(environment, **job["environment"])
-                mode_key = "THUNDERFFT_TABLE3_CUFFTDX_MODE"
-                mode = job.get("cufftdx_mode", job["environment"].get(mode_key, "preset"))
-                if mode not in ("preset", "all") or job["environment"].get(mode_key, mode) != mode:
-                    raise ValueError("job cuFFTDx mode must consistently specify preset or all")
-                job_environment[mode_key] = mode
-                state["cufftdx_mode"] = mode
+                modes = {}
+                for field, key, choices, default in (
+                        ("cufftdx_mode", "THUNDERFFT_TABLE3_CUFFTDX_MODE", ("preset", "all"), "preset"),
+                        ("cudnn_mode", "THUNDERFFT_CUDNN_MODE", ("fast", "full"), "fast")):
+                    mode = job.get(field, job["environment"].get(key, default))
+                    if mode not in choices or job["environment"].get(key, mode) != mode:
+                        raise ValueError(f"job {field} must consistently specify {' or '.join(choices)}")
+                    job_environment[key] = mode
+                    state[field] = modes[field] = mode
                 command = ["bash", str(root / "run.sh"), *job["evaluations"], "--backend", "local", "--profile", request["profile"],
-                           "--cufftdx-mode", mode,
+                           "--cufftdx-mode", modes["cufftdx_mode"], "--cudnn-mode", modes["cudnn_mode"],
                            "--device", "0", "--jobs", str(request["build_jobs"]),
                            "--result-dir", str(root / "result"), "--build-dir", str(root / "build_artifact"),
                            "--timeout", str(request["task_timeout"])]

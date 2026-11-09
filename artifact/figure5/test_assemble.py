@@ -28,6 +28,20 @@ class Assembly(unittest.TestCase):
             parts = [FIXTURE.part(root, lib, library=lib, filters=(3,33,53), spec=spec) for lib in spec["libraries"]]
             self.assertEqual(ASSEMBLE.assemble(parts, root / "out", "smoke")["status"], "complete")
 
+    def test_fast_mode_skips_only_cudnn_tail_and_keeps_other_libraries(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(ASSEMBLE.SHARED.PLOT, "make_plot"):
+            root = Path(directory)
+            spec = ASSEMBLE.MEASURE.FIGURE5
+            parts = [FIXTURE.part(root, lib, library=lib, filters=(3, 33, 53), spec=spec)
+                     for lib in spec["libraries"] if lib != "cuDNN"]
+            parts.append(FIXTURE.with_policy(FIXTURE.part(root, "cuDNN", library="cuDNN", filters=(3,), spec=spec),
+                                             spec, (3, 33, 53), ("cuDNN",)))
+            result = ASSEMBLE.assemble(parts, root / "out", "smoke")
+            self.assertEqual((result["status"], result["missing"]), ("complete", []))
+            self.assertEqual([item["item"] for item in result["policy_skipped"]],
+                             ["cuDNN:filter=33", "cuDNN:filter=53"])
+            self.assertFalse(result["coverage_complete"])
+
 
 if __name__ == "__main__":
     unittest.main()

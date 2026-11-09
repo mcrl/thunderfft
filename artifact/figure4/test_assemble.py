@@ -3,6 +3,7 @@
 import csv
 import importlib.util
 import json
+import math
 from pathlib import Path
 import tempfile
 import unittest
@@ -57,6 +58,16 @@ def part(root, name, library="ThunderFFT", filters=(3,), spec=None, **changes):
     return directory
 
 
+def with_policy(directory, spec, filters, selected, mode="fast"):
+    metadata = json.loads((directory / "metadata.json").read_text())
+    metadata["settings"].update(filters=list(filters), selected_libraries=list(selected), cudnn_mode=mode)
+    metadata["source_sha256"]["artifact/figure4/policy.py"] = ASSEMBLE.digest(HERE / "policy.py")
+    metadata["policy_skipped"] = ASSEMBLE.MEASURE.POLICY.skipped_cells(
+        spec["evaluation"], filters, selected, mode)
+    (directory / "metadata.json").write_text(json.dumps(metadata))
+    return directory
+
+
 class Assembly(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -104,6 +115,99 @@ class Assembly(unittest.TestCase):
         state = ASSEMBLE.assemble([], self.root / "out", "smoke")
         self.assertEqual(state["status"], "pending")
         self.assertEqual(len(state["missing"]), 9)
+
+    def fast_parts(self):
+        spec = ASSEMBLE.MEASURE.FIGURE4
+        parts = [part(self.root, lib, library=lib, filters=(3, 9, 53))
+                 for lib in ("ThunderFFT", "FlashFFTConv")]
+        parts.append(with_policy(part(self.root, "cuDNN", library="cuDNN", filters=(3, 9)),
+                                 spec, (3, 9, 53), ("cuDNN",)))
+        return parts
+
+    def test_fast_policy_completes_declared_cells_and_plots_tail_as_gap(self):
+        parts = self.fast_parts()
+        state = ASSEMBLE.assemble(parts, self.root / "out", "smoke")
+        self.assertEqual((state["status"], state["missing"], state["cudnn_mode"]), ("complete", [], "fast"))
+        self.assertFalse(state["coverage_complete"])
+        self.assertEqual([item["item"] for item in state["policy_skipped"]], ["cuDNN:filter=53"])
+        rows = ASSEMBLE.PLOT.make_plot.call_args.args[0]
+        gap = next(row for row in rows if row["library"] == "cuDNN" and row["filter"] == 53)
+        self.assertTrue(math.isnan(float(gap["median_time_ms"])))
+        self.assertEqual(ASSEMBLE.PLOT.make_plot.call_args.kwargs["policy_skipped"], state["policy_skipped"])
+        coverage = json.loads((self.root / "out/coverage.json").read_text())
+        self.assertEqual(coverage["policy_skipped"], state["policy_skipped"])
+
+    def test_fast_policy_does_not_hide_missing_required_libraries_or_early_filters(self):
+        spec = ASSEMBLE.MEASURE.FIGURE4
+        dx = with_policy(part(self.root, "dx", library="cuDNN", filters=(3,)),
+                         spec, (3, 9, 53), ("cuDNN",))
+        state = ASSEMBLE.assemble([dx], self.root / "out", "smoke")
+        self.assertEqual(state["status"], "partial")
+        missing = {item["item"] for item in state["missing"]}
+        self.assertIn("cuDNN:filter=9", missing)
+        self.assertIn("ThunderFFT:filter=53", missing)
+        self.assertNotIn("cuDNN:filter=53", missing)
+
+    def test_fabricated_policy_skip_or_missing_policy_hash_is_rejected(self):
+        for name in ("early", "full", "hash"):
+            with self.subTest(name=name):
+                directory = with_policy(part(self.root, name, library="cuDNN", filters=(3, 9)),
+                                        ASSEMBLE.MEASURE.FIGURE4, (3, 9, 53), ("cuDNN",))
+                metadata = json.loads((directory / "metadata.json").read_text())
+                if name == "early":
+                    metadata["policy_skipped"][0]["filter"] = 9
+                elif name == "full":
+                    metadata["settings"]["cudnn_mode"] = "full"
+                else:
+                    metadata["source_sha256"].pop("artifact/figure4/policy.py")
+                (directory / "metadata.json").write_text(json.dumps(metadata))
+                with self.assertRaisesRegex(ValueError, "policy"):
+                    ASSEMBLE.assemble([directory], self.root / (name + "out"), "smoke")
+
+    def test_same_source_cannot_claim_a_measured_row_was_skipped(self):
+        directory = with_policy(part(self.root, "dx", library="cuDNN", filters=(3, 9, 53)),
+                                ASSEMBLE.MEASURE.FIGURE4, (3, 9, 53), ("cuDNN",))
+        with self.assertRaisesRegex(ValueError, "overlap measured"):
+            ASSEMBLE.assemble([directory], self.root / "out", "smoke")
+
+    def test_conflicting_cudnn_modes_rejected_but_unrelated_full_parts_allowed(self):
+        parts = self.fast_parts()
+        parts.append(part(self.root, "full-tail", library="cuDNN", filters=(53,)))
+        with self.assertRaisesRegex(ValueError, "incompatible cuDNN modes"):
+            ASSEMBLE.assemble(parts, self.root / "out", "smoke")
+
+    def test_historical_no_mode_keeps_full_coverage_requirement(self):
+        directory = part(self.root, "old", library="cuDNN", filters=(3, 9))
+        state = ASSEMBLE.assemble([directory], self.root / "out", "smoke")
+        self.assertEqual(state["cudnn_mode"], "full")
+        self.assertEqual(state["policy_skipped"], [])
+        self.assertIn("cuDNN:filter=53", {item["item"] for item in state["missing"]})
+
+    def test_validated_imported_tail_measurement_fills_another_parts_skip(self):
+        parts = self.fast_parts()
+        owner = with_policy(parts[0], ASSEMBLE.MEASURE.FIGURE4, (3, 9, 53), ("ThunderFFT",))
+        with (owner / "data.csv").open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        tail = dict(next(row for row in rows if row["filter"] == "53"), library="cuDNN", filter_fft_included="n/a")
+        external = self.root / "measured-tail.csv"
+        ASSEMBLE.MEASURE.TABLE3.write_csv(external, [tail], ASSEMBLE.MEASURE.FIELDS)
+        imported, hashes, origins = ASSEMBLE.MEASURE.snapshot_backends(
+            [external], owner, ASSEMBLE.MEASURE.FIGURE4, "A100", "L=4096,B=4,D=64", (3, 9, 53), ("ThunderFFT",))
+        metadata = json.loads((owner / "metadata.json").read_text())
+        metadata.update(backend_sha256=hashes, backend_imports=origins)
+        (owner / "metadata.json").write_text(json.dumps(metadata))
+        ASSEMBLE.MEASURE.TABLE3.write_csv(owner / "data.csv", rows + imported, ASSEMBLE.MEASURE.FIELDS)
+        result = ASSEMBLE.assemble(parts, self.root / "out", "smoke")
+        self.assertEqual((result["status"], result["policy_skipped"]), ("complete", []))
+        self.assertTrue(result["coverage_complete"])
+
+    def test_policy_skip_does_not_mask_failed_native_command(self):
+        parts = self.fast_parts()
+        metadata = json.loads((parts[-1] / "metadata.json").read_text())
+        metadata["commands"][0]["exit_code"] = 124
+        (parts[-1] / "metadata.json").write_text(json.dumps(metadata))
+        with self.assertRaisesRegex(ValueError, "successfully"):
+            ASSEMBLE.assemble(parts, self.root / "out", "smoke")
 
     def test_missing_trials_cannot_complete_a_cell(self):
         one = part(self.root, "one", settings={"trials": 2, "filters": [3]})
@@ -170,6 +274,32 @@ class Assembly(unittest.TestCase):
         two = part(self.root, "two", filters=(9,), gpu_uuid=None)
         with self.assertRaisesRegex(ValueError, "UUID"):
             ASSEMBLE.assemble([one, two], self.root / "together", "smoke")
+
+
+class PlotPolicy(unittest.TestCase):
+    def test_plot_keeps_nan_tail_and_explains_fast_coverage(self):
+        import matplotlib.axes
+        import matplotlib.figure
+        original_plot = matplotlib.axes.Axes.plot
+        original_text = matplotlib.figure.Figure.text
+        lines, captions = [], []
+        def capture_plot(axis, *args, **kwargs):
+            lines.append((kwargs.get("label"), args[1]))
+            return original_plot(axis, *args, **kwargs)
+        def capture_text(figure, *args, **kwargs):
+            captions.append(args[2])
+            return original_text(figure, *args, **kwargs)
+        rows = [{"library": "cuDNN", "filter": size, "median_time_ms": elapsed}
+                for size, elapsed in ((3, 1.0), (9, 2.0))]
+        skips = ASSEMBLE.MEASURE.POLICY.skipped_cells("figure4", (3, 9, 53), ("cuDNN",), "fast")
+        with tempfile.TemporaryDirectory() as temporary, \
+                patch.object(matplotlib.axes.Axes, "plot", capture_plot), \
+                patch.object(matplotlib.figure.Figure, "text", capture_text):
+            output = Path(temporary) / "figure.pdf"
+            ASSEMBLE.PLOT.make_plot(rows, output, "figure4", policy_skipped=skips)
+            self.assertTrue(output.read_bytes().startswith(b"%PDF"))
+        self.assertTrue(math.isnan(next(values for label, values in lines if label == "cuDNN")[-1]))
+        self.assertTrue(any("cuDNN tail omitted" in text and "--full" in text for text in captions))
 
 
 if __name__ == "__main__":

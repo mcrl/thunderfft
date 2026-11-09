@@ -13,8 +13,8 @@ import time
 import uuid
 
 from artifact.cloud import coordinator as cloud
-from artifact.cloud.config import (CUFFTDX_MODE_ENV, cufftdx_mode, inherited_environment,
-                                   load_config, preview_cufftdx_mode)
+from artifact.cloud.config import (CUFFTDX_MODE_ENV, cufftdx_mode, CUDNN_MODE_ENV, cudnn_mode,
+                                   inherited_environment, load_config, preview_modes)
 from artifact.cloud.provider import VastClient
 from artifact.cloud.transport import validate_private_key
 
@@ -129,6 +129,7 @@ def preflight(config, a100_backend, args, root):
     return {"planned_at": timestamp(), "a100_backend": a100_backend, "proposals": proposals,
             "planned_total_usd": total, "budget_usd": config["budget_usd"],
             "cufftdx_mode": cufftdx_mode(getattr(args, "cufftdx_mode", None), inherited_environment(config)),
+            "cudnn_mode": cudnn_mode(getattr(args, "cudnn_mode", None), inherited_environment(config)),
             "provider_enforced_cap": False}
 
 
@@ -136,9 +137,11 @@ def run_local(args, root, folder, stop_process, gpu_uuid=None):
     if not gpu_uuid:
         raise ValueError("Local execution requires the selected GPU UUID")
     mode = cufftdx_mode(getattr(args, "cufftdx_mode", None))
+    convolution_mode = cudnn_mode(getattr(args, "cudnn_mode", None))
     command = [sys.executable, str(root / "artifact/runner.py"), "all", "--backend", "local",
                "--profile", args.profile, "--collection", args.collection, "--part", "a100",
                "--cufftdx-mode", mode,
+               "--cudnn-mode", convolution_mode,
                "--result-dir", str(args.result_dir), "--build-dir", str(args.build_dir),
                "--device", "0", "--jobs", str(args.jobs), "--timeout", str(args.timeout)]
     process = None
@@ -147,7 +150,7 @@ def run_local(args, root, folder, stop_process, gpu_uuid=None):
             process = subprocess.Popen(command, cwd=root, stdout=log, stderr=subprocess.STDOUT,
                                        start_new_session=True,
                                        env=dict(os.environ, CUDA_VISIBLE_DEVICES=gpu_uuid,
-                                                **{CUFFTDX_MODE_ENV: mode}))
+                                                **{CUFFTDX_MODE_ENV: mode, CUDNN_MODE_ENV: convolution_mode}))
             while process.poll() is None:
                 print(f"[A100] local experiments running; log: {folder / 'a100.log'}", flush=True)
                 try:
@@ -161,8 +164,9 @@ def run_local(args, root, folder, stop_process, gpu_uuid=None):
             raise
 
 
-def assembly_result(states, assembled, entries, profile, root):
-    """Missing measured cells fail; unavailable historical Table 7 sources stay explicit."""
+def assembly_result(states, assembled, entries, profile, root, cudnn_mode=None):
+    """Missing required cells fail; validated fast subsets remain explicit limits."""
+    from artifact.figure4 import policy
     missing_files, unresolved, limits = [], [], []
     variants = json.loads((root / "artifact/table7/variants.json").read_text())["variants"]
     unavailable = {v["id"] for v in variants if v["status"] != "available"}
@@ -177,6 +181,23 @@ def assembly_result(states, assembled, entries, profile, root):
         if state is None:
             unresolved.append({"evaluation": evaluation, "reason": "assembly state missing"})
             continue
+        skipped = state.get("policy_skipped", [])
+        if skipped:
+            filters = tuple(range(3, 54, 2)) if profile == "paper" else (
+                (3, 9, 53) if evaluation == "figure4" else (3, 33, 53))
+            allowed = ({f"cuDNN:filter={item['filter']}": item["reason"]
+                        for item in policy.skipped_cells(evaluation, filters, ["cuDNN"], "fast")}
+                       if evaluation in ("figure4", "figure5") else {})
+            seen = set()
+            for item in skipped:
+                record = dict(item, evaluation=evaluation)
+                key = item.get("item")
+                if (cudnn_mode == "full" or state.get("cudnn_mode") != "fast"
+                        or key in seen or key not in allowed or item.get("reason") != allowed[key]):
+                    unresolved.append(record)
+                else:
+                    limits.append(record)
+                seen.add(key)
         for item in state.get("missing", []):
             record = dict(item, evaluation=evaluation)
             if evaluation == "table7" and item["item"].split(".")[0] in unavailable:
@@ -198,9 +219,11 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
     entries = select_tasks(["all"], registry["evaluations"], parser)
     args.profile = args.profile or "paper"
     if args.dry_run:
-        mode = preview_cufftdx_mode(args.cloud_config, getattr(args, "cufftdx_mode", None))
+        modes = preview_modes(args.cloud_config, getattr(args, "cufftdx_mode", None),
+                              getattr(args, "cudnn_mode", None))
         print(f"Complete pipeline; profile: {args.profile}; A100: {args.a100_backend}")
-        print(f"Table 3 cuFFTDx mode: {mode} (A100/H100/B200)")
+        print(f"Table 3 cuFFTDx mode: {modes['cufftdx_mode']} (A100/H100/B200)")
+        print(f"Figure 4/5 cuDNN mode: {modes['cudnn_mode']}")
         print("A100: " + ", ".join(e["id"] for e in entries if e["id"] != "figure2"))
         print("H100 PCIe 80GB: table3, table4; B200: table3, table4")
         print("Then assemble all tables and figures automatically; Figure 2 reuses A100 Table 3.")
@@ -208,8 +231,10 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
         return 0
     config = load_config(args.cloud_config)
     args.cufftdx_mode = cufftdx_mode(getattr(args, "cufftdx_mode", None), inherited_environment(config))
+    args.cudnn_mode = cudnn_mode(getattr(args, "cudnn_mode", None), inherited_environment(config))
     config = copy.deepcopy(config)
     config["environment"][CUFFTDX_MODE_ENV] = args.cufftdx_mode
+    config["environment"][CUDNN_MODE_ENV] = args.cudnn_mode
     a100_backend, observed = choose_a100(args, wait=not args.cloud_plan)
     preview = preflight(config, a100_backend, args, root)
     if args.cloud_plan:
@@ -231,6 +256,7 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
     collection.initialize(destination, args.profile)
     state = {"run_id": run_id, "started_at": timestamp(), "status": "running", "profile": args.profile,
              "cufftdx_mode": args.cufftdx_mode,
+             "cudnn_mode": args.cudnn_mode,
              "collection": args.collection, "assembled_dir": str(destination / "assembled"),
              "a100_backend": a100_backend, "a100_observation": observed, "preflight": preview,
              "budget_usd": config["budget_usd"], "reserved_total_usd": 0.0, "stages": [],
@@ -320,7 +346,8 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
         # interruption. It never starts another GPU execution.
         try:
             assembled = collection.assemble_collection(destination, entries, args.profile)
-            state["assembly"] = assembly_result(assembled, destination / "assembled", entries, args.profile, root)
+            state["assembly"] = assembly_result(assembled, destination / "assembled", entries, args.profile, root,
+                                                cudnn_mode=args.cudnn_mode)
             if code == 0 and not state["assembly"]["outputs_complete"]:
                 code = 2
         except KeyboardInterrupt:

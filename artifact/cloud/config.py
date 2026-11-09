@@ -38,6 +38,8 @@ TORCH_HEADERS_VERSION = "2.8.0"
 ARCHS = {"A100": "80", "H100": "90", "B200": "100"}
 CUFFTDX_MODE_ENV = "THUNDERFFT_TABLE3_CUFFTDX_MODE"
 CUFFTDX_MODES = ("preset", "all")
+CUDNN_MODE_ENV = "THUNDERFFT_CUDNN_MODE"
+CUDNN_MODES = ("fast", "full")
 ENVIRONMENT = {
     "THUNDERFFT_TABLE3_" + suffix for suffix in
     ("BATCH", "N_LIST", "PLACEMENTS", "PRECISIONS", "REPEATS", "TIMEOUT", "CUFFTDX_TIMEOUT", "CUFFTDX_MODE", "TRIALS", "LIBRARIES")
@@ -57,7 +59,7 @@ ENVIRONMENT = {
     "THUNDERFFT_FIGURE" + figure + "_" + suffix
     for figure in ("4", "5") for suffix in ("FILTERS", "TRIALS", "TIMEOUT", "LIBRARIES", "SLOW_RATIO")
 } | {
-    "THUNDERFFT_FIGURE4_VALIDATE_CHANNELS", "THUNDERFFT_FIGURE5_N",
+    "THUNDERFFT_FIGURE4_VALIDATE_CHANNELS", "THUNDERFFT_FIGURE5_N", CUDNN_MODE_ENV,
 }
 
 
@@ -92,6 +94,8 @@ def measurement_environment(values):
         result[key] = value
     if CUFFTDX_MODE_ENV in result:
         cufftdx_mode(environment=result)
+    if CUDNN_MODE_ENV in result:
+        cudnn_mode(environment=result)
     return result
 
 
@@ -101,6 +105,15 @@ def cufftdx_mode(explicit=None, environment=None):
     value = explicit if explicit is not None else values.get(CUFFTDX_MODE_ENV, "preset")
     if value not in CUFFTDX_MODES:
         raise ValueError(f"{CUFFTDX_MODE_ENV} must be preset or all")
+    return value
+
+
+def cudnn_mode(explicit=None, environment=None):
+    """Figure 4/5 cuDNN defaults to fast; explicit CLI overrides configured values."""
+    values = os.environ if environment is None else environment
+    value = explicit if explicit is not None else values.get(CUDNN_MODE_ENV, "fast")
+    if value not in CUDNN_MODES:
+        raise ValueError(f"{CUDNN_MODE_ENV} must be fast or full")
     return value
 
 
@@ -116,9 +129,14 @@ def supplied_config(path=None):
 
 
 def preview_cufftdx_mode(path=None, explicit=None):
+    return preview_modes(path, explicit)["cufftdx_mode"]
+
+
+def preview_modes(path=None, explicit_cufftdx=None, explicit_cudnn=None):
     configured = measurement_environment(supplied_config(path).get("environment", {}))
     environment = inherited_environment({"environment": configured})
-    return cufftdx_mode(explicit, environment)
+    return {"cufftdx_mode": cufftdx_mode(explicit_cufftdx, environment),
+            "cudnn_mode": cudnn_mode(explicit_cudnn, environment)}
 
 
 def load_config(path=None):

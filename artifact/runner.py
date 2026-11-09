@@ -26,7 +26,8 @@ if str(ROOT) not in sys.path:
 from artifact.cloud import coordinator as cloud
 from artifact import full_pipeline
 from artifact.cloud import transport as cloud_transport
-from artifact.cloud.config import CUFFTDX_MODE_ENV, CUFFTDX_MODES, cufftdx_mode
+from artifact.cloud.config import (CUFFTDX_MODE_ENV, CUFFTDX_MODES, cufftdx_mode,
+                                   CUDNN_MODE_ENV, CUDNN_MODES, cudnn_mode)
 
 # Also works when CPU tests load this file by path rather than as a module.
 _spec = importlib.util.spec_from_file_location("artifact_collection", Path(__file__).with_name("collection.py"))
@@ -134,9 +135,11 @@ def stop_process(process):
 
 def execute(entry, output, args, dependency_results=None):
     mode = cufftdx_mode(getattr(args, "cufftdx_mode", None))
+    convolution_mode = cudnn_mode(getattr(args, "cudnn_mode", None))
     command = ["bash", str(ROOT / "artifact" / entry["id"] / "run.sh")]
     state = {"evaluation": entry["id"], "title": entry["title"],
-             "profile": args.profile, "cufftdx_mode": mode, "status": "running", "exit_code": None,
+             "profile": args.profile, "cufftdx_mode": mode, "cudnn_mode": convolution_mode,
+             "status": "running", "exit_code": None,
              "implementation": entry["implementation"], "owner": entry.get("owner"),
              "coverage": entry.get("coverage", "See the task README"),
              "full_paper_comparison": entry.get("full_paper_comparison", False),
@@ -155,6 +158,7 @@ def execute(entry, output, args, dependency_results=None):
                         "THUNDERFFT_RESULTS_ROOT": str(args.result_dir),
                         "THUNDERFFT_DEPENDENCY_RESULTS": json.dumps(dependency_results or {})})
     environment[CUFFTDX_MODE_ENV] = mode
+    environment[CUDNN_MODE_ENV] = convolution_mode
     if getattr(args, "collection", None):
         environment["THUNDERFFT_COLLECTION"] = args.collection
     started = time.monotonic()
@@ -213,6 +217,10 @@ def main():
                         help="default: paper for the complete pipeline; otherwise collection profile or smoke")
     parser.add_argument("--cufftdx-mode", choices=CUFFTDX_MODES, default=None,
                         help="Table 3 cuFFTDx configuration selection: preset (default) or all; overrides environment/config")
+    parser.add_argument("--cudnn-mode", choices=CUDNN_MODES, default=None,
+                        help="Figure 4/5 cuDNN coverage: fast (default, skips slow filters) or full; overrides environment/config")
+    parser.add_argument("--full", action="store_true",
+                        help="run the cuFFTDx candidate search and every cuDNN filter (--cufftdx-mode all --cudnn-mode full)")
     parser.add_argument("--result-dir", type=Path, default=ROOT / "result")
     parser.add_argument("--build-dir", type=Path, default=ROOT / "build_artifact")
     parser.add_argument("--device", type=nonnegative, default=0,
@@ -229,6 +237,10 @@ def main():
     cloud.add_arguments(parser)
     full_pipeline.add_arguments(parser)
     args = parser.parse_args()
+    if args.full:
+        if args.cufftdx_mode == "preset" or args.cudnn_mode == "fast":
+            parser.error("--full conflicts with --cufftdx-mode preset or --cudnn-mode fast")
+        args.cufftdx_mode, args.cudnn_mode = "all", "full"
     complete = args.backend == "all" or (
         args.backend is None and args.evaluations in ([], ["all"]) and not
         (args.list or args.assemble or args.import_result or args.cloud_batch or args.cloud_recover)
@@ -280,7 +292,10 @@ def main():
         # Derived figures are regenerated offline from the collection's sources.
         entries = [e for e in entries if e["id"] != "figure2"]
     if args.backend == "vast" and not args.list:
-        require_backend(entries, args.backend, parser)
+        # Batch jobs select and validate their own evaluations below. The
+        # default available list can include derived local-only evaluations.
+        if not args.cloud_batch:
+            require_backend(entries, args.backend, parser)
 
         def select_for_backend(requested_ids, all_entries, task_parser):
             return require_backend(select_tasks(requested_ids, all_entries, task_parser), args.backend, task_parser)
@@ -292,6 +307,7 @@ def main():
             return 1
     try:
         args.cufftdx_mode = cufftdx_mode(args.cufftdx_mode)
+        args.cudnn_mode = cudnn_mode(args.cudnn_mode)
     except ValueError as error:
         parser.error(str(error))
     if args.list or args.dry_run:
@@ -307,6 +323,7 @@ def main():
             else:
                 print(f"Profile: {args.profile}; device: {args.device}; sequential execution")
                 print(f"Table 3 cuFFTDx mode: {args.cufftdx_mode}")
+                print(f"Figure 4/5 cuDNN mode: {args.cudnn_mode}")
             if collection_dir:
                 print(f"Collection: {collection_dir}")
                 if args.assemble and (collection_dir / "assembled/manifest.json").is_file():
@@ -359,7 +376,7 @@ def main():
     batch_dir = args.result_dir / "runs" / run_id
     batch_dir.mkdir(parents=True, exist_ok=False)
     metadata = {"schema_version": 1, "run_id": run_id, "started_at": now(),
-                "profile": args.profile, "cufftdx_mode": args.cufftdx_mode,
+                "profile": args.profile, "cufftdx_mode": args.cufftdx_mode, "cudnn_mode": args.cudnn_mode,
                 "evaluations": [e["id"] for e in entries],
                 "selection": args.evaluations or ["available"],
                 "collection": args.collection, "part": args.part or run_id,
@@ -379,6 +396,7 @@ def main():
                     ("CUDA_VISIBLE_DEVICES", "CUDACXX", "NVCC", "CUDAToolkit_ROOT", "MATHDX_ROOT", "THUNDERFFT_ARCHS")},
                 "paper": registry["paper"], "scientific_validation": "not_assessed"}
     metadata["configuration"][CUFFTDX_MODE_ENV] = args.cufftdx_mode
+    metadata["configuration"][CUDNN_MODE_ENV] = args.cudnn_mode
     cloud_source = ROOT / ".thunderfft-cloud-source.json"
     if cloud_source.is_file():
         # A source archive carries original revision + actual per-file hashes;

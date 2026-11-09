@@ -68,6 +68,47 @@ class ConfigurationTests(unittest.TestCase):
             self.assertEqual(config.preview_cufftdx_mode(path), "all")
             self.assertEqual(config.preview_cufftdx_mode(path, "preset"), "preset")
 
+    def test_cudnn_mode_defaults_validation_and_offline_config_precedence(self):
+        key = config.CUDNN_MODE_ENV
+        self.assertEqual(config.cudnn_mode(environment={}), "fast")
+        self.assertEqual(config.cudnn_mode("full", {key: "fast"}), "full")
+        for mode in ("fast", "full"):
+            self.assertEqual(self.load({"environment": {key: mode}})["environment"][key], mode)
+        for mode in ("", "all", "FULL", True):
+            with self.subTest(mode=mode), self.assertRaises(ValueError):
+                self.load({"environment": {key: mode}})
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {key: "full"}):
+            path = Path(folder) / "config.json"
+            path.write_text(json.dumps({"environment": {key: "fast"}}))
+            self.assertEqual(config.preview_modes(path)["cudnn_mode"], "fast")
+            self.assertEqual(config.preview_modes(path, explicit_cudnn="full")["cudnn_mode"], "full")
+
+    def test_actual_batch_cli_full_overrides_job_modes_and_validates_actual_tasks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            settings, batch, output = folder / "config.json", folder / "batch.json", folder / "results"
+            settings.write_text(json.dumps({"budget_usd": 1.5, "api_key_file": str(folder / "missing-key"),
+                "environment": {config.CUFFTDX_MODE_ENV: "preset", config.CUDNN_MODE_ENV: "fast"}}))
+            command = [str(ROOT / "run.sh"), "--backend", "vast", "--cloud-batch", str(batch),
+                       "--cloud-config", str(settings), "--result-dir", str(output), "--full", "--dry-run"]
+            batch.write_text(json.dumps([{"evaluations": ["figure4"], "part": "requested-fast",
+                "environment": {config.CUFFTDX_MODE_ENV: "preset", config.CUDNN_MODE_ENV: "fast"}}]))
+            result = subprocess.run(command, text=True, capture_output=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            preview = json.loads(result.stdout)
+            self.assertFalse(preview["api_calls"])
+            self.assertEqual(preview["instances_created"], 0)
+            self.assertEqual(preview["jobs"][0]["evaluations"], ["figure4"])
+            self.assertEqual((preview["jobs"][0]["cufftdx_mode"], preview["jobs"][0]["cudnn_mode"]),
+                             ("all", "full"))
+            self.assertEqual(preview["jobs"][0]["environment"][config.CUDNN_MODE_ENV], "full")
+            self.assertFalse(output.exists())
+            batch.write_text(json.dumps([{"evaluations": ["figure2"], "part": "unsupported"}]))
+            rejected = subprocess.run(command, text=True, capture_output=True, timeout=20)
+            self.assertEqual(rejected.returncode, 2)
+            self.assertIn("--backend vast is not supported for: figure2", rejected.stderr)
+            self.assertFalse(output.exists())
+
     def test_startup_attempts_and_machine_exclusions_are_bounded(self):
         for overrides in ({"max_startup_attempts": 0}, {"max_startup_attempts": 4},
                           {"max_startup_attempts": 1.5}, {"max_startup_attempts": True},

@@ -51,9 +51,11 @@ tests.
 ## Complete reproduction with one command
 
 ```bash
-./run.sh                               # complete paper-profile workflow
+./run.sh                               # paper workflow: saved cuFFTDx parameters, short cuDNN sweep
 # Equivalent: ./run.sh all
-./run.sh --cufftdx-mode all             # complete workflow, including cuFFTDx candidate search
+./run.sh --full                         # all cuFFTDx candidates and all cuDNN filters
+./run.sh --cufftdx-mode all             # Table 3 candidate search; retain the short cuDNN sweep
+./run.sh --cudnn-mode full              # all cuDNN filters; retain Table 3 saved parameters
 ```
 
 The launcher loads `~/.thunderfft_env` when present. With no evaluation names,
@@ -71,10 +73,24 @@ the complete candidate search. Both modes check correctness and collect fresh
 timings with the same paper settings; Table 2 and Figure 2 reuse those results.
 See [Table 3](table3/README.md) for preset provenance and compatibility checks.
 
+Figures 4 and 5 default to `--cudnn-mode fast`: cuDNN measures filters up to
+25 in Figure 4 and up to 11 in Figure 5. Every other library measures the
+whole requested filter grid. Each library's selected filters run in one
+native process. The fixed cutoffs precede the first observed 3x/10x cuDNN
+slowdown relative to the fastest other library in the retained A100 sweep.
+The plot annotates the omitted cuDNN tail and leaves it blank; no timings
+are filled in for skipped filters.
+
+`--full` combines `--cufftdx-mode all --cudnn-mode full`. The individual
+options affect Table 3 and Figures 4/5 respectively. `THUNDERFFT_CUDNN_MODE`
+also accepts `fast` or `full`; an explicit CLI option takes precedence.
+Full cuDNN mode measures every requested filter and disables the optional
+`THUNDERFFT_FIGURE4_SLOW_RATIO` / `THUNDERFFT_FIGURE5_SLOW_RATIO` cutoff.
+
 Approximate paper-workflow times on the prepared evaluation account, with
 dependencies and local builds already available:
 
-| Step, in execution order | GPU | Default `preset` | Full search `all` |
+| Step, in execution order | GPU | Default (`preset` + `fast`) | `--full` (`all` + `full`) |
 | --- | --- | --- | --- |
 | Validation | A100 | Under 1 minute | Under 1 minute |
 | Table 3 | A100 | 4–6 minutes | 8–12 minutes |
@@ -84,22 +100,29 @@ dependencies and local builds already available:
 | Table 6 | A100 | Under 1 minute | Under 1 minute |
 | Table 7 | A100 | Under 1 minute | Under 1 minute |
 | Figure 3 | A100 | Under 1 minute | Under 1 minute |
-| Figure 4 | A100 | 2–3 minutes | 2–3 minutes |
-| Figure 5 | A100 | 9–12 minutes | 9–12 minutes |
+| Figure 4 | A100 | 1–2 minutes (estimate) | 2–3 minutes |
+| Figure 5 | A100 | 3–5 minutes (estimate) | 9–12 minutes |
 | Tables 3 and 4, complete cloud stage | H100 PCIe | 8–12 minutes | 10–15 minutes |
 | Tables 3 and 4, complete cloud stage | B200 | 8–12 minutes | 10–15 minutes |
 | Final table assembly and Figure 2–5 PDFs | CPU | Under 1 minute | Under 1 minute |
-| **Total** |  | **About 55–75 minutes** | **About 60–80 minutes** |
+| **Total** |  | **About 50–70 minutes (estimate)** | **About 60–80 minutes** |
 
 Cloud-stage estimates include startup, builds, measurements, result download
 and cleanup. Initial setup/local builds, GPU waiting and cloud retries can add
 time. Figure 2 reuses Table 3 measurements during final assembly.
-The H100/B200 preset-stage and total preset times are estimates based on the
-previous full search and fewer candidate measurements; the complete new
-preset workflow has not been timed end to end on all three GPUs.
+The fast Figure 4/5, H100/B200 preset-stage and default total times are
+estimates. The complete new `preset` + `fast` workflow has not been timed
+end to end on all three GPUs.
 A100 Table 3 preset measurement took 4 minutes 56 seconds, plus 2 minutes
 9 seconds for build/setup, compared with the previous full search's
 8 minutes 41 seconds of measurement. See the Table 3 README for details.
+
+The retained 2026-11-09 run at commit `6864641` completed the former default
+(`all` cuFFTDx candidates and every cuDNN filter) in 61 minutes 52 seconds
+on A100/H100/B200, including automatic assembly. At commit `317593c`, a
+separate A100 preset check passed all 56 Table 3 configurations and Table 2 /
+Figure 2 assembly, plus 494 CPU tests. These checks describe those revisions
+and modes; they do not establish an end-to-end measurement of the new default.
 
 Table 3 runs before the evaluations that reuse it. The workflow creates a
 collection automatically; `--collection NAME` chooses its name. Final output
@@ -133,10 +156,13 @@ Startup, download, cleanup and delayed-billing reserves are accounted for
 separately. If an affordable compatible offer is unavailable, the workflow
 reports the stage and does not rent an incompatible GPU.
 
-Every runnable evaluation produces its output, but Table 7 still has two
-unavailable historical paper stages. Its assembled table retains blank cells
-and coverage metadata for them; successful execution does not fill missing
-historical measurements.
+Every runnable evaluation produces its output. Default Figures 4/5 record
+intentional cuDNN omissions in `policy_skipped` with `coverage_complete=false`;
+their assembly can complete with no unexpected missing cells. Their arithmetic
+means cover the measured sizes only: cuDNN uses `mean(12)` / `mean(5)`, while
+the other libraries use `mean(26)` on the paper grid. Use `--full` for all
+26 cuDNN sizes. Table 7 still has two unavailable historical paper stages;
+its assembled table retains blank cells and coverage metadata for them.
 
 ## Run selected evaluations locally
 
@@ -200,8 +226,9 @@ result/collections/<name>/assembled/missing.csv
 ```
 
 `run.sh` reports the stage results and assembly coverage. A complete workflow
-requires all runnable measurements and their expected output files; known
-unavailable historical Table 7 stages remain explicit in the coverage report.
+requires the selected measurements and their expected output files. Intentional
+fast-mode cuDNN omissions and unavailable historical Table 7 stages remain
+explicit in the coverage report.
 Named evaluation runs return 0 when every selected evaluation completed,
 1 on a failure, 2 when something is pending or blocked, and 130 when interrupted.
 

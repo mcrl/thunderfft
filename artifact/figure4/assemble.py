@@ -87,6 +87,31 @@ def canonical(row):
     return result
 
 
+def policy_evidence(metadata, incoming, spec):
+    """Validate intentional omissions separately from uncollected measurements."""
+    settings = metadata["settings"]
+    mode = settings.get("cudnn_mode", "full")
+    if "cudnn_mode" in settings:
+        selected = settings.get("selected_libraries")
+        if not isinstance(selected, list) or not selected or len(selected) != len(set(selected)) \
+                or not set(selected) <= set(spec["libraries"]):
+            raise ValueError("invalid selected libraries for cuDNN policy")
+        if not set(metadata.get("binary_sha256", {})) <= set(selected):
+            raise ValueError("native libraries disagree with selected libraries")
+        if metadata.get("source_sha256", {}).get("artifact/figure4/policy.py") != digest(HERE / "policy.py"):
+            raise ValueError("cuDNN policy lacks matching source hash evidence")
+    else:
+        # Historical bundles measured the full requested grid by default.
+        selected = sorted({row["library"] for row in incoming})
+    expected = MEASURE.POLICY.skipped_cells(spec["evaluation"], settings["filters"], selected, mode)
+    if metadata.get("policy_skipped", []) != expected:
+        raise ValueError("cuDNN policy skips disagree with selected filters/libraries/mode")
+    cells = {(item["filter"], item["library"]) for item in expected}
+    if any((int(row["filter"]), row["library"]) in cells for row in incoming):
+        raise ValueError("cuDNN policy skips overlap measured rows in the same source")
+    return mode, selected, expected
+
+
 def revalidate_evidence(part, metadata, incoming, spec):
     """Reparse immutable native output and copied imports, then compare every row."""
     parsed, hashes, commands, libraries = [], {}, set(), set()
@@ -152,7 +177,8 @@ def assemble_sweep(parts, output, profile, spec):
         raise ValueError("profile must be smoke or paper")
     output = Path(output).resolve()
     expected_filters = spec["filters"][profile]
-    rows, sources, signatures = {}, [], {}
+    rows, sources, signatures, skipped = {}, [], {}, {}
+    cudnn_modes = set()
     identity, base = None, None
     for part in sorted({Path(p).resolve() for p in parts}):
         if part == output or part in output.parents or output in part.parents:
@@ -177,6 +203,13 @@ def assemble_sweep(parts, output, profile, spec):
             incoming = list(reader)
         if not incoming:
             raise ValueError(f"{part}: completed part has no rows")
+        mode, selected, policy_skipped = policy_evidence(metadata, incoming, spec)
+        if "cuDNN" in selected or any(row["library"] == "cuDNN" for row in incoming):
+            cudnn_modes.add(mode)
+            if len(cudnn_modes) > 1:
+                raise ValueError("incompatible cuDNN modes across parts")
+        for item in policy_skipped:
+            skipped[(item["filter"], item["library"])] = item["reason"]
         shapes = {row["shape"] for row in incoming}
         if len(shapes) != 1:
             raise ValueError(f"{part}: multiple workloads in one part")
@@ -240,14 +273,18 @@ def assemble_sweep(parts, output, profile, spec):
         raw_hashes.update({name: digest(part / name) for name in ("status.json", "metadata.json", "data.csv")})
         sources.append({"result_dir": str(part), "sha256": raw_hashes, "gpu_uuid": metadata.get("gpu_uuid"),
                         "external_build": metadata.get("external_build"), "truncated": metadata.get("truncated", {})})
-    missing = []
+    missing, policy_skipped = [], []
     # Include custom filters as well as the profile grid; this preserves incomplete work.
-    filters = sorted(set(expected_filters) | {key[0] for key in rows})
+    filters = sorted(set(expected_filters) | {key[0] for key in rows} | {key[0] for key in skipped})
     for library in spec["libraries"]:
         for size in filters:
             group = [row for (f, lib, _), row in rows.items() if f == size and lib == library]
             if not group:
-                missing.append({"item": f"{library}:filter={size}", "reason": "validated timing not collected"})
+                item = f"{library}:filter={size}"
+                if (size, library) in skipped:
+                    policy_skipped.append({"item": item, "reason": skipped[(size, library)]})
+                else:
+                    missing.append({"item": item, "reason": "validated timing not collected"})
             elif any(row["filter_fft_included"] == "unknown" for row in group):
                 missing.append({"item": f"{library}:filter={size}:timing_scope", "reason": "imported CSV does not state whether filter FFT is timed"})
     state = "complete" if not missing else "partial" if rows else "pending"
@@ -259,7 +296,8 @@ def assemble_sweep(parts, output, profile, spec):
     metadata = {"schema_version": 1, "evaluation": spec["evaluation"], "profile": profile,
                 "status": state, "operation": spec["operation"], "assembled_from": sources,
                 "identity": identity, "implementation_signatures": signatures, "missing": missing,
-                "full_paper_comparison": False, "coverage_complete": not missing,
+                "cudnn_mode": next(iter(cudnn_modes), "full"), "policy_skipped": policy_skipped,
+                "full_paper_comparison": False, "coverage_complete": not missing and not policy_skipped,
                 "scope": "Validated rows are merged by library/filter/trial. Completeness does not establish original paper binary identity.",
                 "notes": spec.get("notes")}
     if summary:
@@ -270,14 +308,17 @@ def assemble_sweep(parts, output, profile, spec):
                 for size in filters:
                     if not any(row["library"] == library and row["filter"] == size for row in plot_rows):
                         plot_rows.append({"library": library, "filter": size, "median_time_ms": "nan"})
-            PLOT.make_plot(plot_rows, output / "figure.pdf", spec["evaluation"])
+            PLOT.make_plot(plot_rows, output / "figure.pdf", spec["evaluation"], policy_skipped=policy_skipped)
             metadata["plot"] = "figure.pdf"
         except PLOT.Pending as error:
             metadata["plot_pending"] = str(error)
     MEASURE.TABLE3.atomic_json(output / "metadata.json", metadata)
     MEASURE.TABLE3.atomic_json(output / "coverage.json", {"status": state, "missing": missing,
-                             "full_paper_comparison": False})
-    return {"status": state, "missing": missing, "full_paper_comparison": False}
+                             "cudnn_mode": metadata["cudnn_mode"], "policy_skipped": policy_skipped,
+                             "coverage_complete": metadata["coverage_complete"], "full_paper_comparison": False})
+    return {"status": state, "missing": missing, "cudnn_mode": metadata["cudnn_mode"],
+            "policy_skipped": policy_skipped, "coverage_complete": metadata["coverage_complete"],
+            "full_paper_comparison": False}
 
 
 def assemble(parts, output, profile):

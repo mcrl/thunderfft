@@ -3,9 +3,11 @@
 
 import csv
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -135,6 +137,77 @@ class Backends(unittest.TestCase):
                 self.write(path, **changes)
                 with self.subTest(changes=changes), self.assertRaises(ValueError):
                     MEASURE.read_backends([path], MEASURE.FIGURE4, "A100", SHAPE, (3, 5))
+
+
+class CudnnWorkSelection(unittest.TestCase):
+    def collect(self, spec, mode=None, overrides=None):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        directory = Path(temporary.name)
+        binary = directory / "native"
+        binary.write_bytes(b"synthetic native fixture")
+        calls = []
+        def command(path, sizes, profile, trials):
+            return [str(path), ",".join(map(str, sizes)), str(trials)], spec.get("shape", "N=16384")
+        def native(argv, **options):
+            calls.append(argv)
+            values = [(int(size), trial, 1.0, 0.001, "checked")
+                      for size in argv[1].split(",") for trial in range(int(argv[2]))]
+            options["stdout"].write(json.dumps(values))
+            options["stderr"].write("native fixture\n")
+            return SimpleNamespace(returncode=0)
+        runners = [(library, binary, command, json.loads, "n/a" if library == "cuDNN" else "true")
+                   for library in spec["libraries"]]
+        environment = dict(overrides or {})
+        if mode is not None:
+            environment["THUNDERFFT_CUDNN_MODE"] = mode
+        with patch.dict("os.environ", environment, clear=True), \
+                patch.object(MEASURE.TABLE3, "capture", return_value={}), \
+                patch.object(MEASURE, "measured_identity", return_value=("A100", "NVIDIA A100", "8.0", "GPU-fixture", "580")), \
+                patch.object(MEASURE.subprocess, "run", side_effect=native):
+            result = MEASURE.collect(spec, runners, directory, directory / "result", "paper", [HERE / "policy.py"])
+        self.assertEqual(result, 0)
+        metadata = json.loads((directory / "result/metadata.json").read_text())
+        with (directory / "result/data.csv").open() as stream:
+            rows = list(csv.DictReader(stream))
+        return metadata, rows
+
+    def test_default_batches_only_cudnn_prefix_for_each_figure(self):
+        figure5 = module("fast_cudnn_figure5", HERE.parent / "figure5/measure.py").FIGURE5
+        for spec, limit, count in ((MEASURE.FIGURE4, 25, 192), (figure5, 11, 249)):
+            with self.subTest(evaluation=spec["evaluation"]):
+                metadata, rows = self.collect(spec)
+                self.assertEqual(metadata["settings"]["cudnn_mode"], "fast")
+                self.assertEqual(len(rows), count)
+                self.assertEqual(len(metadata["commands"]), len(spec["libraries"]))
+                self.assertEqual({int(row["filter"]) for row in rows if row["library"] == "cuDNN"},
+                                 set(range(3, limit + 1, 2)))
+                self.assertEqual(metadata["policy_skipped"], MEASURE.POLICY.skipped_cells(
+                    spec["evaluation"], spec["filters"]["paper"], spec["libraries"], "fast"))
+                self.assertFalse(metadata["coverage_complete"])
+
+    def test_full_measures_every_filter_and_disables_ratio_cutoff(self):
+        metadata, rows = self.collect(MEASURE.FIGURE4, "full", {"THUNDERFFT_FIGURE4_SLOW_RATIO": "0.1"})
+        self.assertEqual(len(rows), 234)
+        self.assertEqual(len(metadata["commands"]), 3)
+        self.assertEqual(metadata["policy_skipped"], [])
+        self.assertEqual(metadata["settings"]["slow_ratio"], 0)
+        self.assertTrue(metadata["coverage_complete"])
+
+    def test_all_omitted_cudnn_filters_do_not_start_a_native_process(self):
+        metadata, rows = self.collect(MEASURE.FIGURE4, overrides={"THUNDERFFT_FIGURE4_FILTERS": "53"})
+        self.assertEqual({c["library"] for c in metadata["commands"]}, {"ThunderFFT", "FlashFFTConv"})
+        self.assertNotIn("cuDNN", metadata["binary_sha256"])
+        self.assertEqual(len(rows), 6)
+        with self.assertRaisesRegex(ValueError, "skips every"):
+            self.collect(MEASURE.FIGURE4, overrides={"THUNDERFFT_FIGURE4_FILTERS": "53",
+                                                   "THUNDERFFT_FIGURE4_LIBRARIES": "cuDNN"})
+
+    def test_invalid_modes_and_ratio_are_rejected_before_launch(self):
+        for mode, extra in (("invalid", {}), ("fast", {"THUNDERFFT_FIGURE4_SLOW_RATIO": "nan"}),
+                            ("fast", {"THUNDERFFT_FIGURE4_SLOW_RATIO": "-1"})):
+            with self.subTest(mode=mode, extra=extra), self.assertRaises(ValueError):
+                self.collect(MEASURE.FIGURE4, mode, extra)
 
 
 if __name__ == "__main__":
