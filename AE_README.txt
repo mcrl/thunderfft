@@ -199,7 +199,8 @@ Table 5: boundary recheck or full exponent scan
   $ ./run.sh table5 --profile paper --table5-range-mode boundary
   $ ./run.sh table5 --profile paper --table5-range-mode full
 
-- Four rows per N: xFFT FP16, cuFFTDx FP16, xFFT TF32 and cuFFT FP32.
+- Four rows per N: xFFT FP16, cuFFTDx FP16, xFFT TF32 and cuFFTDx FP32.
+  need MathDX. The default paper batch is 64.
 - Both modes freshly measure alpha=1 error against cuFFT FP64 for every row.
 - Boundary mode measures alpha=2^e at e=k-1..k+2 around the saved last-finite
   exponent k; it expands if the boundary shifts or is not bracketed.
@@ -322,7 +323,7 @@ Checks below were run on 2026-11-09 at the stated source revisions.
   C4  Tensor Core efficiency: ideal TF32 MMA throughput and 64-point
       unit-kernel throughput on A100/H100/B200 (Table 4).
   C5  Numerical accuracy and finite dynamic range of xFFT FP16/TF32,
-      compared with cuFFT FP32 and cuFFTDx FP16 (Table 5).
+      compared with cuFFTDx FP32 and FP16 (Table 5).
       Default finite-range coverage is a local boundary recheck.
   C6  256-point FP16 FFT performance versus tcFFT, FlashFFTConv and cuFFTDx
       (Table 6).

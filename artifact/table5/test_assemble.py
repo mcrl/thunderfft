@@ -53,7 +53,7 @@ def make_part(path, phases=None, sizes=None, profile="smoke", batch=64, seed=123
                 accuracy = phase.startswith("accuracy_")
                 alphas = [1.0] if accuracy else [2.0**exponent for exponent in range(ranges[precision][0], ranges[precision][1] + 1)]
                 for alpha in alphas:
-                    error = 1e-7 if precision == "fp32" else 1e-3 if precision == "fp16_cufftdx" else 1e-4
+                    error = 1e-7 if precision == "fp32_cufftdx" else 1e-3 if precision == "fp16_cufftdx" else 1e-4
                     values = [n, batch, "gaussian", alpha, precision,
                               error if accuracy else "nan", error if accuracy else "nan", error if accuracy else "nan",
                               int(accuracy or alpha <= 2.0**(11 if precision in ("fp16", "fp16_cufftdx") else 123))]
@@ -226,7 +226,8 @@ class AssembleChecks(unittest.TestCase):
         parts = [make_part(self.root / "core", list(summary.DEFAULT_PHASES)),
                  make_part(self.root / "dx", list(summary.CUFFTDX_PHASES))]
         self.assertEqual([item["item"] for item in assemble(parts[:1], self.output, "smoke")["missing"]],
-                         ["accuracy_fp16_cufftdx:N=64", "range_fp16_cufftdx:N=64"])
+                         ["accuracy_fp32_cufftdx:N=64", "accuracy_fp16_cufftdx:N=64",
+                          "range_fp32_cufftdx:N=64", "range_fp16_cufftdx:N=64"])
         self.assertEqual(assemble(parts, self.output, "smoke")["status"], "complete")
 
     def test_historical_bundle_without_cufftdx_range_is_explicitly_partial(self):
@@ -420,8 +421,8 @@ class AssembleChecks(unittest.TestCase):
         self.assertEqual(assemble(parts, self.output, "smoke")["status"], "complete")
 
     def test_split_legacy_bundles_without_uuid_rejected(self):
-        parts = [make_part(self.root / "first", ["accuracy_reduced", "accuracy_fp32_cufft"]),
-                 make_part(self.root / "second", ["range_fp16", "range_tf32", "range_fp32_cufft"])]
+        parts = [make_part(self.root / "first", ["accuracy_reduced", "accuracy_fp32_cufftdx"]),
+                 make_part(self.root / "second", ["range_fp16", "range_tf32", "range_fp32_cufftdx"])]
         for part in parts:
             self.remove_uuid(part)
         with self.assertRaisesRegex(ValueError, "GPU UUID is required"):

@@ -125,7 +125,7 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "Accuracy and finite-range measurements; FP16/TF32 ThunderFFT, FP32 cuFFT, optional cuFFTDx FP16 accuracy; seed and input details not stated in the paper"
+      "coverage": "Accuracy and finite-range measurements; FP16/TF32 ThunderFFT, optional cuFFTDx FP32 and FP16 (MathDX); seed and input details not stated in the paper"
     },
     {
       "id": "table6",

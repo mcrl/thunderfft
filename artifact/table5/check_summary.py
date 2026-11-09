@@ -12,16 +12,16 @@ import unittest
 
 
 FIELDS = ["N", "batch", "mode", "alpha", "precision", "rel_l2", "max_abs", "rel_linf", "all_finite"]
-NAMES = ["accuracy_reduced", "accuracy_fp32_cufft", "range_fp16", "range_tf32", "range_fp32_cufft",
+NAMES = ["accuracy_reduced", "accuracy_fp32_cufftdx", "range_fp16", "range_tf32", "range_fp32_cufftdx",
          "accuracy_fp16_cufftdx", "range_fp16_cufftdx"]
 
 
 def fixture():
     metadata = {
         "profile": "smoke", "N": [64], "batch": 64, "seed": 1234,
-        "implementations": {"fp16": "ThunderFFT", "tf32": "ThunderFFT", "fp32": "cuFFT C2C", "fp16_cufftdx": "cuFFTDx"},
+        "implementations": {"fp16": "ThunderFFT", "tf32": "ThunderFFT", "fp32_cufftdx": "cuFFTDx", "fp16_cufftdx": "cuFFTDx"},
         "selected_phases": NAMES, "range_mode": "full",
-        "range_exponents": {"fp16": [8, 13], "tf32": [120, 127], "fp32": [120, 127], "fp16_cufftdx": [8, 13]},
+        "range_exponents": {"fp16": [8, 13], "tf32": [120, 127], "fp32_cufftdx": [120, 127], "fp16_cufftdx": [8, 13]},
     }
 
     def row(precision, alpha=1, error=1e-4, finite=1):
@@ -29,11 +29,11 @@ def fixture():
 
     rows = {
         "accuracy_reduced": [row("fp16"), row("tf32")],
-        "accuracy_fp32_cufft": [row("fp32", error=1e-7)],
+        "accuracy_fp32_cufftdx": [row("fp32_cufftdx", error=1e-7)],
         "accuracy_fp16_cufftdx": [row("fp16_cufftdx", error=1e-3)],
     }
     for precision, name, boundary in (("fp16", "range_fp16", 11), ("tf32", "range_tf32", 123),
-                                       ("fp32", "range_fp32_cufft", 123), ("fp16_cufftdx", "range_fp16_cufftdx", 11)):
+                                       ("fp32_cufftdx", "range_fp32_cufftdx", 123), ("fp16_cufftdx", "range_fp16_cufftdx", 11)):
         lower, upper = metadata["range_exponents"][precision]
         rows[name] = [row(precision, alpha=2.0**exponent, error="nan", finite=int(exponent <= boundary))
                       for exponent in range(lower, upper + 1)]

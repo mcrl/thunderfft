@@ -92,7 +92,7 @@ target_compile_options(benchmark_table5_precision PRIVATE
   $<$<COMPILE_LANGUAGE:CXX>:-O3>
 )
 
-# Table 5 cuFFTDx FP16 accuracy (--precision cufftdx_fp16); no fast-math.
+# Table 5 cuFFTDx FP16/FP32 rows (--precision cufftdx_fp16|cufftdx_fp32); no fast-math.
 if(THFF_CUFFTDX_ENABLED)
   add_executable(benchmark_table5_precision_cufftdx
     ${PROJECT_SOURCE_DIR}/artifact/table5/main.cu

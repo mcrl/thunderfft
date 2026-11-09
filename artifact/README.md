@@ -87,7 +87,8 @@ are filled in for skipped filters.
 
 Table 5 defaults to `--table5-range-mode boundary`. For every FFT size, it
 measures fresh `alpha=1` accuracy and finite-range results for four rows:
-xFFT/ThunderFFT FP16, cuFFTDx FP16, xFFT/ThunderFFT TF32 and cuFFT FP32.
+xFFT/ThunderFFT FP16, cuFFTDx FP16, xFFT/ThunderFFT TF32 and cuFFTDx FP32
+(cuFFT C2C FP32 through commit `af0f4ea`), with batch 64.
 The range check measures `k-1..k+2` around each retained last-finite exponent
 `k`, expanding the window if the boundary shifts or is not bracketed. The
 saved values choose the starting window; they do not supply the reported

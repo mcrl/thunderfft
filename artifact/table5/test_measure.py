@@ -23,7 +23,7 @@ class BoundaryMeasurement(unittest.TestCase):
         self.metadata = {'profile': 'paper', 'N': [64], 'batch': 65536, 'seed': 1234,
                          'range_mode': 'boundary', 'selected_phases': ['range_fp16'],
                          'range_exponents': {p: [0, 127] for p in measure.RANGES.values()}}
-        self.thresholds = {'fp16': 11, 'tf32': 123, 'fp32': 123, 'fp16_cufftdx': 11}
+        self.thresholds = {'fp16': 11, 'tf32': 123, 'fp32_cufftdx': 123, 'fp16_cufftdx': 11}
         self.commands = []
 
     def native(self, command, **kwargs):
@@ -32,7 +32,7 @@ class BoundaryMeasurement(unittest.TestCase):
         def value(flag):
             return command[command.index(flag) + 1]
         precision = value('--precision')
-        precision = 'fp16_cufftdx' if precision == 'cufftdx_fp16' else precision
+        precision = {v: k for k, v in measure.NATIVE_PRECISION.items()}.get(precision, precision)
         precisions = ['fp16', 'tf32'] if precision == 'both' else [precision]
         scan = '--alpha-sweep' in command
         exponents = range(int(value('--alpha-exp-min')), int(value('--alpha-exp-max')) + 1) if scan else [0]
@@ -86,9 +86,22 @@ class BoundaryMeasurement(unittest.TestCase):
         self.assertEqual(result['range_checks'], {})
         for phase in measure.RANGES:
             self.assertEqual(len(measure.read_rows(self.root / (phase + '.csv'))), 128)
-        dx = [c for c in self.commands if 'cufftdx_fp16' in c]
-        self.assertEqual(len(dx), 2)
+        dx = [c for c in self.commands if c[c.index('--precision') + 1].startswith('cufftdx_')]
+        self.assertEqual(len(dx), 4)
+        self.assertEqual({c[c.index('--precision') + 1] for c in dx}, {'cufftdx_fp16', 'cufftdx_fp32'})
         self.assertTrue(all(Path(c[0]).name == 'cufftdx' for c in dx))
+        self.assertTrue(all(Path(c[0]).name == 'ordinary' for c in self.commands if c not in dx))
+
+    def test_cufftdx_fp32_starts_from_tf32_hint_and_measures_fresh(self):
+        self.metadata['selected_phases'] = ['range_fp32_cufftdx']
+        self.thresholds['fp32_cufftdx'] = 122
+        result = self.collect()
+        check = result['range_checks']['fp32_cufftdx']['64']
+        self.assertEqual(check['initial_window'], [122, 125])
+        self.assertIsNone(check['expected_last_finite'])
+        self.assertIn('tf32', check['preset_source'])
+        self.assertEqual(check['observed_last_finite'], 122)
+        self.assertTrue(all(Path(c[0]).name == 'cufftdx' and 'cufftdx_fp32' in c for c in self.commands))
 
     def test_invalid_mode_runs_nothing(self):
         self.metadata['range_mode'] = 'typo'

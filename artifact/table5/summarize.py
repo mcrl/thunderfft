@@ -7,27 +7,30 @@ import json
 import math
 from pathlib import Path
 
-# The first five phases need only CUDA Toolkit; the two cuFFTDx phases need a
-# MathDX build. A legacy bundle without selected_phases selected the first five.
-DEFAULT_PHASES = ("accuracy_reduced", "accuracy_fp32_cufft", "range_fp16", "range_tf32", "range_fp32_cufft")
-CUFFTDX_PHASES = ("accuracy_fp16_cufftdx", "range_fp16_cufftdx")
+# The first three phases need only CUDA Toolkit; the four cuFFTDx phases need a
+# MathDX build. A bundle without selected_phases selected the first three.
+DEFAULT_PHASES = ("accuracy_reduced", "range_fp16", "range_tf32")
+CUFFTDX_PHASES = ("accuracy_fp32_cufftdx", "accuracy_fp16_cufftdx", "range_fp32_cufftdx", "range_fp16_cufftdx")
 PHASES = DEFAULT_PHASES + CUFFTDX_PHASES
-RANGE_PRECISIONS = ("fp16", "tf32", "fp32", "fp16_cufftdx")
+RANGE_PRECISIONS = ("fp16", "tf32", "fp32_cufftdx", "fp16_cufftdx")
+CUFFTDX_PRECISIONS = ("fp32_cufftdx", "fp16_cufftdx")
 PRECISIONS = RANGE_PRECISIONS
-RANGE_PHASE = {"fp16": "range_fp16", "tf32": "range_tf32", "fp32": "range_fp32_cufft",
+RANGE_PHASE = {"fp16": "range_fp16", "tf32": "range_tf32", "fp32_cufftdx": "range_fp32_cufftdx",
                "fp16_cufftdx": "range_fp16_cufftdx"}
-ACCURACY_PRECISIONS = {"accuracy_reduced": {"fp16", "tf32"}, "accuracy_fp32_cufft": {"fp32"},
+ACCURACY_PRECISIONS = {"accuracy_reduced": {"fp16", "tf32"}, "accuracy_fp32_cufftdx": {"fp32_cufftdx"},
                        "accuracy_fp16_cufftdx": {"fp16_cufftdx"}}
 ACCURACY_PHASE = {p: name for name, precisions in ACCURACY_PRECISIONS.items() for p in precisions}
-IMPLEMENTATIONS = {"fp16": "ThunderFFT", "tf32": "ThunderFFT", "fp32": "cuFFT C2C",
+IMPLEMENTATIONS = {"fp16": "ThunderFFT", "tf32": "ThunderFFT",
+                   "fp32_cufftdx": "cuFFTDx (ElementsPerThread 8, FFTsPerBlock 1)",
                    "fp16_cufftdx": "cuFFTDx (ElementsPerThread 8, FFTsPerBlock 2)"}
+ACCURACY_LIMITS = {"fp16": 1e-2, "tf32": 1e-2, "fp32_cufftdx": 1e-5, "fp16_cufftdx": 1e-2}
 RAW_FIELDS = ["N", "batch", "mode", "alpha", "precision", "rel_l2", "max_abs", "rel_linf", "all_finite"]
 REFERENCE = "cuFFT Z2Z FP64 of the FP32-generated input"
 NO_REFERENCE = "none (finite-output check)"
 IMPLEMENTATION_INPUT = {
     "fp16": "FP32-generated input rounded to FP16 (round-to-nearest)",
     "tf32": "FP32-generated input (float2 storage)",
-    "fp32": "FP32-generated input",
+    "fp32_cufftdx": "FP32-generated input",
     "fp16_cufftdx": "FP32-generated input rounded to FP16 (round-to-nearest) inside the kernel",
 }
 DATA_FIELDS = ["phase", "source_csv", "implementation", "implementation_input", "reference", *RAW_FIELDS]
@@ -56,8 +59,9 @@ def profile_ranges(profile):
 def validate_base_ranges(metadata):
     expected = profile_ranges(metadata["profile"])
     actual = metadata.get("range_exponents", {})
-    legacy = "range_mode" not in metadata and "range_fp16_cufftdx" not in selected_phases(metadata)
-    required = set(expected) - ({"fp16_cufftdx"} if legacy else set())
+    selected = selected_phases(metadata)
+    legacy = "range_mode" not in metadata
+    required = set(expected) - {p for p in CUFFTDX_PRECISIONS if legacy and RANGE_PHASE[p] not in selected}
     if not isinstance(actual, dict) or not required <= set(actual) <= set(expected) \
             or any(actual[key] != expected[key] for key in actual):
         raise ValueError(f"finite scan ranges do not match the {metadata['profile']} profile")
@@ -208,7 +212,7 @@ def validate_bundle(root, metadata):
                         errors.append(f"{name}: unexpected or duplicate row {key}")
                     seen.add(key)
                     value = float(row["rel_l2"])
-                    limit = 1e-5 if row["precision"] == "fp32" else 1e-2
+                    limit = ACCURACY_LIMITS[row["precision"]]
                     if int(row["batch"]) != batch or row["mode"] != "gaussian" or float(row["alpha"]) != 1.0:
                         errors.append(f"{name}: wrong input configuration for {key}")
                     if row["all_finite"] != "1" or not math.isfinite(value) or not 0 <= value <= limit:
@@ -334,10 +338,8 @@ def write_outputs(root, metadata, raw_data, summary):
     here = Path(__file__).parent
     with (here / "table5_accuracy_range_summary_with_fp32.csv").open(newline="") as stream:
         references = {int(row["N"]): row for row in csv.DictReader(stream)}
-    retained_batches = {}
-    for name in ("alpha1_rel_l2_N64_256_1024_4096.csv", "alpha1_rel_l2_fp32_N64_256_1024_4096.csv"):
-        with (here / name).open(newline="") as stream:
-            retained_batches.update({(int(row["N"]), row["precision"]): row["batch"] for row in csv.DictReader(stream)})
+    with (here / "alpha1_rel_l2_N64_256_1024_4096.csv").open(newline="") as stream:
+        retained_batches = {(int(row["N"]), row["precision"]): row["batch"] for row in csv.DictReader(stream)}
     comparisons = []
     for row in summary:
         reference = references.get(row["N"], {})
@@ -367,8 +369,9 @@ def write_outputs(root, metadata, raw_data, summary):
              f"Profile: `{metadata['profile']}`; batch: {metadata.get('batch', 'pending')}; seed: {metadata.get('seed', 'pending')}.", "",
              "Accuracy reference: cuFFT Z2Z FP64 of the FP32-generated input. "
              "FP16 receives that input rounded to half, so its error includes input rounding. "
-             "FP16/TF32 measure xFFT (ThunderFFT); FP32 measures cuFFT C2C; fp16_cufftdx measures cuFFTDx FP16 "
-             "(ElementsPerThread 8, FFTsPerBlock 2) with the same input and reference.", "",
+             "FP16/TF32 measure xFFT (ThunderFFT); fp32_cufftdx measures cuFFTDx FP32 (ElementsPerThread 8, "
+             "FFTsPerBlock 1) and fp16_cufftdx measures cuFFTDx FP16 (ElementsPerThread 8, FFTsPerBlock 2), "
+             "with the same input and reference.", "",
              "| N | Precision / implementation | Relative L2 at alpha=1 | Largest finite exponent observed | Boundary | Measured exponent window / coverage |",
              "|---:|---|---:|---:|---|---|"]
     for row in summary:
@@ -415,7 +418,7 @@ def main():
     validation = {
         "numerical_sanity": "failed" if errors else "passed",
         "scope": "Completeness of each selected phase, finite alpha=1 outputs, broad relative-L2 limits, and scanned finite-boundary consistency; this does not validate unstated paper conditions or exact published numbers.",
-        "limits": {"fp16": 1e-2, "tf32": 1e-2, "fp32_cufft": 1e-5, "fp16_cufftdx": 1e-2},
+        "limits": dict(ACCURACY_LIMITS),
         "scientific_validation": "not_assessed", "selected_phases": selected_phases(metadata),
         "measured_rows": len(result["raw_data"]), "summary_rows": len(summary),
         "paper_size_set_complete": set(metadata["N"]) == {64, 256, 1024, 4096},
