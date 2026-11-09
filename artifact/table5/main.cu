@@ -9,12 +9,14 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <random>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "thunderfft_bench.h"
+#include "gaussian_input_cache.h"
 
 #ifdef THFF_WITH_CUFFTDX
 #include <cufftdx.hpp>
@@ -631,7 +633,7 @@ static void print_row(const Row& r) {
               << " max_abs=" << r.m.max_abs
               << " rel_linf=" << r.m.rel_linf
               << " all_finite=" << (r.m.all_finite ? 1 : 0)
-              << "\n";
+              << std::endl;
 }
 
 static void write_csv(const std::string& path, const std::vector<Row>& rows) {
@@ -660,12 +662,20 @@ static void run_for_n(const Options& opt,
                       std::vector<Row>& rows) {
     const int batch = opt.batch;
     const std::string mode_s = mode_to_string(opt.mode);
-    const size_t elems = static_cast<size_t>(N) * static_cast<size_t>(batch);
+
+    std::unique_ptr<table5::GaussianInputCache> gaussian_cache;
+    if (opt.fast_finite_only && alphas.size() > 1 && opt.mode == InputMode::Gaussian) {
+        gaussian_cache = std::make_unique<table5::GaussianInputCache>(N, batch, opt.seed);
+    }
+    std::vector<float2> h_input_f32;
+    std::vector<half2> h_input_half;
 
     for (float alpha : alphas) {
-        std::vector<float2> h_input_f32(elems);
-        std::vector<half2> h_input_half;
-        generate_input_fp32(h_input_f32, N, batch, opt.mode, alpha, opt.seed);
+        if (gaussian_cache) {
+            gaussian_cache->fill(h_input_f32, alpha);
+        } else {
+            generate_input_fp32(h_input_f32, N, batch, opt.mode, alpha, opt.seed);
+        }
         const bool run_tf32 = (opt.precision == PrecisionMode::Both || opt.precision == PrecisionMode::TF32);
         const bool run_fp16 = (opt.precision == PrecisionMode::Both || opt.precision == PrecisionMode::FP16);
         const bool run_fp32 = (opt.precision == PrecisionMode::FP32);

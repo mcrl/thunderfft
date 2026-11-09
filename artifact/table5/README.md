@@ -7,6 +7,13 @@ for ThunderFFT FP16/TF32, cuFFT FP32 and cuFFTDx FP16, on an A100.
 TF32/FP32 `120..127`); `paper` uses N=64/256/1024/4096, batch 65536 and
 exponents `0..127`.
 
+Finite-output sweeps generate the Gaussian samples and double-precision
+normalization once per size, then reuse them for every exponent. Scaling still
+rounds to FP32 only after applying alpha, so the inputs and every measured
+exponent match the original generator exactly. Accuracy/reference runs retain
+their original input path; the sweep cache uses an additional 2 GiB of host
+memory at the largest paper size.
+
 ## Run
 
 Run locally on an A100 80GB PCIe GPU.
