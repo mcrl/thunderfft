@@ -25,6 +25,9 @@ rows plus 64 finite checks (80 raw rows). Full paper mode produces 16 accuracy
 rows plus 2,048 finite checks (2,064 raw rows). Allow about 3–5 minutes on the
 prepared account for boundary mode. Full mode is estimated at 22–28 minutes;
 the new four-implementation full paper scan has not been timed.
+These time allowances are carried over from the earlier implementation. The
+historical measurements below used batch 65536 and cuFFT FP32; the current
+batch-64/cuFFTDx-FP32 variant has not been timed.
 
 On 2026-11-09, commit `4344f24` completed the A100 paper boundary run in
 243.0 seconds (4m03s), including 209.5 seconds of native measurements and

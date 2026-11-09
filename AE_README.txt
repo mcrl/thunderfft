@@ -116,7 +116,7 @@ Final outputs:
 | Table 3 | A100 | 4-6 minutes | 8-12 minutes |
 | Table 2 | A100 | Under 1 minute | Under 1 minute |
 | Table 4 | A100 | Under 1 minute | Under 1 minute |
-| Table 5 | A100 | 3-5 minutes (measured: 4m03s) | 22-28 minutes |
+| Table 5 | A100 | 3-5 minutes (rough estimate) | 22-28 minutes (rough estimate) |
 | Table 6 | A100 | Under 1 minute | Under 1 minute |
 | Table 7 | A100 | Under 1 minute | Under 1 minute |
 | Figure 3 | A100 | Under 1 minute | Under 1 minute |
@@ -131,6 +131,10 @@ Final outputs:
 - Both totals, H100/B200 preset-stage times and the expanded full Table 5
   time are estimates. The new parallel default and expanded full workflows
   have not been measured end to end on all three GPUs.
+- Table 5 time allowances are carried over from the earlier implementation.
+  The 4m03s boundary measurement at 4344f24 and retained 18m26s full scan
+  used batch 65536 and cuFFT FP32. The current batch-64/cuFFTDx-FP32
+  variant has not been timed; these are not measurements of that variant.
 - Measured checks of the individual changes are listed in Section 5.
 
 
@@ -208,7 +212,7 @@ Table 5: boundary recheck or full exponent scan
   $ ./run.sh table5 --profile paper --table5-range-mode full
 
 - Four rows per N: xFFT FP16, cuFFTDx FP16, xFFT TF32 and cuFFTDx FP32.
-  need MathDX. The default paper batch is 64.
+  cuFFTDx requires MathDX. The default paper batch is 64.
 - Both modes freshly measure alpha=1 error against cuFFT FP64 for every row.
 - Boundary mode measures alpha=2^e at e=k-1..k+2 around the saved last-finite
   exponent k; it expands if the boundary shifts or is not bracketed.
@@ -281,8 +285,10 @@ Table 5: boundary recheck or full exponent scan
 - Successful assembly retains the following explicit coverage limits:
   - Figures 4/5 default: skipped cuDNN tails have no fabricated values;
     policy_skipped is recorded and coverage_complete=false.
-    cuDNN means cover 12 / 5 sizes; other libraries cover 26 sizes.
-    These means use different size sets. --full restores all 26 cuDNN sizes.
+    Figure 4 means cover 12 sizes for cuDNN and 26 for other libraries.
+    Figure 5 summary.csv contains per-filter means over trials, with skipped
+    cuDNN cells empty; its plot uses a linear time axis.
+    --full restores all 26 cuDNN sizes.
   - Table 5 default: boundary_recheck confirms a local finite/non-finite
     bracket within the displayed window, not a global maximum over unmeasured
     exponents. Full mode records full_profile_scan.

@@ -122,7 +122,7 @@ dependencies and local builds already available:
 | Table 3 | A100 | 4–6 minutes | 8–12 minutes |
 | Table 2 | A100 | Under 1 minute | Under 1 minute |
 | Table 4 | A100 | Under 1 minute | Under 1 minute |
-| Table 5 | A100 | 3–5 minutes (measured: 4m03s) | 22–28 minutes (estimate) |
+| Table 5 | A100 | 3–5 minutes (rough estimate) | 22–28 minutes (rough estimate) |
 | Table 6 | A100 | Under 1 minute | Under 1 minute |
 | Table 7 | A100 | Under 1 minute | Under 1 minute |
 | Figure 3 | A100 | Under 1 minute | Under 1 minute |
@@ -144,6 +144,10 @@ workflow totals remain estimates. Table 5 full mode adds the cuFFTDx finite-rang
 which the older full run did not include. The complete new
 parallel `preset` + `fast` + `boundary` workflow has not been measured end to
 end on all three GPUs; neither has the expanded parallel `--full` workflow.
+The Table 5 time allowances are carried over from its earlier implementation.
+The 4m03s boundary measurement at `4344f24` and the retained 18m26s full scan
+used batch 65536 and cuFFT FP32. The current batch-64/cuFFTDx-FP32 variant has
+not been timed; those historical measurements do not measure this variant.
 A100 Table 3 preset measurement took 4 minutes 56 seconds, plus 2 minutes
 9 seconds for build/setup, compared with the previous full search's
 8 minutes 41 seconds of measurement. See the Table 3 README for details.
