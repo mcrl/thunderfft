@@ -197,9 +197,13 @@ is under `result/collections/<name>/assembled/`. No manual import, status-file
 editing or separate assembly command is needed.
 Each Table 2–7 directory includes `table.pdf`, `table.png` and `table.html`,
 with the paper's grouped headers, row/column orientation and numeric formatting.
-Each numeric cell shows **Paper / New / Δ%**, where
+Each original numeric column expands to three separate **Paper / New / Δ%**
+columns, with one empty spacer column between groups. Row labels and grouped
+headers are retained. Here,
 `Δ% = 100 × (New − Paper) / |Paper|`. Its absolute value is the relative error.
-The browser view can show Paper, New or Δ% separately. `paper-comparison.csv`
+The browser view can show Paper, New or Δ% separately. Wide tables scroll
+horizontally; PDF/PNG exports widen to keep the columns readable.
+`paper-comparison.csv`
 retains unrounded operands, signed differences, absolute relative errors and
 measurement status; `comparison.md` links to the readable table. Original CSVs,
 metadata and measurement notes are preserved. Standalone table runs also render
@@ -381,8 +385,9 @@ result/collections/<name>/assembled/<evaluation>/
 result/collections/<name>/assembled/missing.csv
 ```
 
-Use `table.html` to read Tables 2–7 in paper orientation with Paper/New/Δ%
-controls, `table.pdf` for printing, or `table.png` for preview.
+Use `table.html` to read Tables 2–7 with separate Paper/New/Δ% columns and
+blank spacers between groups. Use the view controls or horizontal scrolling
+for wide tables, `table.pdf` for printing, or `table.png` for preview.
 `paper-comparison.csv` contains per-cell relative differences/errors and
 `comparison.md` links to the views. `table-render.json` records input/output
 and paper-reference hashes; source CSVs and measurement notes are preserved.

@@ -1,6 +1,7 @@
 """Exercise real offline exports, their evidence, and text fit at output DPI."""
 import csv
 import hashlib
+from html.parser import HTMLParser
 import json
 from pathlib import Path
 import sys
@@ -95,10 +96,145 @@ class PaperTableRendererTests(unittest.TestCase):
         self.assertIsNone(records[1]["relative_difference_pct"])
         self.assertIsNone(records[2]["relative_difference_pct"])
         self.assertEqual(panel["rows"][1][1], "1.00")
-        self.assertEqual(view["panels"][0]["rows"][1][1], "1.0\n1.00\n+0.4%")
+        self.assertEqual(view["panels"][0]["rows"][2][1:], ["1.0", "1.00", "+0.4%"])
+        self.assertEqual(view["panels"][0]["rows"][1][1:], ["Paper", "New", "Δ%"])
+        self.assertEqual(records[0], {"table": 3, "panel": "", "row": "raw", "column": "Metric",
+                         "paper_value": 1.0, "new_value": 1.004,
+                         "paper_display": "1.0", "new_display": "1.00",
+                         "relative_difference_pct": (1.004 - 1.0) * 100,
+                         "relative_error_pct": (1.004 - 1.0) * 100, "status": "measured"})
         panel["comparisons"][0]["current"] = float("nan")
         with self.assertRaisesRegex(ValueError, "finite numeric"):
             paper_tables.comparison_view(document)
+
+    def empty_view(self, evaluation):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        directory = Path(temporary.name)
+        (directory / "table.csv").write_text("unused\n")
+        return paper_tables.comparison_view(paper_tables.build(evaluation, directory))
+
+    def test_table2_repeats_numeric_rowspans_without_merging_triplet_values(self):
+        view = self.empty_view("table2")
+        panel = view["panels"][0]
+        self.assertEqual(len(panel["widths"]), 18)
+        self.assertEqual(panel["spacer_columns"], [4, 10, 14])
+        self.assertEqual(panel["rows"][0][5:7], ["Design", "MMA Shape"])
+        self.assertEqual(panel["align"], {5: "left"})
+        cells = {(r, c): (nr, nc, text) for r, c, nr, nc, text in paper_tables._cells(panel)}
+        for row, rowspan in ((2, 2), (4, 3)):
+            for col in (1, 2, 3):
+                self.assertEqual(cells[row, col][:2], (rowspan, 1))
+                for covered_row in range(row + 1, row + rowspan):
+                    self.assertNotIn((covered_row, col), cells)
+        self.assertEqual(cells[0, 0][:2], (2, 1))
+        self.assertEqual(cells[0, 1][:2], (1, 3))
+        self.assertTrue(all(not row[col] for row in panel["rows"] for col in panel["spacer_columns"]))
+
+    def test_table3_preserves_header_hierarchy_empty_average_cells_and_rule_coordinates(self):
+        view = self.empty_view("table3")
+        panel = view["panels"][0]
+        self.assertEqual(len(panel["widths"]), 72)
+        self.assertEqual(len(panel["spacer_columns"]), 17)
+        self.assertEqual(panel["header_rows"], 4)
+        self.assertGreater(view["width"], 30)
+        self.assertEqual(view["font_size"], 8.5)
+        cells = {(r, c): (nr, nc, text) for r, c, nr, nc, text in paper_tables._cells(panel)}
+        self.assertEqual(cells[0, 0], (4, 1, "N"))
+        self.assertEqual(cells[0, 1], (1, 35, "FP16"))
+        self.assertEqual(cells[0, 37], (1, 35, "TF32 / FP32"))
+        self.assertEqual(cells[1, 1], (1, 11, "cuFFTDx"))
+        for col, gpu in ((1, "A100"), (5, "H100"), (9, "B200")):
+            self.assertEqual(cells[2, col], (1, 3, gpu))
+            self.assertEqual(panel["rows"][3][col:col + 3], ["Paper", "New", "Δ%"])
+        for old_col in (1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 14, 15):
+            for col in panel["original_columns"][old_col]:
+                self.assertEqual(panel["rows"][-1][col], "")
+        for col in panel["spacer_columns"]:
+            self.assertTrue(all(not row[col] for row in panel["rows"]))
+        self.assertIn({"col": 5, "row": 2.1, "end": 10.9, "weight": .35}, panel["vrules"])
+        self.assertTrue(any(rule["row"] == 4 and rule["end"] == 72 for rule in panel["rules"]))
+        self.assertTrue(any(rule["row"] == 11 and rule["end"] == 72 for rule in panel["rules"]))
+        self.assertEqual(len(view["comparison_records"]), 264)
+        self.assertEqual(view["comparison_records"][0]["column"], "FP16 / cuFFTDx / A100")
+
+    def test_table5_grouped_headers_and_scientific_values_keep_separate_columns(self):
+        view = self.empty_view("table5")
+        self.assertEqual(len(view["panels"]), 2)
+        for panel in view["panels"]:
+            self.assertEqual(len(panel["widths"]), 16)
+            cells = {(r, c): (nr, nc, text) for r, c, nr, nc, text in paper_tables._cells(panel)}
+            self.assertEqual(cells[0, 1], (1, 7, "FP16"))
+            self.assertEqual(cells[1, 1], (1, 3, "xFFT"))
+            self.assertEqual(cells[1, 0], (2, 1, "$N$"))
+        self.assertEqual(view["panels"][0]["rows"][3][1:4],
+                         [r"$4.34\times 10^{-4}$", "—", "—"])
+
+    def test_html_view_switches_have_complete_grids_and_individual_value_cells(self):
+        class Tables(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.tables, self.sections = [], []
+                self.current = None
+                self.cell = None
+
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == "section":
+                    self.sections.append(attrs)
+                elif tag == "table":
+                    self.current = {"columns": 0, "rows": []}
+                    self.tables.append(self.current)
+                elif tag == "col" and self.current is not None:
+                    self.current["columns"] += 1
+                elif tag == "tr":
+                    self.current["rows"].append([])
+                elif tag in ("td", "th"):
+                    self.cell = [int(attrs["rowspan"]), int(attrs["colspan"]), attrs.get("class"), ""]
+                    self.current["rows"][-1].append(self.cell)
+
+            def handle_data(self, data):
+                if self.cell is not None:
+                    self.cell[3] += data
+
+            def handle_endtag(self, tag):
+                if tag in ("td", "th"):
+                    self.cell = None
+                elif tag == "table":
+                    self.current = None
+
+        view = self.empty_view("table3")
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "table.html"
+            paper_tables._write_html(view, path)
+            text = path.read_text()
+        parser = Tables()
+        parser.feed(text)
+        self.assertEqual([section["data-table-view"] for section in parser.sections],
+                         ["compare", "paper", "new", "delta"])
+        self.assertNotIn("hidden", parser.sections[0])
+        self.assertTrue(all("hidden" in section for section in parser.sections[1:]))
+        self.assertEqual([table["columns"] for table in parser.tables], [72, 72, 19, 19, 19, 19, 19, 19])
+        for table in parser.tables:
+            occupied = set()
+            for row, cells in enumerate(table["rows"]):
+                col = 0
+                for nr, nc, role, value in cells:
+                    while (row, col) in occupied:
+                        col += 1
+                    area = {(r, c) for r in range(row, row + nr) for c in range(col, col + nc)}
+                    self.assertFalse(area & occupied)
+                    occupied.update(area)
+                    if role in ("paper-value", "new-value", "delta-value", "spacer"):
+                        self.assertEqual(nc, 1)
+                        self.assertNotIn("\n", value)
+                    if role == "spacer":
+                        self.assertEqual(value, "")
+                    col += nc
+                self.assertEqual({c for r, c in occupied if r == row}, set(range(table["columns"])))
+            self.assertEqual(len(occupied), len(table["rows"]) * table["columns"])
+        self.assertIn("overflow-x:auto", text)
+        self.assertIn("section.hidden=section.dataset.tableView!==button.dataset.view", text)
 
 
 if __name__ == "__main__":

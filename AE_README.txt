@@ -100,7 +100,8 @@ Final outputs:
 
 - Each assembled table directory contains table.pdf, table.png, table.html
   and the original CSVs. Open table.html for the paper's row/column layout:
-  each numeric cell shows Paper / New / relative difference (%).
+  each original numeric column expands to Paper / New / delta (%) columns,
+  with one empty spacer column between groups.
   paper-comparison.csv contains signed differences and absolute relative errors;
   comparison.md links to the preview. Table 5 keeps four implementations per N.
 - Latest manuscript numbering: Figure 4 = 2D, Figure 5 = 1D. Use a new
@@ -298,8 +299,10 @@ Table 5: boundary recheck or full exponent scan
 - Per-evaluation status: result/runs/<run_id>/summary.csv.
 - Final merged outputs: result/collections/<name>/assembled/.
 - Tables 2-7: table.pdf (print), table.png (preview), table.html (browser);
-  Paper / New / delta (%) use the paper's row/column layout. In HTML, select
-  one view or show all three. Delta = 100 * (New - Paper) / abs(Paper).
+  Each original numeric column becomes three columns: Paper, New and delta
+  (%), with one blank spacer column between groups. Original row labels and
+  grouped headers are retained. In HTML, select one view or show all three;
+  scroll horizontally for wide tables. Delta = 100 * (New - Paper) / abs(Paper).
   paper-comparison.csv also reports absolute relative error and measurement
   status. Original CSVs/notes remain intact; table-render.json records hashes.
   Reference numbers are from the supplied PPoPP27_chaewon__FFT_ (4).pdf.

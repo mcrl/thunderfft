@@ -89,8 +89,92 @@ def _html_text(value):
     return text.replace("$", "").replace("\n", "<br>")
 
 
+def _comparison_panel(panel, document_width, view="compare"):
+    """Expand numeric columns while retaining the paper's merged headers."""
+    numeric = {item["col"] for item in panel.get("comparisons", [])}
+    if not numeric:
+        return copy.deepcopy(panel)
+    kinds = ("paper", "new", "delta") if view == "compare" else (view,)
+    labels = {"paper": "Paper", "new": "New", "delta": "Δ%"}
+    fields = {"paper": "paper_text", "new": "current_text", "delta": "delta_text"}
+    header = panel.get("header_rows", 1)
+    # Physical widths let the expanded PDF grow, rather than fitting dozens of
+    # values into the original page width. Labels retain their original space.
+    scale = (document_width - .36) / sum(panel["widths"])
+    starts, ends, widths, roles, spacers = {}, {}, [], [], []
+    for col, width in enumerate(panel["widths"]):
+        starts[col] = len(widths)
+        if col in numeric:
+            widths.extend([max(.55, width * scale * .8)] * len(kinds))
+            roles.extend(kinds)
+        else:
+            widths.append(width * scale)
+            roles.append("label")
+        ends[col] = len(widths)
+        if view == "compare" and col in numeric and col != max(numeric):
+            spacers.append(len(widths))
+            widths.append(.12)
+            roles.append("spacer")
+    rows = [[""] * len(widths) for _ in range(len(panel["rows"]) + 1)]
+    spans, cell_roles = [], []
+    comparisons = {(item["row"], item["col"]): item for item in panel.get("comparisons", [])}
+
+    def put(row, col, text, nr=1, nc=1, role=None, status=None):
+        rows[row][col] = text
+        if nr != 1 or nc != 1:
+            spans.append({"row": row, "col": col, "rowspan": nr, "colspan": nc})
+        if role:
+            cell_roles.append({"row": row, "col": col, "role": role, "status": status})
+
+    for row, col, nr, nc, text in _cells(panel):
+        start, end = starts[col], ends[col + nc - 1]
+        if row < header:
+            # The final label header also covers the inserted comparison row.
+            label = not any(c in numeric for c in range(col, col + nc))
+            put(row, start, text, nr + int(label and row + nr == header), end - start)
+        elif col in numeric and nc == 1:
+            item = comparisons.get((row, col))
+            if item or not text:
+                for offset, kind in enumerate(kinds):
+                    put(row + 1, start + offset, item[fields[kind]] if item else "", nr,
+                        role=kind, status=item["status"] if item else None)
+            else:
+                put(row + 1, start, text, nr, end - start)
+        else:
+            put(row + 1, start, text, nr, end - start)
+    for col in numeric:
+        for offset, kind in enumerate(kinds):
+            put(header, starts[col] + offset, labels[kind], role=kind)
+
+    def row_edge(row):
+        return row + (row >= header)
+
+    rules = []
+    for rule in _rules(panel):
+        start, end = rule.get("start", 0), rule.get("end", len(panel["widths"]))
+        rules.append({**rule, "row": row_edge(rule["row"]),
+                      "start": starts[start], "end": ends[end - 1]})
+    rules.extend({"row": header, "start": starts[col], "end": ends[col], "weight": .4}
+                 for col in sorted(numeric))
+    vrules = [{**rule, "col": starts.get(rule["col"], len(widths)),
+               "row": row_edge(rule.get("row", 0)),
+               "end": row_edge(rule.get("end", len(panel["rows"])))}
+              for rule in panel.get("vrules", [])]
+    result = {key: copy.deepcopy(value) for key, value in panel.items()
+              if key not in ("rows", "widths", "spans", "rules", "vrules", "comparisons", "align")}
+    result.update(rows=rows, widths=widths, spans=spans, rules=rules, vrules=vrules,
+                  header_rows=header + 1, column_roles=roles, cell_roles=cell_roles,
+                  spacer_columns=spacers, physical_width=sum(widths) + .36,
+                  original_columns={col: list(range(starts[col], ends[col])) for col in starts},
+                  align={starts[col] + offset: alignment
+                         for col, alignment in panel.get("align", {}).items()
+                         for offset in range(ends[col] - starts[col])})
+    list(_cells(result))
+    return result
+
+
 def comparison_view(document):
-    """Preserve the paper's grid and compare unrounded, qualified numbers."""
+    """Compare unrounded qualified numbers, then expand their display columns."""
     document = copy.deepcopy(document)
     records = []
     for panel in document["panels"]:
@@ -121,85 +205,109 @@ def comparison_view(document):
                             "relative_difference_pct": delta,
                             "relative_error_pct": abs(delta) if delta is not None else None,
                             "status": item["status"]})
-        # Labels must be captured before replacing numeric strings with multi-line cells.
-        for item in panel.get("comparisons", []):
-            panel["rows"][item["row"]][item["col"]] = "\n".join(
-                (item["paper_text"], item["current_text"], item["delta_text"]))
+    original_width = document.get("width", 9)
+    document["view_panels"] = {
+        view: [_comparison_panel(panel, original_width, view) for panel in document["panels"]]
+        for view in ("compare", "paper", "new", "delta")}
+    document["panels"] = document["view_panels"]["compare"]
+    document["width"] = max(original_width, *(panel.get("physical_width", original_width)
+                                              for panel in document["panels"]))
     document["notes"] = [
-        "Each numeric cell: Paper / New / Δ%. Δ% = (New − Paper) / |Paper| × 100; its absolute value is the relative error.",
+        "Each original numeric column has three columns: Paper, New, and Δ%, with a blank separator between groups. Δ% = (New − Paper) / |Paper| × 100; its absolute value is the relative error.",
         "Paper values are the rounded numbers printed in the supplied PDF. — means missing or not exactly comparable; model values and estimates retain their stated scope.",
         *document.get("notes", [])]
     document["comparison_records"] = records
     return document
 
 
+def _html_panel(panel, document_width, text_scale=1):
+    parts = []
+    if panel.get("title"):
+        parts.append(f"<h2>{_html_text(panel['title'])}</h2>")
+    width = (panel.get("physical_width", document_width) - .36) * text_scale
+    parts += [f'<div class="scroll" style="max-width:{width:.3f}in">'
+              f'<table style="min-width:{width:.3f}in">', "<colgroup>"]
+    total = sum(panel["widths"])
+    roles = panel.get("column_roles", ["label"] * len(panel["widths"]))
+    parts.extend(f'<col class="{role}-column" style="width:{value / total * 100:.4f}%">'
+                 for value, role in zip(panel["widths"], roles))
+    parts.append("</colgroup>")
+    cells = {(r, c): (nr, nc, text) for r, c, nr, nc, text in _cells(panel)}
+    cell_roles = {(item["row"], item["col"]): item for item in panel.get("cell_roles", [])}
+    rules = _rules(panel)
+    for r in range(len(panel["rows"])):
+        parts.append("<tr>")
+        for c in range(len(panel["widths"])):
+            if (r, c) not in cells:
+                continue
+            nr, nc, text = cells[r, c]
+            tag = "th" if r < panel.get("header_rows", 1) else "td"
+            align = panel.get("align", {}).get(c, "center")
+            style = [f"text-align:{align}"]
+            for rule in rules:
+                if rule.get("start", 0) <= c and c + nc <= rule.get("end", len(panel["widths"])):
+                    side = "top" if rule["row"] == r else "bottom" if rule["row"] == r + nr else None
+                    if side:
+                        style.append(f"border-{side}:{rule.get('weight', .6)}pt solid black")
+            for rule in panel.get("vrules", []):
+                if rule.get("row", 0) <= r and r + nr <= rule.get("end", len(panel["rows"])):
+                    side = "left" if rule["col"] == c else "right" if rule["col"] == c + nc else None
+                    if side:
+                        style.append(f"border-{side}:{rule.get('weight', .4)}pt solid black")
+            if tag == "th" and panel.get("bold_header", False):
+                style.append("font-weight:bold")
+            item = cell_roles.get((r, c))
+            attributes = ""
+            if item:
+                attributes = f' class="{item["role"]}-value"'
+                if item.get("status"):
+                    attributes += f' title="{html.escape(item["status"], quote=True)}"'
+            elif roles[c] == "spacer" and nc == 1:
+                attributes = ' class="spacer" aria-hidden="true"'
+            parts.append(f'<{tag} rowspan="{nr}" colspan="{nc}"{attributes} style="{";".join(style)}">'
+                         f'{_html_text(text)}</{tag}>')
+        parts.append("</tr>")
+    parts.append("</table></div>")
+    return parts
+
+
 def _write_html(document, path):
+    # The browser keeps a readable 12pt font, including the wide Table 3 whose
+    # paper layout uses 8.5pt. Scale its scrollable grid by the same proportion.
+    text_scale = max(1, 12 / document.get("font_size", 10))
     parts = ["<!doctype html>", '<html lang="en"><meta charset="utf-8">',
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              f"<title>Table {document['number']}</title>", "<style>",
-             "body{font-family:'Times New Roman',Times,serif;color:#111;background:#fff;margin:24px}",
-             f"main{{max-width:{document.get('width', 9)}in;margin:auto}}",
+             "body{font-family:'Times New Roman',Times,serif;font-size:12pt;color:#111;background:#fff;margin:24px}",
+             f"main{{max-width:{document.get('width', 9) * text_scale:.3f}in;margin:auto}}",
              "h1{font-size:1.1rem;font-weight:normal}h2{font-size:1rem;text-align:center;font-weight:normal}",
-             ".scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;table-layout:fixed;margin:12px 0 20px}",
+             ".scroll{overflow-x:auto;margin:auto}table{width:100%;border-collapse:collapse;table-layout:fixed;margin:12px 0 20px}",
              "td,th{padding:5px 4px;text-align:center;font-weight:normal;white-space:nowrap}",
-             ".cell-value{display:block;line-height:1.45}.new-value{font-weight:bold}.paper-value{color:#555}",
-             "body[data-view='new'] .paper-value,body[data-view='new'] .delta-value,"
-             "body[data-view='paper'] .new-value,body[data-view='paper'] .delta-value,"
-             "body[data-view='delta'] .paper-value,body[data-view='delta'] .new-value{display:none}",
+             ".new-value{font-weight:bold}.paper-value{color:#555}.spacer{padding:0}",
+             ".table-view[hidden]{display:none}",
              "nav{font-family:Arial,sans-serif;font-size:.85rem;margin:12px 0}button{margin-right:6px;padding:5px 9px;cursor:pointer}",
+             "button[aria-pressed='true']{font-weight:bold}",
              "p{font-size:.85rem;line-height:1.3}sup,sub{font-size:.72em}", "</style><main>",
              f"<h1><strong>Table {document['number']}.</strong> {_html_text(document['caption'])}</h1>",
-             '<nav aria-label="Table view"><button data-view="compare">Paper / New / Δ%</button>'
-             '<button data-view="paper">Paper</button><button data-view="new">New</button>'
-             '<button data-view="delta">Δ%</button> '
+             '<nav aria-label="Table view"><button data-view="compare" aria-pressed="true">Paper / New / Δ%</button>'
+             '<button data-view="paper" aria-pressed="false">Paper</button><button data-view="new" aria-pressed="false">New</button>'
+             '<button data-view="delta" aria-pressed="false">Δ%</button> '
              '<a href="table.pdf">PDF</a> · <a href="paper-comparison.csv">Comparison CSV</a></nav>',
-             '<p>Each numeric cell: Paper / New / Δ%. Δ% = (New − Paper) / |Paper| × 100.</p>']
-    for panel in document["panels"]:
-        if panel.get("title"):
-            parts.append(f"<h2>{_html_text(panel['title'])}</h2>")
-        parts += [f'<div class="scroll"><table style="min-width:{document.get("width", 9) - .36}in">', "<colgroup>"]
-        total = sum(panel["widths"])
-        parts.extend(f'<col style="width:{width / total * 100:.4f}%">' for width in panel["widths"])
-        parts.append("</colgroup>")
-        cells = {(r, c): (nr, nc, text) for r, c, nr, nc, text in _cells(panel)}
-        comparisons = {(item["row"], item["col"]): item for item in panel.get("comparisons", [])}
-        rules = _rules(panel)
-        for r in range(len(panel["rows"])):
-            parts.append("<tr>")
-            for c in range(len(panel["widths"])):
-                if (r, c) not in cells:
-                    continue
-                nr, nc, text = cells[r, c]
-                tag = "th" if r < panel.get("header_rows", 1) else "td"
-                align = panel.get("align", {}).get(c, "center")
-                style = [f"text-align:{align}"]
-                for rule in rules:
-                    if rule.get("start", 0) <= c and c + nc <= rule.get("end", len(panel["widths"])):
-                        side = "top" if rule["row"] == r else "bottom" if rule["row"] == r + nr else None
-                        if side:
-                            style.append(f"border-{side}:{rule.get('weight', .6)}pt solid black")
-                for rule in panel.get("vrules", []):
-                    if rule.get("row", 0) <= r and r + nr <= rule.get("end", len(panel["rows"])):
-                        side = "left" if rule["col"] == c else "right" if rule["col"] == c + nc else None
-                        if side:
-                            style.append(f"border-{side}:{rule.get('weight', .4)}pt solid black")
-                if tag == "th" and panel.get("bold_header", False):
-                    style.append("font-weight:bold")
-                item = comparisons.get((r, c))
-                if item:
-                    content = ''.join(f'<span class="cell-value {kind}-value" title="{label}">{_html_text(value)}</span>'
-                                      for kind, label, value in (("paper", "Paper", item["paper_text"]),
-                                          ("new", html.escape("New: " + item["status"], quote=True), item["current_text"]),
-                                          ("delta", "Relative difference (%)", item["delta_text"])))
-                else:
-                    content = _html_text(text)
-                parts.append(f'<{tag} rowspan="{nr}" colspan="{nc}" style="{";".join(style)}">'
-                             f'{content}</{tag}>')
-            parts.append("</tr>")
-        parts.append("</table></div>")
+             '<p>Each original numeric column expands to Paper, New, and Δ%, separated from the next group by a blank column. '
+             'Δ% = (New − Paper) / |Paper| × 100.</p>']
+    for view, panels in document.get("view_panels", {"compare": document["panels"]}).items():
+        hidden = "" if view == "compare" else " hidden"
+        parts.append(f'<section class="table-view" data-table-view="{view}"{hidden}>')
+        for panel in panels:
+            parts.extend(_html_panel(panel, document.get("width", 9), text_scale))
+        parts.append("</section>")
     parts += [f"<p>{_html_text(note)}</p>" for note in document.get("notes", [])]
     parts.append("</main><script>document.querySelectorAll('button[data-view]').forEach(function(button){"
-                 "button.addEventListener('click',function(){document.body.dataset.view=button.dataset.view;});});"
+                 "button.addEventListener('click',function(){"
+                 "document.querySelectorAll('[data-table-view]').forEach(function(section){"
+                 "section.hidden=section.dataset.tableView!==button.dataset.view;});"
+                 "document.querySelectorAll('button[data-view]').forEach(function(other){"
+                 "other.setAttribute('aria-pressed',String(other===button));});});});"
                  "</script></html>\n")
     path.write_text("\n".join(parts), encoding="utf-8")
 
