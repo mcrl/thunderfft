@@ -24,9 +24,26 @@ and FP64 reference, regardless of range mode.
 
 With unchanged saved boundaries, default paper mode produces 16 accuracy
 rows plus 64 finite checks (80 raw rows). Full paper mode produces 16 accuracy
-rows plus 2,048 finite checks (2,064 raw rows). The initial prepared-account
-time estimates are 2–4 minutes for boundary mode and 22–28 minutes for full
-mode, pending measurement of this revision.
+rows plus 2,048 finite checks (2,064 raw rows). Allow about 3–5 minutes on the
+prepared account for boundary mode. Full mode is estimated at 22–28 minutes;
+the new four-implementation full paper scan has not been timed.
+
+On 2026-11-09, commit `4344f24` completed the A100 paper boundary run in
+243.0 seconds (4m03s), including 209.5 seconds of native measurements and
+33.5 seconds of build/setup and summarization. All 16 freshly reported
+accuracy values exactly matched the retained run. The 12 previous finite
+boundaries matched, and the four cuFFTDx FP16 boundaries matched the probe
+below. No window expansion was needed: 80 raw rows produced 16 complete
+summary rows. Full smoke produced 32 raw rows and four summary rows in
+2.6 seconds; offline assembly passed for both modes. The revision passed
+556 CPU tests, plus independent checks of raw measurements, source/binary
+hashes, GPU identity, preset provenance and the boundary/full-mode contract.
+
+The retained `6864641` Table 5 full scan took 18m26s for three finite-range
+implementations and all four accuracy rows. The new boundary run took about
+78% less time while adding cuFFTDx finite-range checks. This compares a
+retained full scan with newly measured local windows; the exponent coverage
+differs, and the new four-implementation full paper run remains unmeasured.
 
 The starting values and source hashes are in
 [`boundary_presets.json`](boundary_presets.json). ThunderFFT FP16/TF32 and

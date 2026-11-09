@@ -109,7 +109,7 @@ dependencies and local builds already available:
 | Table 3 | A100 | 4–6 minutes | 8–12 minutes |
 | Table 2 | A100 | Under 1 minute | Under 1 minute |
 | Table 4 | A100 | Under 1 minute | Under 1 minute |
-| Table 5 | A100 | 2–4 minutes (estimate) | 22–28 minutes (estimate) |
+| Table 5 | A100 | 3–5 minutes (measured: 4m03s) | 22–28 minutes (estimate) |
 | Table 6 | A100 | Under 1 minute | Under 1 minute |
 | Table 7 | A100 | Under 1 minute | Under 1 minute |
 | Figure 3 | A100 | Under 1 minute | Under 1 minute |
@@ -123,8 +123,8 @@ dependencies and local builds already available:
 Cloud-stage estimates include startup, builds, measurements, result download
 and cleanup. Initial setup/local builds, GPU waiting and cloud retries can add
 time. Figure 2 reuses Table 3 measurements during final assembly.
-The new Table 5 times, H100/B200 preset-stage times and both workflow totals
-remain estimates. Table 5 full mode now adds the cuFFTDx finite-range scan,
+The expanded Table 5 full-mode time, H100/B200 preset-stage times and both
+workflow totals remain estimates. Table 5 full mode adds the cuFFTDx finite-range scan,
 which the older full run did not include. The complete new
 `preset` + `fast` + `boundary` workflow has not been rerun end to end on all
 three GPUs; neither has the expanded `--full` workflow.
@@ -154,6 +154,22 @@ The combined fast figure time was 4 minutes 10 seconds, compared with
 9 minutes 12 seconds), about 63% shorter. Both used the same A100 GPU UUID.
 The full-filter numbers come from the earlier run; full paper mode was not
 remeasured alongside the new fast runs.
+
+On 2026-11-09, commit `4344f24` passed 556 CPU tests and the new Table 5
+paper boundary run on A100. It took 4 minutes 3 seconds: 3 minutes 30 seconds
+in native measurements and 33.5 seconds in build/setup and summarization.
+All 16 fresh accuracy values exactly matched the retained run, and all
+12 previous range boundaries matched. The four new cuFFTDx FP16 boundaries
+were 11/9/8/7 for N=64/256/1024/4096. The result contains 80 raw rows and
+16 complete summary rows, with no window expansion. Full smoke produced
+32 raw rows and four summary rows in 2.6 seconds; both offline assemblies
+passed. Independent checks validated raw evidence, source/binary hashes,
+GPU identity, preset provenance and the boundary/full-mode contract.
+
+Table 5's 4m03s boundary run was about 78% shorter than the retained 18m26s
+full scan of three implementations, while adding cuFFTDx range checks.
+The new four-implementation full paper scan has not been timed; these modes
+measure different exponent coverage.
 
 Table 3 runs before the evaluations that reuse it. The workflow creates a
 collection automatically; `--collection NAME` chooses its name. Final output
