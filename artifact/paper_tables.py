@@ -19,7 +19,7 @@ import tempfile
 
 TABLES = tuple(f"table{n}" for n in range(2, 8))
 OUTPUTS = ("table.pdf", "table.png", "table.html", "comparison.md", "paper-comparison.csv")
-PAPER_SHA256 = "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50"
+PAPER_SHA256 = "02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9"
 COMPARISON_FIELDS = ("table", "panel", "row", "column", "paper_value", "new_value",
                      "paper_display", "new_display", "relative_difference_pct",
                      "relative_error_pct", "status")

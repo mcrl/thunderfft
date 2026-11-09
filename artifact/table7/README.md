@@ -2,7 +2,7 @@
 
 Measures N=64 TF32 unit-kernel compute time per batch (`(t_2R - t_R) / R`,
 median over trials) and Tensor Core utilization against the A100 peak of
-156 TFLOPS for kernels taken from historical ThunderFFT commits (paper p. 9),
+156 TFLOPS for kernels taken from historical ThunderFFT commits (paper p. 10),
 on an A100.
 
 | Variant | Source commit | Kernel | Mode |

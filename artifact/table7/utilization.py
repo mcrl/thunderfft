@@ -11,7 +11,7 @@ REFERENCE = {
     "precision": "tf32",
     "hardware_peak_tflops": 156.0,
     "source": "Supplied paper Table 4: A100 hardware peak, TF32 dense",
-    "paper_pdf_sha256": "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50",
+    "paper_pdf_sha256": "02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9",
 }
 
 # The radix-4 kernels issue 3 stages * 16 MMA instructions per warp.

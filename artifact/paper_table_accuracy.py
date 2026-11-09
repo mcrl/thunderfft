@@ -12,8 +12,8 @@ from pathlib import Path
 
 MISSING = "—"
 SIZES = (64, 256, 1024, 4096)
-SERIES = (("fp16", "FP16\nxFFT"), ("fp16_cufftdx", "FP16\ncuFFTDx"),
-          ("tf32", "TF32\nxFFT"), ("fp32_cufftdx", "FP32\ncuFFTDx"))
+SERIES = (("fp16", "xFFT"), ("fp16_cufftdx", "cuFFTDx"),
+          ("tf32", "xFFT"), ("fp32_cufftdx", "cuFFTDx"))
 ROLES = (("radix16", "radix-16 (tcFFT)"),
          ("radix4_compute", "radix-4 + reducing computation"),
          ("register_branch", "+ reducing communication"),
@@ -22,15 +22,19 @@ SELECTED_BRANCH_SOURCE = "historical_e4aa1b0"
 SELECTED_BRANCH_COMMIT = "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375"
 UNIFORM_COMMIT = "5e37821a24e02e9986b61acda044bfdf2f99f563"
 
-# Transcribed from page 9 of PPoPP27_chaewon__FFT_ (3).pdf, SHA-256
-# b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50.
-# Table 5 pairs are (relative L2 error, largest finite alpha exponent). The
-# newer FP16 cuFFTDx series is absent from that PDF: it has no paper reference.
+# Transcribed from PPoPP27_chaewon__FFT_ (4).pdf, SHA-256
+# 02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9.
+# Tables 5 and 6 are on page 9; Table 7 is on page 10. Table 5 pairs are
+# (relative L2 error, largest finite alpha exponent), in printed column order.
 PAPER_TABLE5 = {
-    64: {"fp16": (4.34e-4, 11), "tf32": (1.35e-3, 123), "fp32_cufftdx": (1.24e-7, 123)},
-    256: {"fp16": (6.03e-4, 10), "tf32": (1.36e-3, 122), "fp32_cufftdx": (1.37e-7, 122)},
-    1024: {"fp16": (6.09e-4, 9), "tf32": (2.12e-3, 121), "fp32_cufftdx": (1.84e-7, 121)},
-    4096: {"fp16": (6.54e-4, 8), "tf32": (2.64e-3, 120), "fp32_cufftdx": (1.85e-7, 120)},
+    64: {"fp16": (4.34e-4, 11), "fp16_cufftdx": (8.36e-4, 11),
+         "tf32": (1.35e-3, 123), "fp32_cufftdx": (1.24e-7, 123)},
+    256: {"fp16": (6.03e-4, 10), "fp16_cufftdx": (1.13e-3, 10),
+          "tf32": (1.36e-3, 122), "fp32_cufftdx": (1.78e-7, 122)},
+    1024: {"fp16": (6.09e-4, 9), "fp16_cufftdx": (1.32e-3, 9),
+           "tf32": (2.12e-3, 121), "fp32_cufftdx": (1.91e-7, 121)},
+    4096: {"fp16": (6.54e-4, 8), "fp16_cufftdx": (1.51e-3, 8),
+           "tf32": (2.64e-3, 120), "fp32_cufftdx": (2.06e-7, 120)},
 }
 # Use the independently rounded printed speedups, not ratios reconstructed
 # from the paper's rounded timings.
@@ -132,48 +136,51 @@ def _rules(count, header=1):
 
 def _table5(rows, metadata):
     indexed = _index(rows, ("N", "precision"))
-    displayed = [["", r"Rel-$L_2$ at $\alpha=1$", "", "", "",
-                  r"Largest finite $\alpha$", "", "", ""],
-                 ["$N$", *[label for _, label in SERIES], *[label for _, label in SERIES]]]
-    comparisons = []
-    for size in SIZES:
-        selected = [indexed.get((str(size), precision), {}) for precision, _ in SERIES]
-        displayed.append([str(size),
-                          *[_scientific(row.get("rel_l2_alpha1"))
-                            if row.get("accuracy_status") == "complete" else MISSING for row in selected],
-                          *[_finite_range(row) for row in selected]])
-        for index, ((precision, _), source) in enumerate(zip(SERIES, selected)):
-            error, exponent = PAPER_TABLE5[size].get(precision, (None, None))
-            comparisons.append(_comparison(len(displayed) - 1, index + 1, error,
-                                           source.get("rel_l2_alpha1"), _scientific(error),
-                                           displayed[-1][index + 1]))
-            boundary_status = source.get("boundary_status")
-            observed = (source.get("range_status") == "complete" and boundary_status == "observed")
-            status = ({"right_censored": "censored_right", "left_censored": "censored_left"}
-                      .get(boundary_status, "measured")
-                      if source.get("range_status") == "complete" else "missing_measurement")
-            comparisons.append(_comparison(
-                len(displayed) - 1, index + 5, _alpha(exponent),
-                _alpha(source.get("largest_finite_exponent_observed")) if observed else None,
-                _power(exponent), displayed[-1][index + 5], status))
+    panels = []
+    for is_range, title in ((False, r"(a) Relative $L_2$ error at $\alpha=1$."),
+                            (True, r"(b) Largest $\alpha=2^k$ with all finite outputs.")):
+        displayed = [["", "FP16", "", "TF32 / FP32", ""],
+                     ["$N$", *[label for _, label in SERIES]]]
+        comparisons = []
+        for size in SIZES:
+            selected = [indexed.get((str(size), precision), {}) for precision, _ in SERIES]
+            values = ([_finite_range(row) for row in selected] if is_range else
+                      [_scientific(row.get("rel_l2_alpha1"))
+                       if row.get("accuracy_status") == "complete" else MISSING for row in selected])
+            displayed.append([str(size), *values])
+            for index, ((precision, _), source) in enumerate(zip(SERIES, selected)):
+                error, exponent = PAPER_TABLE5[size][precision]
+                if is_range:
+                    boundary_status = source.get("boundary_status")
+                    observed = (source.get("range_status") == "complete" and boundary_status == "observed")
+                    status = ({"right_censored": "censored_right", "left_censored": "censored_left"}
+                              .get(boundary_status, "measured")
+                              if source.get("range_status") == "complete" else "missing_measurement")
+                    comparison = _comparison(
+                        len(displayed) - 1, index + 1, _alpha(exponent),
+                        _alpha(source.get("largest_finite_exponent_observed")) if observed else None,
+                        _power(exponent), values[index], status)
+                else:
+                    comparison = _comparison(len(displayed) - 1, index + 1, error,
+                                             source.get("rel_l2_alpha1"), _scientific(error), values[index])
+                comparisons.append(comparison)
+        panels.append({"title": title, "header_rows": 2, "widths": [0.65, 1.4, 1.4, 1.4, 1.4],
+                       "rows": displayed, "spans": [{"row": 0, "col": 1, "rowspan": 1, "colspan": 2},
+                                                      {"row": 0, "col": 3, "rowspan": 1, "colspan": 2}],
+                       "rules": _rules(5, 2) + [
+                           {"row": 1, "start": 1, "end": 3, "weight": 0.5},
+                           {"row": 1, "start": 3, "end": 5, "weight": 0.5},
+                           {"row": len(displayed), "start": 0, "end": 5, "weight": 1.0}],
+                       "comparisons": comparisons})
     notes = ["Relative error uses a double-precision FFT reference. The two FP16 columns distinguish xFFT and cuFFTDx.",
              "— denotes an uncollected measurement; inequalities denote a censored finite-range scan."]
     if any(row.get("range_coverage") == "boundary_recheck" for row in rows):
         notes.append("Boundary recheck validates adjacent finite/nonfinite outputs within the measured exponent window; it does not perform a full-range scan.")
     if metadata.get("batch") is not None:
         notes.append("Measured batch size: " + str(metadata["batch"]) + ".")
-    notes.extend(["The supplied paper has no FP16 cuFFTDx column; its paper reference and relative difference remain unavailable.",
-                  "Finite-range differences compare alpha values, not exponents. Censored bounds have no exact relative difference."])
-    rules = _rules(9, 2) + [
-        {"row": 1, "start": 1, "end": 5, "weight": 0.5},
-        {"row": 1, "start": 5, "end": 9, "weight": 0.5},
-        {"row": len(displayed), "start": 0, "end": 9, "weight": 1.0}]
-    return {"number": 5, "caption": "Numerical accuracy and dynamic range relative to a double-precision FFT reference.",
-            "width": 8.6, "font_size": 9,
-            "panels": [{"header_rows": 2, "widths": [0.65, 1.25, 1.25, 1.25, 1.25, 0.95, 0.95, 0.95, 0.95],
-                        "rows": displayed, "spans": [{"row": 0, "col": 1, "rowspan": 1, "colspan": 4},
-                                                       {"row": 0, "col": 5, "rowspan": 1, "colspan": 4}],
-                        "rules": rules, "comparisons": comparisons}], "notes": notes}
+    notes.append("Finite-range differences compare alpha values, not exponents. Censored bounds have no exact relative difference.")
+    return {"number": 5, "caption": "Numerical accuracy and dynamic range of xFFT and cuFFTDx relative to a double-precision FFT reference.",
+            "width": 6.8, "font_size": 10, "panels": panels, "notes": notes}
 
 
 def _table6(rows, metadata):

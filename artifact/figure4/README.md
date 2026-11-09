@@ -1,4 +1,4 @@
-# Figure 4: 2D convolution comparison (paper: H100)
+# Figure 4: A100 2D convolution comparison
 
 Measures the runtime of a valid FP32 2D cross-correlation of a 16384 x 16384
 image as the filter size grows, for cuDNN, full-image cuFFT, tiled (64) cuFFTDx
@@ -6,13 +6,11 @@ and tiled (64) ThunderFFT (TF32) (paper p. 10). Every library passes a
 correctness check against a direct reference before it is timed, and every FFT
 timing includes the filter FFT.
 
-The current manuscript numbering is Figure 4 for **2D convolution** and
-Figure 5 for **1D convolution**. The archived `PPoPP27_chaewon__FFT_ (3).pdf`
-uses the previous numbering (2D was Figure 5, 1D was Figure 4) and specifies
-H100 for the 2D measurement. The default complete pipeline currently runs
-Figure 4 on A100. Its results are an A100 reproduction of the workload;
-they are not H100 measurements. Each generated plot identifies the measured
-GPU and shows the paper's H100 reference when the GPUs differ.
+The current manuscript, `PPoPP27_chaewon__FFT_ (4).pdf`, numbers **2D
+convolution on A100** as Figure 4 and **1D convolution on A100** as Figure 5.
+The default complete pipeline runs Figure 4 on A100, matching the paper's
+GPU. Each generated plot identifies the measured GPU and shows the paper's
+A100 reference when the GPUs differ.
 
 Use a new collection after this numbering change. Existing result bundles
 retain their original evaluation IDs and operation metadata; assembly rejects

@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "paper": {
-    "filename": "PPoPP27_chaewon__FFT_ (3).pdf",
-    "sha256": "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50",
+    "filename": "PPoPP27_chaewon__FFT_ (4).pdf",
+    "sha256": "02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9",
     "implementation_name_in_paper": "xFFT",
     "repository_name": "ThunderFFT",
-    "figure_numbering_note": "Current manuscript numbering confirmed by the author: Figure 4 is 2D convolution and Figure 5 is 1D convolution. The archived PDF identified above has these two figure numbers reversed."
+    "figure_numbering_note": "Figure 4 is 2D convolution and Figure 5 is 1D convolution, both on A100, as printed on page 10 of the supplied PDF."
   },
   "excluded": [
     {
@@ -163,7 +163,7 @@
         "vast"
       ],
       "title": "64-point optimization ablation",
-      "paper_page": 9,
+      "paper_page": 10,
       "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
@@ -236,7 +236,7 @@
         "local",
         "vast"
       ],
-      "title": "2D convolution comparison (paper: H100)",
+      "title": "A100 2D convolution comparison",
       "paper_page": 10,
       "implementation": "ready",
       "owner": null,
@@ -252,7 +252,7 @@
       },
       "available": false,
       "full_paper_comparison": false,
-      "coverage": "Native cuDNN, full-image cuFFT, tiled64 cuFFTDx C2C and tiled64 TF32 ThunderFFT C2C (real FP32 input/output) with validation and offline assembly; default pipeline measures A100 while the paper caption specifies H100, and plot captions preserve the measured GPU"
+      "coverage": "Native cuDNN, full-image cuFFT, tiled64 cuFFTDx C2C and tiled64 TF32 ThunderFFT C2C (real FP32 input/output) with validation and offline assembly; default pipeline measures A100 as in the paper, and plot captions preserve the measured GPU"
     },
     {
       "id": "figure5",

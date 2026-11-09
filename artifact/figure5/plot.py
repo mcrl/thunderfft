@@ -15,7 +15,7 @@ COLORS = {"cuDNN": "#7f7f7f", "FlashFFTConv": "#6a3d9a", "cuFFT": "#1f5fa8", "cu
           "ThunderFFT": "#ff4d00"}
 LABELS = {"figure5": ("Filter size (f)", "Figure 5: 1D convolution"),
           "figure4": ("Filter size (f x f)", "Figure 4: 2D convolution")}
-PAPER_GPUS = {"figure5": "A100", "figure4": "H100"}
+PAPER_GPUS = {"figure5": "A100", "figure4": "A100"}
 
 
 class Pending(Exception):

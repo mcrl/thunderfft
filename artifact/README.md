@@ -14,10 +14,10 @@ default/full modes and estimated times; this page provides the detailed runner g
 | [table4](table4/README.md) | Table 4, p. 8 | A100, H100, B200 | all three GPU stages |
 | [table5](table5/README.md) | Table 5, p. 9 | A100 | A100 stage |
 | [table6](table6/README.md) | Table 6, p. 9 | A100 | A100 stage |
-| [table7](table7/README.md) | Table 7, p. 9 | A100 | A100 stage |
+| [table7](table7/README.md) | Table 7, p. 10 | A100 | A100 stage |
 | [figure2](figure2/README.md) | Figure 2, p. 9 | A100 | A100 stage |
 | [figure3](figure3/README.md) | Figure 3, p. 10 | A100 | A100 stage |
-| [figure4](figure4/README.md) | Figure 4, 2D convolution | A100 (paper: H100) | A100 stage |
+| [figure4](figure4/README.md) | Figure 4, 2D convolution | A100 | A100 stage |
 | [figure5](figure5/README.md) | Figure 5, p. 10 | A100 | A100 stage |
 
 Figure 1 and Table 1 have no evaluation.
@@ -205,18 +205,18 @@ measurement status; `comparison.md` links to the readable table. Original CSVs,
 metadata and measurement notes are preserved. Standalone table runs also render
 these views when their summary CSV is available.
 
-Table references come from the supplied `PPoPP27_chaewon__FFT_ (3).pdf`;
+Table references come from the supplied `PPoPP27_chaewon__FFT_ (4).pdf`;
 printed rounding can cause small differences even in identical model formulas.
-Missing/censored values have no exact relative error. The added FP16 cuFFTDx
-column has no reference in that PDF. Estimated and unchecked Table 7 rows
-remain explicitly qualified.
+Missing/censored values have no exact relative error. Table 5 includes paper
+references for all four implementations, with accuracy and finite-range panels
+stacked as in the paper. Estimated and unchecked Table 7 rows remain explicitly
+qualified.
 
-Figure numbering follows the latest manuscript clarification: **Figure 4 is 2D
-convolution; Figure 5 is 1D convolution** (the archived PDF has these reversed).
+Figure numbering follows the supplied PDF: **Figure 4 is 2D convolution;
+Figure 5 is 1D convolution**, both on A100.
 Use a new collection after updating: previous figure parts retain their old IDs
-and are not silently reinterpreted. Figure 4 currently runs on A100 in the
-complete pipeline; its caption identifies the measured GPU and the paper's
-H100 reference. Figure 5 runs on A100.
+and are not silently reinterpreted. Both figures run on A100 in the complete
+pipeline, matching the paper; captions identify the measured GPU.
 Table 5 uses the updated four implementations per size. Table 7's first row is
 an estimate from validated Table 6 tcFFT timings, assuming retained utilization:
 N64 TF32 time = 0.375 × N256 FP16 time (A100, batch 65536). It is marked as

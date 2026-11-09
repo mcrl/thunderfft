@@ -21,7 +21,7 @@ GPUS = ("A100", "H100", "B200")
 PAPER = {"A100": (156.0, 147.22, 113.42),
          "H100": (378.0, 243.82, 156.67),
          "B200": (1100.0, 275.80, 202.34)}
-PAPER_SHA256 = "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50"
+PAPER_SHA256 = "02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9"
 FLOPS_PER_FFT = 3 * 16 * (2 * 16 * 8 * 8) // 16
 SOURCE_FILES = ("data.csv", "metadata.json", "status.json")
 SOURCE_FIELDS = ("gpu", "N", "batch", "placement", "library", "precision", "trial",

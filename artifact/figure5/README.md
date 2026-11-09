@@ -1,9 +1,8 @@
 # Figure 5: A100 1D convolution comparison
 
-The current manuscript numbers 1D convolution as Figure 5 and 2D convolution
-as Figure 4. The archived `PPoPP27_chaewon__FFT_ (3).pdf` uses the previous
-numbering (1D was Figure 4, 2D was Figure 5). Generated plots show the actual
-measured GPU in their captions.
+The current manuscript, `PPoPP27_chaewon__FFT_ (4).pdf`, numbers **1D
+convolution on A100** as Figure 5 and **2D convolution on A100** as Figure 4.
+Generated plots show the actual measured GPU in their captions.
 
 Use a new collection after this numbering change. Existing result bundles
 retain their original evaluation IDs and operation metadata; assembly rejects

@@ -105,7 +105,7 @@ Final outputs:
   comparison.md links to the preview. Table 5 keeps four implementations per N.
 - Latest manuscript numbering: Figure 4 = 2D, Figure 5 = 1D. Use a new
   collection after this update; old figure parts keep their original IDs.
-  Figure 4 currently measures A100; its caption distinguishes the paper's H100.
+  Figures 4 and 5 both measure A100, matching the supplied PDF.
 - Expected exit status: 0.
 - Default Figures 4/5 show gaps and annotations for skipped cuDNN filters.
   Table 5 reports local boundary coverage. Table 7 estimates its first row
@@ -302,9 +302,10 @@ Table 5: boundary recheck or full exponent scan
   one view or show all three. Delta = 100 * (New - Paper) / abs(Paper).
   paper-comparison.csv also reports absolute relative error and measurement
   status. Original CSVs/notes remain intact; table-render.json records hashes.
-  Reference numbers are from the supplied PPoPP27_chaewon__FFT_ (3).pdf.
+  Reference numbers are from the supplied PPoPP27_chaewon__FFT_ (4).pdf.
   Missing references, missing measurements and censored bounds have no exact
-  delta. The added FP16 cuFFTDx column has no reference in that archived PDF.
+  delta. Table 5 includes references for all four implementations and uses
+  stacked accuracy / finite-range panels, matching the supplied PDF.
 - Whole-workflow status: result/pipelines/<run_id>/pipeline.json and summary.csv.
 
 | Output | What to check |

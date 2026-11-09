@@ -35,13 +35,13 @@ SHAPE = "L=4096,B=64,D=768"
 class FigureIdentity(unittest.TestCase):
     def test_captions_keep_paper_numbering_and_actual_gpu(self):
         self.assertEqual(PLOT.caption("figure5", "A100"), "Figure 5: 1D convolution on A100")
-        self.assertEqual(PLOT.caption("figure4", "H100"), "Figure 4: 2D convolution on H100")
-        self.assertEqual(PLOT.caption("figure4", "A100"),
-                         "Figure 4: 2D convolution on A100 (paper: H100)")
+        self.assertEqual(PLOT.caption("figure4", "A100"), "Figure 4: 2D convolution on A100")
+        self.assertEqual(PLOT.caption("figure4", "H100"),
+                         "Figure 4: 2D convolution on H100 (paper: A100)")
 
     def test_missing_gpu_is_not_inferred_from_the_paper(self):
         self.assertIn("measured GPU unspecified", PLOT.caption("figure4", None))
-        self.assertIn("paper: H100", PLOT.caption("figure4", None))
+        self.assertIn("paper: A100", PLOT.caption("figure4", None))
 
     def test_old_numbered_summary_cannot_be_plotted_as_opposite_dimension(self):
         with tempfile.TemporaryDirectory() as temporary:

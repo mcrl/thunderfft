@@ -36,14 +36,23 @@ class PaperTableAccuracyTests(unittest.TestCase):
                          "boundary_status": "observed", "largest_finite_exponent_observed": index + 8})
         self.write(rows)
         layout = tables.build("table5", self.directory)
+        self.assertEqual(len(layout["panels"]), 2)
         panel = layout["panels"][0]
-        self.assertEqual(panel["rows"][1][1:5], ["FP16\nxFFT", "FP16\ncuFFTDx", "TF32\nxFFT", "FP32\ncuFFTDx"])
+        ranges = layout["panels"][1]
+        self.assertEqual(panel["title"], r"(a) Relative $L_2$ error at $\alpha=1$.")
+        self.assertEqual(ranges["title"], r"(b) Largest $\alpha=2^k$ with all finite outputs.")
+        for part in (panel, ranges):
+            self.assertEqual(part["rows"][0], ["", "FP16", "", "TF32 / FP32", ""])
+            self.assertEqual(part["rows"][1], ["$N$", "xFFT", "cuFFTDx", "xFFT", "cuFFTDx"])
+            self.assertEqual(part["spans"], [
+                {"row": 0, "col": 1, "rowspan": 1, "colspan": 2},
+                {"row": 0, "col": 3, "rowspan": 1, "colspan": 2}])
+            self.assertEqual([row[0] for row in part["rows"][2:]], ["64", "256", "1024", "4096"])
+            self.assertEqual(part["rows"][3][1:], [tables.MISSING] * 4)
         self.assertEqual(panel["rows"][2][1:5],
                          [r"$4.00\times 10^{-4}$", r"$3.00\times 10^{-4}$",
                           r"$1.00\times 10^{-4}$", r"$2.00\times 10^{-4}$"])
-        self.assertEqual(panel["rows"][2][5:], ["$2^{11}$", "$2^{10}$", "$2^{8}$", "$2^{9}$"])
-        self.assertEqual([row[0] for row in panel["rows"][2:]], ["64", "256", "1024", "4096"])
-        self.assertEqual(panel["rows"][3][1:], [tables.MISSING] * 8)
+        self.assertEqual(ranges["rows"][2][1:], ["$2^{11}$", "$2^{10}$", "$2^{8}$", "$2^{9}$"])
 
     def test_table5_censored_scans_are_bounds_and_boundary_recheck_is_disclosed(self):
         self.write([
@@ -54,7 +63,7 @@ class PaperTableAccuracyTests(unittest.TestCase):
             {"N": 64, "precision": "tf32", "range_status": "pending", "boundary_status": "observed",
              "largest_finite_exponent_observed": 123, "range_coverage": "boundary_recheck"}])
         layout = tables.build("table5", self.directory)
-        self.assertEqual(layout["panels"][0]["rows"][2][5:], [r"$\geq 2^{10}$", "$<2^{8}$", "—", "—"])
+        self.assertEqual(layout["panels"][1]["rows"][2][1:], [r"$\geq 2^{10}$", "$<2^{8}$", "—", "—"])
         self.assertIn("measured exponent window", " ".join(layout["notes"]))
 
     def test_table5_only_completed_accuracy_and_finite_numbers_are_shown(self):
@@ -66,31 +75,53 @@ class PaperTableAccuracyTests(unittest.TestCase):
         row = tables.build("table5", self.directory)["panels"][0]["rows"][2]
         self.assertEqual(row[1:5], ["—", "—", "$0$", r"$1.00\times 10^{-7}$"])
 
-    def comparisons(self, evaluation):
+    def comparisons(self, evaluation, panel=0):
         return {(item["row"], item["col"]): item
-                for item in tables.build(evaluation, self.directory)["panels"][0]["comparisons"]}
+                for item in tables.build(evaluation, self.directory)["panels"][panel]["comparisons"]}
 
-    def test_table5_paper_references_use_actual_alpha_and_no_invented_fourth_series(self):
+    def test_table5_latest_paper_references_include_four_series_and_actual_alpha(self):
         self.write([
             {"N": 64, "precision": "fp16", "accuracy_status": "complete", "rel_l2_alpha1": .000434123,
              "range_status": "complete", "boundary_status": "observed", "largest_finite_exponent_observed": 10},
             {"N": 64, "precision": "fp16_cufftdx", "accuracy_status": "complete", "rel_l2_alpha1": .00051,
              "range_status": "complete", "boundary_status": "observed", "largest_finite_exponent_observed": 11}])
         cells = self.comparisons("table5")
-        self.assertEqual(len(cells), 32)
+        ranges = self.comparisons("table5", panel=1)
+        self.assertEqual(len(cells), 16)
+        self.assertEqual(len(ranges), 16)
         self.assertEqual(cells[2, 1]["paper"], 4.34e-4)
         self.assertEqual(cells[2, 1]["current"], .000434123)
-        self.assertEqual(cells[2, 5]["paper"], 2048)
-        self.assertEqual(cells[2, 5]["current"], 1024)
-        self.assertEqual(cells[2, 5]["paper_text"], "$2^{11}$")
-        self.assertEqual(cells[5, 8]["paper"], 2 ** 120)
-        for column in (2, 6):
-            self.assertIsNone(cells[2, column]["paper"])
-            self.assertEqual(cells[2, column]["paper_text"], tables.MISSING)
-            self.assertIsNotNone(cells[2, column]["current"])
-            self.assertEqual(cells[2, column]["status"], "missing_paper_reference")
+        self.assertEqual(ranges[2, 1]["paper"], 2048)
+        self.assertEqual(ranges[2, 1]["current"], 1024)
+        self.assertEqual(ranges[2, 1]["paper_text"], "$2^{11}$")
+        self.assertEqual(ranges[5, 4]["paper"], 2 ** 120)
+        self.assertEqual(cells[2, 2]["paper"], 8.36e-4)
+        self.assertEqual(cells[2, 2]["paper_text"], r"$8.36\times 10^{-4}$")
+        self.assertEqual(ranges[2, 2]["paper"], 2048)
+        for panel in (cells, ranges):
+            self.assertIsNotNone(panel[2, 2]["current"])
+            self.assertEqual(panel[2, 2]["status"], "measured")
         self.assertIsNone(cells[3, 1]["current"])
         self.assertEqual(cells[3, 1]["status"], "missing_measurement")
+
+    def test_table5_reference_grid_matches_latest_printed_values(self):
+        self.write([])
+        errors = self.comparisons("table5")
+        ranges = self.comparisons("table5", panel=1)
+        # Independently transcribed from Table 5(a)/(b), PDF (4), page 9.
+        expected = (
+            (4.34e-4, 8.36e-4, 1.35e-3, 1.24e-7),
+            (6.03e-4, 1.13e-3, 1.36e-3, 1.78e-7),
+            (6.09e-4, 1.32e-3, 2.12e-3, 1.91e-7),
+            (6.54e-4, 1.51e-3, 2.64e-3, 2.06e-7))
+        for index, row in enumerate(expected):
+            for column, value in enumerate(row, start=1):
+                self.assertEqual(errors[index + 2, column]["paper"], value)
+                self.assertEqual(ranges[index + 2, column]["paper"],
+                                 2 ** ((11 if column <= 2 else 123) - index))
+                for panel in (errors, ranges):
+                    self.assertIsNone(panel[index + 2, column]["current"])
+                    self.assertEqual(panel[index + 2, column]["status"], "missing_measurement")
 
     def test_table5_censored_comparisons_preserve_bounds_without_exact_values(self):
         self.write([
@@ -98,9 +129,9 @@ class PaperTableAccuracyTests(unittest.TestCase):
              "scan_exponent_max": 10},
             {"N": 64, "precision": "tf32", "range_status": "complete", "boundary_status": "left_censored",
              "scan_exponent_min": 122}])
-        cells = self.comparisons("table5")
-        for column, status, text in ((5, "censored_right", r"$\geq 2^{10}$"),
-                                     (7, "censored_left", "$<2^{122}$")):
+        cells = self.comparisons("table5", panel=1)
+        for column, status, text in ((1, "censored_right", r"$\geq 2^{10}$"),
+                                     (3, "censored_left", "$<2^{122}$")):
             self.assertIsNone(cells[2, column]["current"])
             self.assertIsNotNone(cells[2, column]["paper"])
             self.assertEqual(cells[2, column]["current_text"], text)

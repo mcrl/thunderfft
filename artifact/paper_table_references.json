@@ -1,6 +1,6 @@
 {
-  "source": "PPoPP27_chaewon__FFT_ (3).pdf, printed Tables 2, 3 and 4",
-  "pdf_sha256": "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50",
+  "source": "PPoPP27_chaewon__FFT_ (4).pdf, printed Tables 2, 3 and 4",
+  "pdf_sha256": "02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9",
   "notes": "Values are the printed paper numbers, not unrounded inferred measurements. Table 3 timing references remain in table3/paper-table3-all-targets.csv. Speedup and Avg. references below are transcribed directly and are not recomputed from rounded timings. GPU order is A100, H100, B200.",
   "table2": {
     "page": 3,

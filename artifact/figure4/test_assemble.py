@@ -49,7 +49,7 @@ class Assembly(unittest.TestCase):
             self.assertEqual(plot.call_args.kwargs["measured_gpu"], "A100")
             metadata = json.loads((root / "out/metadata.json").read_text())
             self.assertEqual(metadata["identity"]["gpu"], "A100")
-            self.assertEqual(metadata["paper_gpu"], "H100")
+            self.assertEqual(metadata["paper_gpu"], "A100")
 
     def test_fast_mode_skips_only_cudnn_tail_and_keeps_other_libraries(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(ASSEMBLE.SHARED.PLOT, "make_plot"):
