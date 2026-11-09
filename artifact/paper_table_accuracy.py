@@ -281,8 +281,6 @@ def _table7(rows, metadata):
         paper_texts = [_decimal(paper_values[0], 4),
                        _decimal(paper_values[1], 0) + "%", _decimal(paper_values[2], 2)]
         selected_partial = variant in selected_sources
-        if selected_partial:
-            label += " (e4aa1b0)"
         if variant == "radix16" and estimated_baseline:
             displayed.append([label + "*", _decimal(estimated_time, 4),
                               _decimal(estimated_utilization, 0) + "%", "1.00"])
@@ -340,7 +338,7 @@ def _table7(rows, metadata):
     if unchecked:
         notes.append("† Timing-only measurement: FFT numerical correctness was not checked.")
     if selected_sources:
-        notes.append("The selected e4aa1b0 kernel omits MMA B-fragment initialization and includes a shared-memory round trip each repeat; its FFT outputs are undefined.")
+        notes.append("The selected reduced-communication kernel omits MMA B-fragment initialization and includes a shared-memory round trip each repeat; its FFT outputs are undefined.")
     if unchecked_ratio_shown:
         notes.append("Displayed ratios on † rows compare unit-kernel timings with the estimated baseline; they do not represent correctness-validated complete-FFT speedups.")
     notes.append("Paper references are the printed values. Differences for * and † rows retain the same estimate and timing-only qualifications; they do not establish a validated FFT reproduction.")

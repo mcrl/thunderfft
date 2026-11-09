@@ -307,13 +307,13 @@ class PaperTableAccuracyTests(unittest.TestCase):
                                 "selection_basis": "Historical function-limited kernel for this artifact row."}}}
         return baseline, selected, metadata
 
-    def test_table7_selected_partial_source_has_commit_scope_and_timing_ratio(self):
+    def test_table7_selected_partial_source_retains_scope_and_timing_ratio(self):
         baseline, selected, metadata = self.selected_table7()
         self.write([baseline, selected], metadata)
         layout = tables.build("table7", self.directory)
         rows = layout["panels"][0]["rows"]
         self.assertEqual(rows[0][-1], "Speedup*")
-        self.assertEqual(rows[3], ["+ reducing communication (e4aa1b0)†", "0.0079", "33%", "1.03"])
+        self.assertEqual(rows[3], ["+ reducing communication†", "0.0079", "33%", "1.03"])
         notes = " ".join(layout["notes"])
         for text in ("MMA B-fragment initialization", "shared-memory round trip", "FFT outputs are undefined",
                      "unit-kernel timings", "complete-FFT speedup", "identities remain unconfirmed"):
@@ -396,7 +396,7 @@ class PaperTableAccuracyTests(unittest.TestCase):
                     {"variant": "historical_e4aa1b0", "median_time_ms": .0079,
                      "timing_status": "collected_unvalidated", "accuracy_status": "unchecked"}], metadata)
         row = tables.build("table7", self.directory)["panels"][0]["rows"][3]
-        self.assertEqual(row, ["+ reducing communication (e4aa1b0)", "—", "—", "—"])
+        self.assertEqual(row, ["+ reducing communication", "—", "—", "—"])
 
     def test_table7_selected_partial_ratio_requires_matching_estimate_and_unchecked_utilization(self):
         for key, value in (("speedup_vs_estimated_radix16", 99), ("speedup_vs_estimated_radix16", "nan"),
