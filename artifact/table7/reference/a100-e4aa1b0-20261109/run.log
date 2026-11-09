@@ -1,0 +1,7 @@
+Command: bash /home/chaewon/ThunderFFT/artifact/table7/run.sh
+Ablation source selection available: historical_e4aa1b0
+-- Configuring done (0.1s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/chaewon/ThunderFFT/build_artifact/table7
+[100%] Built target thff_ablation
+Compute timings collected without accuracy checks; assembled rows retain unchecked status and function coverage

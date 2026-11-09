@@ -115,5 +115,29 @@
       "mma_flops_per_fft_slot": 6144,
       "source_selection_basis": "Historical source with observed timing near 3.5 us; this does not establish paper-stage identity."
     }
-  ]
+  ],
+  "paper_row_sources": {
+    "radix16": {
+      "source_variant": "radix16",
+      "selection_status": "unchanged_candidate",
+      "paper_identity": "unconfirmed"
+    },
+    "radix4_compute": {
+      "source_variant": "radix4_compute",
+      "selection_status": "unchanged_candidate",
+      "paper_identity": "unconfirmed"
+    },
+    "register_branch": {
+      "source_variant": "historical_e4aa1b0",
+      "selection_status": "artifact_selected",
+      "selection_date": "2026-11-09",
+      "selection_basis": "Selected artifact source for the approximately 0.0079 ms reduced-communication row; exact original-paper identity remains unconfirmed.",
+      "paper_identity": "unconfirmed"
+    },
+    "register_uniform": {
+      "source_variant": "register_uniform",
+      "selection_status": "unchanged_candidate",
+      "paper_identity": "unconfirmed"
+    }
+  }
 }

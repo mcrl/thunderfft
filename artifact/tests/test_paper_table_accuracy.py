@@ -180,6 +180,103 @@ class PaperTableAccuracyTests(unittest.TestCase):
                 rows = tables.build("table7", self.directory)["panels"][0]["rows"]
                 self.assertEqual(rows[3][-1], "—")
 
+    def selected_table7(self):
+        baseline = {"variant": "radix16", "timing_status": "estimated",
+                    "utilization_status": "estimated", "accuracy_status": "not_applicable_projection",
+                    "estimated_time_ms": .008161125, "estimated_utilization_pct": 63.25378}
+        selected = {"variant": "register_branch", "source_variant": "historical_e4aa1b0",
+                    "source_commit": "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375",
+                    "implementation_kind": "historical_partial_kernel", "paper_identity": "unconfirmed",
+                    "operation_coverage": "partial_fft_operand_setup_omitted",
+                    "timing_status": "collected_unvalidated", "accuracy_status": "unchecked",
+                    "utilization_status": "calculated_unvalidated", "utilization_pct": 32.718268,
+                    "median_time_ms": .00788889598846,
+                    "speedup_vs_estimated_radix16": .008161125 / .00788889598846}
+        metadata = {"full_paper_comparison": False, "paper_row_sources": {
+            "register_branch": {"source_variant": "historical_e4aa1b0",
+                                "selection_status": "artifact_selected",
+                                "selection_basis": "Historical function-limited kernel for this artifact row."}}}
+        return baseline, selected, metadata
+
+    def test_table7_selected_partial_source_has_commit_scope_and_timing_ratio(self):
+        baseline, selected, metadata = self.selected_table7()
+        self.write([baseline, selected], metadata)
+        layout = tables.build("table7", self.directory)
+        rows = layout["panels"][0]["rows"]
+        self.assertEqual(rows[0][-1], "Speedup*")
+        self.assertEqual(rows[3], ["+ reducing communication (e4aa1b0)†", "0.0079", "33%", "1.03"])
+        notes = " ".join(layout["notes"])
+        for text in ("MMA B-fragment initialization", "shared-memory round trip", "FFT outputs are undefined",
+                     "unit-kernel timings", "complete-FFT speedup", "identities remain unconfirmed"):
+            self.assertIn(text, notes)
+
+    def test_table7_selected_source_rejects_mismatched_mapping(self):
+        mutations = (("source_variant", "register_branch"), ("source_variant", "historical_652808b"),
+                     ("selection_status", "unchanged_candidate"), ("selection_basis", ""))
+        for key, value in mutations:
+            with self.subTest(key=key, value=value):
+                baseline, selected, metadata = self.selected_table7()
+                metadata["paper_row_sources"]["register_branch"][key] = value
+                self.write([baseline, selected], metadata)
+                with self.assertRaisesRegex(ValueError, "Table 7"):
+                    tables.build("table7", self.directory)
+        baseline, selected, metadata = self.selected_table7()
+        for mapping in ([], {"unknown_role": {}}, {"register_branch": "historical_e4aa1b0"}):
+            with self.subTest(mapping=mapping):
+                metadata["paper_row_sources"] = mapping
+                self.write([baseline, selected], metadata)
+                with self.assertRaisesRegex(ValueError, "Table 7"):
+                    tables.build("table7", self.directory)
+
+    def test_table7_selected_source_rejects_old_branch_fallback_and_false_correctness(self):
+        for key, value in (("source_commit", "51e346c0fea2767c79075c2798fa2598876415a6"),
+                           ("source_variant", "register_branch"), ("implementation_kind", "recovered"),
+                           ("operation_coverage", "complete_fft_candidate"), ("paper_identity", "confirmed"),
+                           ("accuracy_status", "passed"), ("timing_status", "collected")):
+            with self.subTest(key=key, value=value):
+                baseline, selected, metadata = self.selected_table7()
+                selected[key] = value
+                self.write([baseline, selected], metadata)
+                with self.assertRaisesRegex(ValueError, "Table 7"):
+                    tables.build("table7", self.directory)
+        baseline, selected, metadata = self.selected_table7()
+        metadata["full_paper_comparison"] = True
+        self.write([baseline, selected], metadata)
+        with self.assertRaisesRegex(ValueError, "Table 7"):
+            tables.build("table7", self.directory)
+
+    def test_table7_missing_selected_source_stays_blank(self):
+        baseline, selected, metadata = self.selected_table7()
+        selected.update(timing_status="missing", accuracy_status="not_collected",
+                        utilization_status="missing", median_time_ms="", utilization_pct="",
+                        speedup_vs_estimated_radix16="")
+        self.write([baseline, selected,
+                    {"variant": "historical_e4aa1b0", "median_time_ms": .0079,
+                     "timing_status": "collected_unvalidated", "accuracy_status": "unchecked"}], metadata)
+        row = tables.build("table7", self.directory)["panels"][0]["rows"][3]
+        self.assertEqual(row, ["+ reducing communication (e4aa1b0)", "—", "—", "—"])
+
+    def test_table7_selected_partial_ratio_requires_matching_estimate_and_unchecked_utilization(self):
+        for key, value in (("speedup_vs_estimated_radix16", 99), ("speedup_vs_estimated_radix16", "nan"),
+                           ("speedup_vs_estimated_radix16", -1), ("utilization_status", "calculated")):
+            with self.subTest(key=key, value=value):
+                baseline, selected, metadata = self.selected_table7()
+                selected[key] = value
+                self.write([baseline, selected], metadata)
+                row = tables.build("table7", self.directory)["panels"][0]["rows"][3]
+                self.assertEqual(row[-1], "—")
+        baseline, selected, metadata = self.selected_table7()
+        baseline.update(timing_status="collected", accuracy_status="passed", median_time_ms=.008161125)
+        selected["radix16_speedup"] = .008161125 / .00788889598846
+        self.write([baseline, selected], metadata)
+        self.assertEqual(tables.build("table7", self.directory)["panels"][0]["rows"][3][-1], "—")
+
+    def test_table7_remapped_source_requires_selection_metadata(self):
+        baseline, selected, _ = self.selected_table7()
+        self.write([baseline, selected], {})
+        with self.assertRaisesRegex(ValueError, "matching paper-row source metadata"):
+            tables.build("table7", self.directory)
+
     def test_render_spec_is_deterministic_and_does_not_mutate_csv(self):
         self.write([{"N": 64, "precision": "fp16", "accuracy_status": "complete", "rel_l2_alpha1": .000434}])
         before = (self.directory / "table.csv").read_bytes()

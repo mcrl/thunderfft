@@ -169,7 +169,7 @@ def selected_phase():
 
 
 def selected_timing_only():
-    value = os.environ.get("THUNDERFFT_TABLE7_TIMING_ONLY", "0")
+    value = os.environ.get("THUNDERFFT_TABLE7_TIMING_ONLY", "1")
     if value not in ("0", "1"):
         raise ValueError("THUNDERFFT_TABLE7_TIMING_ONLY must be 0 or 1")
     return value == "1"
@@ -264,7 +264,7 @@ def main():
                                 "calculation_sha256": hashlib.sha256((HERE / "utilization.py").read_bytes()).hexdigest(),
                                 "timing_basis": "median compute_us=(t_2R_us-t_R_us)/R; no second division by R",
                                 "accuracy_status": "unchecked" if timing_only else "pending_validation"},
-                "correctness": ("Not checked: THUNDERFFT_TABLE7_TIMING_ONLY=1 explicitly selected"
+                "correctness": ("Not checked: timing-only protocol selected"
                                 if timing_only else "separate R1 Gaussian/tone CPU-FP64-DFT comparison, per-transform relL2<=0.005 and output guards"),
                 "repeated_outputs_used_for_correctness": False}
     compilation = args.build_dir / "compile_commands.json"

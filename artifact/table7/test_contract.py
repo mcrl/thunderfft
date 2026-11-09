@@ -119,7 +119,7 @@ class VariantSelectionContract(unittest.TestCase):
             manifest = json.loads((HERE / "variants.json").read_text())
             self.assertEqual(coverage["source_available"],
                              [entry["id"] for entry in measure.manifest_entries(manifest) if entry["status"] == "available"])
-            self.assertEqual(coverage["requested"], "register_branch,register_uniform")
+            self.assertEqual(coverage["requested"], "register_branch,register_uniform,historical_e4aa1b0,historical_652808b")
             self.assertEqual(coverage["source_missing"], ["radix16", "radix4_compute"])
             self.assertFalse(coverage["full_paper_comparison"])
             self.assertFalse((Path(directory) / "data.csv").exists())

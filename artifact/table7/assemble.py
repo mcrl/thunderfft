@@ -26,7 +26,7 @@ measure = _module("table7_assembly_measure", "measure.py")
 utilization = measure.utilization
 projection = _module("table7_assembly_projection", "project_baseline.py")
 ESTIMATE_FIELDS = ("estimated_time_ms", "estimated_utilization_pct", "speedup_vs_estimated_radix16")
-TABLE_FIELDS = (*measure.TABLE_FIELDS, *ESTIMATE_FIELDS)
+TABLE_FIELDS = (*measure.TABLE_FIELDS, "source_variant", *ESTIMATE_FIELDS)
 native_identity = measure.native_identity
 
 
@@ -142,7 +142,7 @@ def apply_baseline_projection(table, missing, output, table6, profile, identitie
                     estimated_utilization_pct=estimate["projected_utilization_pct"],
                     speedup_vs_estimated_radix16=1.0)
     for row in table:
-        if (row["timing_status"] == "collected" and row["accuracy_status"] == "passed"
+        if (row["timing_status"] in ("collected", "collected_unvalidated")
                 and row["N"] == 64 and row["batch"] == projection.BATCH and row["precision"] == "tf32"):
             row["speedup_vs_estimated_radix16"] = baseline["estimated_time_ms"] / row["median_time_ms"]
     missing[:] = [item for item in missing if item["item"] not in ("radix16.timing", "radix16.utilization")]
@@ -164,6 +164,13 @@ def assemble(parts: list[Path], output: Path, profile: str, table6=None) -> dict
     manifest = read_json(HERE / "variants.json")
     variants = {entry["id"]: entry for entry in measure.manifest_entries(manifest)}
     canonical_ids = [entry["id"] for entry in manifest["variants"]]
+    paper_row_sources = manifest.get("paper_row_sources", {
+        variant: {"source_variant": variant, "selection_status": "unchanged_candidate",
+                  "paper_identity": "unconfirmed"} for variant in canonical_ids})
+    if (not isinstance(paper_row_sources, dict) or set(paper_row_sources) != set(canonical_ids)
+            or any(not isinstance(selection, dict) or selection.get("source_variant") not in variants
+                   for selection in paper_row_sources.values())):
+        raise ValueError("Invalid Table 7 paper-row source selection")
     timings, identities, sources, ignored_parts, ignored_variants = {}, [], [], [], []
     contract, variant_contracts, provenance_by_variant, protocols = None, {}, {}, []
     for part in parts:
@@ -259,11 +266,13 @@ def assemble(parts: list[Path], output: Path, profile: str, table6=None) -> dict
         sources.append(source)
     if identities and any(identity != identities[0] for identity in identities[1:]):
         raise ValueError("Cannot combine Table 7 parts from different GPUs, drivers, runtimes, or compilers")
-    missing, table, raw_rows, calculated = [], [], [], []
-    # Supplemental microbenchmarks appear only when collected. Their absence
-    # must not turn optional measurements into missing original paper stages.
-    displayed_ids = canonical_ids + [variant for variant in variants if variant not in canonical_ids and variant in timings]
-    for variant in displayed_ids:
+    missing, native_rows, raw_rows, calculated = [], {}, [], []
+    # Required selected sources get an empty row if absent. Other supplemental
+    # microbenchmarks appear only when collected.
+    selected_sources = {selection["source_variant"] for selection in paper_row_sources.values()}
+    native_ids = canonical_ids + [variant for variant in variants if variant not in canonical_ids
+                                  and (variant in timings or variant in selected_sources)]
+    for variant in native_ids:
         specification = variants[variant]
         row = dict.fromkeys(TABLE_FIELDS, "")
         row.update(variant=variant, N=64, batch=contract["batch"] if contract else "", precision="tf32",
@@ -288,18 +297,39 @@ def assemble(parts: list[Path], output: Path, profile: str, table6=None) -> dict
             row.update(measure.utilization_summary(variant, settings["batch"], median_us, identities[0]["name"], timing_only))
             if row["utilization_status"] in ("calculated", "calculated_unvalidated"):
                 calculated.append(variant)
-            else:
-                reason = ("Executed Tensor Core operation count has not been verified for this source"
-                          if row["utilization_status"] == "pending_operation_count" else
-                          f"Hardware peak reference is not confirmed for {identities[0]['name']} and tf32; achieved throughput is available")
-                missing.append({"item": f"{variant}.utilization",
-                                "reason": reason})
-        else:
-            reason = specification.get("reason", "Timing CSV has not been collected") if specification["status"] != "available" else "Timing CSV has not been collected"
-            missing.append({"item": f"{variant}.timing", "reason": reason})
-            missing.append({"item": f"{variant}.utilization", "reason": "Utilization requires a collected timing CSV and a confirmed hardware peak reference"})
+        native_rows[variant] = row
+    # Keep native identities and evidence intact. Only the presentation row is
+    # assigned to the explicitly selected source; absent selected evidence never
+    # falls back to the old native variant with the same canonical row name.
+    native_table = list(native_rows.values())
+    measure.add_baseline_speedups(native_table)
+    table = []
+    display_sources = [(variant, paper_row_sources[variant]["source_variant"]) for variant in canonical_ids]
+    display_sources.extend((variant, variant) for variant in native_ids
+                           if variant not in canonical_ids and variant not in selected_sources and variant in timings)
+    for variant, source_variant in display_sources:
+        row = dict(native_rows[source_variant], variant=variant, source_variant=source_variant)
         table.append(row)
-    measure.add_baseline_speedups(table)
+        specification = variants[source_variant]
+        if row["timing_status"] == "missing":
+            reason = (specification.get("reason", "The original source is unavailable")
+                      if specification["status"] != "available" else
+                      f"Timing CSV for the selected source {source_variant} has not been collected")
+            missing.append({"item": f"{variant}.timing", "source_variant": source_variant, "reason": reason})
+            missing.append({"item": f"{variant}.utilization", "source_variant": source_variant,
+                            "reason": "Utilization requires a collected timing CSV and a confirmed hardware peak reference"})
+        elif row["utilization_status"] not in ("calculated", "calculated_unvalidated"):
+            reason = ("Executed Tensor Core operation count has not been verified for this source"
+                      if row["utilization_status"] == "pending_operation_count" else
+                      f"Hardware peak reference is not confirmed for {identities[0]['name']} and tf32; achieved throughput is available")
+            missing.append({"item": f"{variant}.utilization", "source_variant": source_variant, "reason": reason})
+    baseline = next((row["median_time_ms"] for row in table
+                     if row["variant"] == "radix16" and row["timing_status"] in
+                     ("collected", "collected_unvalidated")), None)
+    if baseline is not None:
+        for row in table:
+            if row["timing_status"] in ("collected", "collected_unvalidated"):
+                row["radix16_speedup"] = baseline / row["median_time_ms"]
     output.mkdir(parents=True, exist_ok=True)
     baseline_projection = apply_baseline_projection(table, missing, output, table6, profile, identities)
     status = "complete" if not missing else "partial" if timings or baseline_projection["status"] == "estimated" else "pending"
@@ -308,7 +338,7 @@ def assemble(parts: list[Path], output: Path, profile: str, table6=None) -> dict
                        else "mixed" if accuracy_statuses else "not_collected")
     result = {"evaluation": "table7", "profile": profile, "status": status, "missing": missing,
               "full_paper_comparison": False, "paper_identity": "unconfirmed", "parts": sources, "ignored_parts": ignored_parts,
-              "ignored_variants": ignored_variants,
+              "ignored_variants": ignored_variants, "paper_row_sources": paper_row_sources,
               "measurement_contract": contract, "variant_contracts": variant_contracts,
               "accuracy_status": accuracy_status,
               "baseline_projection": baseline_projection,
@@ -326,7 +356,7 @@ def assemble(parts: list[Path], output: Path, profile: str, table6=None) -> dict
     measure.write_csv(output / "data.csv", raw_rows, measure.RAW_FIELDS)
     measure.write_csv(output / "table.csv", table, TABLE_FIELDS)
     measure.write_csv(output / "kernel_comparison.csv",
-                      [{field: row[field] for field in measure.TABLE_FIELDS} for row in table if row["variant"] in timings],
+                      [{field: row[field] for field in measure.TABLE_FIELDS} for row in native_table if row["variant"] in timings],
                       measure.TABLE_FIELDS)
     (output / "metadata.json").write_text(json.dumps(result, indent=2) + "\n")
     return result

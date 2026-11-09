@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "description": "A100 three-trial timing-only confirmation of the selected e4aa1b0 artifact source; no numerical correctness claim.",
+  "source_run": "20261109T123342Z-173fb1aa",
+  "files": [
+    {
+      "path": "build.log",
+      "sha256": "f820f86f565012999d7a051edbb8b68d96d716cda37a8cff17e98d04ccecc7e5"
+    },
+    {
+      "path": "commands.txt",
+      "sha256": "814d69f2b752055bcc5ef60c11156adbdee411f3b955ccb1c0fc3f7e13db0a53"
+    },
+    {
+      "path": "configure.log",
+      "sha256": "0dbaacde7ffdd1d17bf424f3e24831c01c04a012cb6b89d873271515efaf9b22"
+    },
+    {
+      "path": "coverage.json",
+      "sha256": "d6d5491a061c6d50e648178282a2ab2b17e399d31b6f2a5f8476008a178d3041"
+    },
+    {
+      "path": "data.csv",
+      "sha256": "ae676e7485b1cf5e2fd29f5ac5ad089458737f676c7c74d3bc6e67fce5f1def7"
+    },
+    {
+      "path": "historical_e4aa1b0.csv",
+      "sha256": "43c88d5cb63d711318523c0d6b860a76a289adad8159310739708b3efa3ab925"
+    },
+    {
+      "path": "historical_e4aa1b0.log",
+      "sha256": "cc66147ee4f49b0aa4e1c3338a03fbcb2888fefc29c62e414afdd0f59548e76d"
+    },
+    {
+      "path": "kernel_comparison.csv",
+      "sha256": "6ddda415175e6092dbb96f692e0183632fff3b742b4610f09d6baa23d5afafae"
+    },
+    {
+      "path": "metadata.json",
+      "sha256": "76b08f70b87ba0efc9509a9189cc4e25de1e1df1694af8894998dca96bbfd8a2"
+    },
+    {
+      "path": "progress.json",
+      "sha256": "2dc9c9b6ddc184e4250e19ab0e0da77d6f3ea5cc554e83b143467a136bbb3b07"
+    },
+    {
+      "path": "run.log",
+      "sha256": "55c1e62425e3ef776d05d9263e7938772dd9c13282469d67eedb6a55af8d3afd"
+    },
+    {
+      "path": "status.json",
+      "sha256": "8a78390ad6e57a09ba61f54cb494b8c35017553952a429686fffddb2d3128d99"
+    },
+    {
+      "path": "table.csv",
+      "sha256": "6ddda415175e6092dbb96f692e0183632fff3b742b4610f09d6baa23d5afafae"
+    }
+  ]
+}

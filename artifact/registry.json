@@ -171,7 +171,7 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "N64 TF32 unit-kernel timings: 51e346c branch and 5e37821 uniform complete-FFT candidates, plus optional e4aa1b0 and 652808b partial kernels in timing-only mode; radix16 baseline estimated from validated Table 6 tcFFT while retaining utilization (0.375 times N256 FP16 time at batch65536); radix4_compute source remains missing, and full paper-stage identity is unconfirmed"
+      "coverage": "N64 TF32 unit-kernel timings; the reduced-communication row selects e4aa1b0 (about 0.0079 ms on A100), with omitted MMA operand setup and unchecked accuracy retained. Timing-only collection is the default; validated 51e346c/5e37821 diagnostics remain available. Radix16 is estimated from validated Table 6 tcFFT at retained utilization; radix4_compute remains missing and exact original paper-stage identities remain unconfirmed."
     },
     {
       "id": "figure2",

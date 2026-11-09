@@ -203,6 +203,11 @@ an estimate from validated Table 6 tcFFT timings, assuming retained utilization:
 N64 TF32 time = 0.375 × N256 FP16 time (A100, batch 65536). It is marked as
 estimated; without compatible tcFFT evidence it stays blank. The second
 historical stage remains unfilled.
+The `+ reducing communication` row selects the `e4aa1b0` timing-only kernel
+(approximately 0.0079 ms on A100); its omitted operand initialization is noted
+in the table. Table 7 defaults to collecting all four available kernels in
+timing-only mode. Set `THUNDERFFT_TABLE7_TIMING_ONLY=0` for the separate
+complete-FFT validation path, which does not fill that selected partial row.
 
 Cloud stages require the evaluator account's Vast.ai credentials and incur
 charges. The combined conservative cost of all concurrent rentals, including
