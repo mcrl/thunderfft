@@ -354,6 +354,29 @@ class PaperTableAccuracyTests(unittest.TestCase):
                 self.assertEqual(comparison["status"], "timing_only_reconstructed" if timing_only
                                  else "measured_reconstructed")
 
+    def test_table7_cached_coefficients_disclose_excluded_preparation_only_for_matching_scope(self):
+        for timing_only in (False, True):
+            for scope in (None, "repeated_kernel_compute",
+                          "repeated_kernel_compute_coefficients_prepared_once"):
+                with self.subTest(timing_only=timing_only, scope=scope):
+                    baseline, selected, metadata = self.reconstructed_table7(timing_only)
+                    if scope is not None:
+                        selected["timing_scope"] = scope
+                    self.write([baseline, selected], metadata)
+                    layout = tables.build("table7", self.directory)
+                    notes = " ".join(layout["notes"])
+                    if scope == "repeated_kernel_compute_coefficients_prepared_once":
+                        self.assertIn("21 invariant coefficient pairs", notes)
+                        self.assertIn("once per kernel launch before repetition", notes)
+                        self.assertIn("time excludes this preparation", notes)
+                        self.assertIn("not full FFT launch latency", notes)
+                    else:
+                        self.assertNotIn("coefficient pairs", notes)
+                        self.assertNotIn("excludes this preparation", notes)
+                    self.assertIn("Newly reconstructed", notes)
+                    self.assertEqual("correctness was not checked" in notes, timing_only)
+                    self.assertEqual(layout["panels"][0]["rows"][2][1], "0.0120")
+
     def test_table7_reconstruction_rejects_false_identity_missing_hashes_or_wrong_accuracy(self):
         changes = (("source_variant", "register_branch"), ("source", "unrelated.cuh"),
                    ("source_commit", "51e346c"), ("source_sha256", ""), ("binary_sha256", "invalid"),

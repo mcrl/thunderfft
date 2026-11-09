@@ -1,0 +1,14 @@
+{
+  "kernel": "_ZN24thff_table7_shared_stage38fft_kernel_radix4_shared_stage_batch16EP6float2PKS0_j",
+  "repeat_loop_start": "0x3a30",
+  "repeat_loop_end": "0x5600",
+  "per_repeat_instruction_counts": {
+    "HMMA": 48,
+    "LDS.64": 96,
+    "STS.64": 96,
+    "LDG": 0,
+    "LDL": 0,
+    "STL": 0
+  },
+  "binary_sha256": "5af446326c2734c9547d728fb9ea11c2155d677b573eaf62a31eec34513383ab"
+}

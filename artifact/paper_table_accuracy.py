@@ -369,6 +369,8 @@ def _table7(rows, metadata):
         notes.append("† Timing-only measurement: FFT numerical correctness was not checked.")
     if "radix4_compute" in selected_sources:
         notes.append("‡ Newly reconstructed complete-FFT candidate: each radix-4 stage loads/stores shared memory instead of permuting register fragments. Source and binary hashes identify this implementation; the original paper source and its 0.0120 ms result have not been recovered.")
+        if indexed.get(("radix4_compute",), {}).get("timing_scope") == "repeated_kernel_compute_coefficients_prepared_once":
+            notes.append("For the optimized ‡ candidate, 21 invariant coefficient pairs are prepared once per kernel launch before repetition. The reported (t_2R - t_R) / R time excludes this preparation and measures the repeated computation, not full FFT launch latency.")
     if "register_branch" in selected_sources:
         notes.append("The selected reduced-communication kernel omits MMA B-fragment initialization and includes a shared-memory round trip each repeat; its FFT outputs are undefined.")
     if unchecked_ratio_shown:

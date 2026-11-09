@@ -126,7 +126,7 @@
       "source_variant": "shared_stage_radix4",
       "selection_status": "artifact_selected_reconstruction",
       "selection_date": "2026-11-10",
-      "selection_basis": "New stage-wise shared-memory radix-4 implementation for the reduced-computation role; no claim that this recovers the original paper source or its 0.0120 ms timing.",
+      "selection_basis": "Optimized reconstruction with a conflict-free shared layout, vector loads/stores, and 21 invariant coefficient pairs prepared once per kernel launch before repetition. The difference-based timing excludes coefficient preparation; this does not recover the original paper source or its 0.0120 ms experiment.",
       "paper_identity": "unconfirmed"
     },
     "register_branch": {
@@ -147,18 +147,18 @@
       "id": "shared_stage_radix4",
       "status": "available",
       "implementation_kind": "reconstructed",
-      "title": "Reconstructed radix-4 FFT with shared-memory exchange at every stage",
+      "title": "Optimized reconstructed radix-4 FFT with shared-memory exchange and cached coefficients",
       "source": "ablation/kernels/shared_stage_radix4.cuh",
       "namespace": "thff_table7_shared_stage",
       "kernel": "fft_kernel_radix4_shared_stage_batch16",
       "candidate_paper_role": "reduced computation",
       "paper_identity": "unconfirmed",
       "gpu_validation": "passed_local_a100_r1",
-      "timing_scope": "repeated_kernel_compute",
+      "timing_scope": "repeated_kernel_compute_coefficients_prepared_once",
       "operation_coverage": "complete_fft_candidate",
       "known_source_issues": [],
       "mma_flops_per_fft_slot": 6144,
-      "source_selection_basis": "New reconstruction using stage-wise shared-memory loads/stores and no register-stage permutation; identified by source SHA-256, not a recovered historical commit.",
+      "source_selection_basis": "New reconstruction using a conflict-free shared layout, vector loads/stores at every radix-4 stage, and 21 coefficient pairs cached per launch before repetition; no register-stage permutation. Difference-based timing excludes coefficient preparation. Identified by source SHA-256, not a recovered historical commit.",
       "source_dependencies": [
         "ablation/kernels/historical_uniform_5e37821.cuh"
       ]

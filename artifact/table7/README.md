@@ -61,7 +61,16 @@ Tensor Core work of the register implementation, exchanging values through
 shared-memory loads/stores at every stage instead of register-fragment
 permutation. The 48 MMA instructions per warp (16 FFTs) account for 6,144
 Tensor Core FLOPs per FFT. Its measured time is not forced to the paper's
-0.0120 ms. The original source is still unrecovered: metadata keeps
+0.0120 ms. The optimized implementation uses a conflict-free 8 KiB shared
+layout, vector loads/stores, and groups of four independent butterflies.
+It prepares the 21 invariant MMA coefficient pairs once per kernel launch,
+before the repetition loop. Consequently, `(t_2R - t_R) / R` excludes this
+preparation and measures steady-state computation rather than full FFT launch
+latency. The recorded scope is
+`repeated_kernel_compute_coefficients_prepared_once`; the table's `‡` note
+also states this timing boundary.
+
+The original source is still unrecovered: metadata keeps
 `implementation_kind=reconstructed`, `paper_identity=unconfirmed`, and the
 source/binary SHA-256 values, with no invented historical commit. A `‡` note
 identifies it in the comparison table. Existing bundles without this exact
@@ -69,12 +78,19 @@ source remain readable but leave its selected row blank; they never substitute
 another native variant. Numerical validation is recorded per run; timing-only
 runs retain their unchecked status even after a separate validation succeeds.
 
-The [A100 validation and measurement bundle](reference/a100-shared-stage-20261110/README.md)
-records **22.8055 µs** in validated mode (**22.7942 µs** in default timing-only
-mode), versus the paper's 12.0 µs. R=1 Gaussian/tone checks passed with maximum
-per-transform relative L2 error 0.001514; memory and race checks reported no
-errors. The selected implementation uses one 9,344 B shared buffer and explicit
-warp synchronization before overwriting each butterfly and between stages.
+The [optimized A100 measurement bundle](reference/a100-shared-optimized-20261110/README.md)
+records approximately **10.98 µs** in five validated paper-protocol trials,
+below the paper's 12.0 µs reference. R=1 Gaussian/tone checks retain a maximum
+per-transform relative L2 error of 0.001514. This improvement includes moving
+invariant coefficient preparation outside the repeated timing interval, along
+with shared-memory layout and scheduling changes. All 48 MMAs and every
+stage's shared-memory loads/stores remain in the repeated interval.
+
+The [pre-optimization measurement bundle](reference/a100-shared-stage-20261110/README.md)
+preserves the older source/binary hashes and its **22.8055 µs** validated timing
+(**22.7942 µs** in default timing-only mode). That implementation used a 9,344 B
+shared buffer and prepared coefficients inside the loop. Those retained results
+describe the older implementation, not the current default.
 
 ## Run
 

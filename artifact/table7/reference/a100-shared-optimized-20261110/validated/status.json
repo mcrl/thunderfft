@@ -1,0 +1,62 @@
+{
+  "evaluation": "table7",
+  "title": "64-point optimization ablation",
+  "profile": "paper",
+  "cufftdx_mode": "preset",
+  "cudnn_mode": "fast",
+  "table5_range_mode": "boundary",
+  "status": "completed",
+  "exit_code": 0,
+  "implementation": "ready_subset",
+  "owner": null,
+  "coverage": "N64 TF32 unit-kernel timings; radix4_compute selects the new shared_stage_radix4 reconstruction (marked \u2021), with stage-wise shared-memory loads/stores, source/binary hashes, and unconfirmed original paper identity. The reduced-communication row selects a partial kernel (about 0.0079 ms on A100), with omitted MMA operand setup and unchecked accuracy retained. All five available kernels run in default timing-only mode; explicit validation checks the three complete-FFT candidates at R=1. Radix16 is estimated from validated Table 6 tcFFT at retained utilization. Missing selected reconstruction measurements fail the complete pipeline; exact original paper-stage identities remain unconfirmed.",
+  "full_paper_comparison": false,
+  "scientific_validation": "not_assessed",
+  "command": [
+    "bash",
+    "/home/chaewon/ThunderFFT/artifact/table7/run.sh"
+  ],
+  "started_at": "2026-11-09T18:28:28.850171+00:00",
+  "result_dir": "/home/chaewon/ThunderFFT/result/table7/20261109T182828Z-0cabf7c7",
+  "required_outputs": [
+    "data.csv",
+    "table.csv",
+    "kernel_comparison.csv"
+  ],
+  "presentation": {
+    "schema_version": 1,
+    "evaluation": "table7",
+    "operation": "offline_paper_table_render",
+    "new_gpu_measurements": false,
+    "paper_layout_sha256": "02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9",
+    "source_csv_sha256": "52279f675d494ff22a36c2c06f41d61e0d8b45f433eafbf61ce741536bd3e76c",
+    "inputs": {
+      "table.csv": "52279f675d494ff22a36c2c06f41d61e0d8b45f433eafbf61ce741536bd3e76c",
+      "metadata.json": "4f65975ad22c0e39ea9d2a306a03d79273a1c3f6576edcc1c1de2bc281323e8f"
+    },
+    "paper_reference_inputs": {
+      "paper_table_references.json": "48a29e9892a00b9321eb8f5aaa10a5dd8224df535dd631e521d9212637388d7c",
+      "table3/paper-table3-all-targets.csv": "75a393ba5bcf0e67632b894e37dbb56c27f1c22ad4494a2712e007c27d470cc4",
+      "paper_table_accuracy.py": "85f60fdbcff8499c827ac6e72d83cc2ebbcb06da73cebf88715f64f577820096"
+    },
+    "outputs": {
+      "table.pdf": "2336546ee9d725fe5c12faa1fb14a23c2d00386ba05703661f812b1451233410",
+      "table.png": "956523b5556cadd4913b5c15d03ba0924f34f6375dcdb9f6c286c07c7dae311a",
+      "table.html": "07d88a03012d80aeb0ab6a6691040480f58275d708b225b1a5d52d27a27e4287",
+      "comparison.md": "4f46859fcc1c578e0a8d5382cf364e24f5c6e5377b37ca069facd54b3390247f",
+      "paper-comparison.csv": "b79be0722544df9b0167e93f45bd0f4360fff24ba6b3f24fc86ae00f61a83d6b"
+    },
+    "comparison_formula": "100 * (new - paper) / abs(paper); absolute value is relative error",
+    "notes": [
+      "Each original numeric column has three columns: Paper, New, and \u0394%, with a blank separator between groups. \u0394% = (New \u2212 Paper) / |Paper| \u00d7 100; its absolute value is the relative error.",
+      "Paper values are the rounded numbers printed in the supplied PDF. \u2014 means missing or not exactly comparable; model values and estimates retain their stated scope.",
+      "\u2014 denotes an unavailable measurement. Missing original stages are not replaced by retained paper numbers.",
+      "Recovered candidates are displayed under their proposed paper roles; exact original-stage identities remain unconfirmed.",
+      "The original radix-16 baseline is unavailable; speedups relative to that baseline remain unreported.",
+      "Paper references are the printed values. Differences for * and \u2020 rows retain the same estimate and timing-only qualifications; they do not establish a validated FFT reproduction.",
+      "Additional native variants remain in kernel_comparison.csv; only the explicit paper-row source mapping selects a displayed stage."
+    ]
+  },
+  "finished_at": "2026-11-09T18:28:32.331074+00:00",
+  "elapsed_seconds": 3.480534
+}

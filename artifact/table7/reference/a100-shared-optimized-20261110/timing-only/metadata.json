@@ -1,0 +1,281 @@
+{
+  "evaluation": "table7",
+  "profile": "paper",
+  "phase": "timing",
+  "coverage": {
+    "scope": "N64 TF32 unit-kernel measurements: three complete-FFT candidates and two explicitly partial historical kernels; end-to-end FFT is outside timing scope, and exact paper-stage identities remain unconfirmed",
+    "requested": "register_branch,register_uniform,shared_stage_radix4,historical_e4aa1b0,historical_652808b",
+    "phase": "timing",
+    "source_available": [
+      "register_branch",
+      "register_uniform",
+      "shared_stage_radix4",
+      "historical_e4aa1b0",
+      "historical_652808b"
+    ],
+    "source_missing": [
+      "radix16",
+      "radix4_compute"
+    ],
+    "full_paper_comparison": false,
+    "gpu_validation": "not_run_timing_only",
+    "timing_only": true,
+    "accuracy_status": "unchecked",
+    "measured_variants": [
+      "register_branch",
+      "register_uniform",
+      "shared_stage_radix4",
+      "historical_e4aa1b0",
+      "historical_652808b"
+    ]
+  },
+  "settings": {
+    "batch": 65536,
+    "R": 1000,
+    "trials": 3,
+    "precision": "TF32",
+    "warmups_per_repeat_count": 1,
+    "input_pattern": "constant_0.125_minus0.25"
+  },
+  "source_sha256": {
+    "utilization.py": "9d0352871e25fdfa51ffd98560f0ece086d07112df0751d39f11755656915fdb",
+    "project_baseline.py": "f3cf25bb8972693b9febed58aaafdc752a1bc6b2bc8014c0e6e189d16ee93f12",
+    "test_contract.py": "1d13ae91f3dec45ffc438f11e5166db12dbe1efb34d932431b274e594a349a47",
+    "test_assemble.py": "c5be18c1fb14049a3fff5391a0ea7cebba2cc337e7cb755cab681830f73c9b25",
+    "variants.json": "61c992d31490b88296dbbb3ed56b90a4cbd8f06dea04b3396cf2978a13dc4333",
+    "test_utilization.py": "9dee423c3401065a114c57dbf22b26a12ae9e94fb35ec061db61a5ddcbae709b",
+    "CMakeLists.txt": "7e622fe526938a8c5c7761c23e5a6afe3e3faae1b20e94da6de435084e98bc1a",
+    "collect_profile.py": "a5b0f37e8ae5c48d2e8b45437d5ba3b3c205c69685c34b5ca964fefb04534a46",
+    "test_profile.py": "25c6116612eeece185ffd247b9d09cdb8be07e6b7a033508ec30a4c442f9a401",
+    "assemble.py": "3728cb8f122ab3fcdaa018c8c11555314d3845329ab8aa7ec9d64b7a4c50a18a",
+    "run.sh": "48ad4404eee34d87c36ffe161a6429981b5e5cfd094aaeb428ea8c504c01effb",
+    "measure.py": "479823622598a1fad0194938aeb13ed37f8b0eaee2dea6474fa42cfe17ec449d",
+    "build.sh": "3fd04d69159eb935be08d41fa45a6cd340ef4028f8cb47301d0937d82150b83e",
+    "test_project_baseline.py": "a356176b82d8ba8163f0de5c616552664f162b19a2c6cf8ea041a260f6413dbe",
+    "test_estimated_baseline.py": "52690856c5f8f6cff54aab742cfa15f1a8d232bdbeccfe83c13b9bd5f24ac22d",
+    "history/coverage.json": "f8038db081a7d008e3ca6af5a4b0db9f08325a493c3194dc7fef1f47a0b8e974",
+    "history/test_history.py": "00a2db136b8365bd42a16e92e11cc02e72f3b1970f51ed738d9ba877d1b6201b",
+    "history/manifest.json": "59ccccccd0b357d887b9b09d413cf54c3263d82f4195225e6849725740ec9fa8",
+    "ablation/benchmark.cu": "6edb000bc94fa7e0d49fc9cd75c7cfe43b4406e64781941f0ff1db2de7d334f9",
+    "ablation/kernels/radix16.cuh": "76ef188a3ec9c0867305c85415c79c285c971dea0ee07366124e88017eed059d",
+    "ablation/kernels/5e37821-provenance.json": "888d466635597ccb3fbed046785392ac449ff145ddcc1b7379287a4f623dcf09",
+    "ablation/kernels/historical_uniform_5e37821.cuh": "50c766ac47026fa9dfff8c41f44e9123f18125fd1e8f5e5ef64a4b5bf1496ac5",
+    "ablation/kernels/radix4_shared.cuh": "908c1205791d5c3089b62cf4118ed73031ab956a84b41e3edcc831c195b8cf57",
+    "ablation/kernels/historical_652808b.cuh": "cb310039cee84aeec6c62b5de4ecf0c0860db944a4e8257c74f82bb5eed32eb3",
+    "ablation/kernels/provenance.json": "cbffd07612c6fc6d7f7202996a9c5857c6fcee5a3df597854aaaed998132d525",
+    "ablation/kernels/recovered.cuh": "77ff0d82363e80544991ab0309b1ececb069d2d2853d7d481bc44a3defa99925",
+    "ablation/kernels/historical_branch_51e346c.cuh": "b78c95b6864d22b484481f633582f6835cd95df39e8caaf9522304c86f7fc843",
+    "ablation/kernels/e4aa1b0-provenance.json": "b92ec58d48cac8ae6ac915172d9e8111998d769e171678fe5fc6e902a6a922cf",
+    "ablation/kernels/652808b-provenance.json": "328ce18efe50b48d3aba47e7ced2f3496756157a50679e1fe27eeb6c53514542",
+    "ablation/kernels/historical_e4aa1b0.cuh": "ae8fe49ce2cce5d14953a1070e3f62ffa4decbbafe71c4846b27eb351078912f",
+    "ablation/kernels/shared_stage_radix4.cuh": "d7844ec66cc42b9d39d97edbf5bd3e9cc7eab5314946efd46391b431ef372c7b",
+    "ablation/kernels/51e346c-provenance.json": "0075b5ef961d63fe10ba0b61a4c0fc35b5e96b9e6fabba5f7395fd5a65d936ae",
+    "reference/a100-e4aa1b0-20261109/commands.txt": "814d69f2b752055bcc5ef60c11156adbdee411f3b955ccb1c0fc3f7e13db0a53",
+    "reference/a100-e4aa1b0-20261109/progress.json": "2dc9c9b6ddc184e4250e19ab0e0da77d6f3ea5cc554e83b143467a136bbb3b07",
+    "reference/a100-e4aa1b0-20261109/coverage.json": "d6d5491a061c6d50e648178282a2ab2b17e399d31b6f2a5f8476008a178d3041",
+    "reference/a100-e4aa1b0-20261109/status.json": "8a78390ad6e57a09ba61f54cb494b8c35017553952a429686fffddb2d3128d99",
+    "reference/a100-e4aa1b0-20261109/metadata.json": "76b08f70b87ba0efc9509a9189cc4e25de1e1df1694af8894998dca96bbfd8a2",
+    "reference/a100-e4aa1b0-20261109/archive.json": "b41c8690229356a84a41f1845bbc4e806cfc19d63c5a4a25cc4d84a31dcee81d",
+    "reference/a100-20261107/commands.txt": "a3465e89abb921933a01cc2908d9aa3034fcac35d7eab521e92c1a9d143ec68e",
+    "reference/a100-20261107/coverage.json": "28e9c433f6c5d01e8d9a60393f50e80f1ea729c8f91bc3cd4f4458d9a33aa4a8",
+    "reference/a100-20261107/status.json": "2cd92021cc48953c4618227e097bd05edddc882ebbf6c44351063cf3a13c6497",
+    "reference/a100-20261107/metadata.json": "987cd50f0d6b435ea973702fa3f3a96bef22f727df55f98d2fd3593a7b5928fc",
+    "reference/a100-20261107/archive.json": "c72b5750a435436f870289345ac9597b8b8b992ddcb8f71f787616634c291f6b",
+    "reference/a100-shared-stage-20261110/mapping-result.json": "2716d2cb7b50803ab6032fad3e6b46292e56a5fb6701790a77424e4977101604",
+    "reference/a100-shared-stage-20261110/exploratory-comparison.json": "3fdbba2ad45a5f6c312059aefe01b848d0ab0c0faf97b099be9e87a2c101a7a6",
+    "reference/a100-shared-stage-20261110/verify_shared_stage_mapping.py": "78ed405eb6ce7981b7c655b4f570687ed7250ecc4e59d2f7615c8b49c5108276",
+    "reference/a100-shared-stage-20261110/archive.json": "d811643db9569e43613256bca318e7c87d03492a85271a8fed82db87ed3fc910",
+    "reference/a100-shared-stage-20261110/sass-counts.json": "571c5ba045b0b0c9db74fca3ac4a2cc422b03857a4b723b92d02faf224f9e200",
+    "reference/a100-shared-stage-20261110/timing-only/commands.txt": "0f07ec119ea16e365a2ef7c1e3207a0d9a5dead2394926bafa0e147a214bb896",
+    "reference/a100-shared-stage-20261110/timing-only/coverage.json": "c8ee2b96be01710e8feb0d5ce82f803435a58c52a8c272a147d7b12c73601f14",
+    "reference/a100-shared-stage-20261110/timing-only/status.json": "59008a59699a4f338615af6533187839974069fdc8b15f3dcf13cc5f14a32c84",
+    "reference/a100-shared-stage-20261110/timing-only/metadata.json": "4c886746ba493aadb7bbe52239d213701177370ed00c1b513cc22634c86c4b93",
+    "reference/a100-shared-stage-20261110/validated/commands.txt": "c1cfd0b5a6353b3c6835fc1f657506405fcc519f104f4f37c198fade39ea8112",
+    "reference/a100-shared-stage-20261110/validated/coverage.json": "81d9fc1f8b959438513fe4688299e3873b35fba09bd1aada92a2015890995da7",
+    "reference/a100-shared-stage-20261110/validated/status.json": "5ecfd54bcdad2604be526b610a2fa075518ebe26390ebbdec553168c37734276",
+    "reference/a100-shared-stage-20261110/validated/metadata.json": "304758ffdbdf3adff6455a3c0e553fe9f2bb94825165de704cb75fa8c41c4ac8",
+    "reference/a100-20261107/projection/projection_metadata.json": "01568817da96177fbd337020e0e59eff4035e9f6bfec1cf4205149221f58e711"
+  },
+  "binary_sha256": "5af446326c2734c9547d728fb9ea11c2155d677b573eaf62a31eec34513383ab",
+  "git": {
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit_code": 0,
+    "stdout": "d4042799cc02d23d25a6cfc834969037f1ea8133",
+    "stderr": ""
+  },
+  "worktree": {
+    "argv": [
+      "git",
+      "status",
+      "--porcelain"
+    ],
+    "exit_code": 0,
+    "stdout": "M AE_README.txt\n M artifact/README.md\n M artifact/paper_table_accuracy.py\n M artifact/table7/README.md\n M artifact/table7/ablation/kernels/shared_stage_radix4.cuh\n M artifact/table7/variants.json\n M artifact/tests/test_paper_table_accuracy.py",
+    "stderr": ""
+  },
+  "CUDA_VISIBLE_DEVICES": "GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6",
+  "previous_CUDA_VISIBLE_DEVICES": "GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6",
+  "requested_logical_device": "0",
+  "overrides": {},
+  "gpu_inventory": {
+    "argv": [
+      "nvidia-smi",
+      "--query-gpu=index,uuid,name,driver_version,clocks.sm,clocks.mem,power.limit",
+      "--format=csv,noheader"
+    ],
+    "exit_code": 0,
+    "stdout": "0, GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6, NVIDIA A100 80GB PCIe, 575.51.03, 210 MHz, 1512 MHz, 300.00 W\n1, GPU-3f68742b-5f55-0afd-651d-54c695a934b9, Tesla V100-PCIE-16GB, 575.51.03, 1380 MHz, 877 MHz, 250.00 W",
+    "stderr": ""
+  },
+  "commands": [
+    [
+      "/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation",
+      "register_branch",
+      "65536",
+      "1000",
+      "3",
+      "--timing-only"
+    ],
+    [
+      "/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation",
+      "register_uniform",
+      "65536",
+      "1000",
+      "3",
+      "--timing-only"
+    ],
+    [
+      "/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation",
+      "shared_stage_radix4",
+      "65536",
+      "1000",
+      "3",
+      "--timing-only"
+    ],
+    [
+      "/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation",
+      "historical_e4aa1b0",
+      "65536",
+      "1000",
+      "3",
+      "--timing-only"
+    ],
+    [
+      "/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation",
+      "historical_652808b",
+      "65536",
+      "1000",
+      "3",
+      "--timing-only"
+    ]
+  ],
+  "full_paper_comparison": false,
+  "timing_only": true,
+  "variant_provenance": {
+    "register_branch": {
+      "source_commit": "51e346c0fea2767c79075c2798fa2598876415a6",
+      "implementation_kind": "recovered",
+      "kernel": "fft_kernel_radix64_batch16",
+      "source": "ablation/kernels/historical_branch_51e346c.cuh",
+      "paper_identity": "unconfirmed",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "complete_fft_candidate",
+      "known_source_issues": ""
+    },
+    "register_uniform": {
+      "source_commit": "5e37821a24e02e9986b61acda044bfdf2f99f563",
+      "implementation_kind": "recovered",
+      "kernel": "fft_kernel_radix64_batch16",
+      "source": "ablation/kernels/historical_uniform_5e37821.cuh",
+      "paper_identity": "unconfirmed",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "complete_fft_candidate",
+      "known_source_issues": ""
+    },
+    "shared_stage_radix4": {
+      "source_commit": "",
+      "implementation_kind": "reconstructed",
+      "kernel": "fft_kernel_radix4_shared_stage_batch16",
+      "source": "ablation/kernels/shared_stage_radix4.cuh",
+      "paper_identity": "unconfirmed",
+      "timing_scope": "repeated_kernel_compute_coefficients_prepared_once",
+      "operation_coverage": "complete_fft_candidate",
+      "known_source_issues": ""
+    },
+    "historical_e4aa1b0": {
+      "source_commit": "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375",
+      "implementation_kind": "historical_partial_kernel",
+      "kernel": "fft_kernel_radix64_batch16",
+      "source": "ablation/kernels/historical_e4aa1b0.cuh",
+      "paper_identity": "unconfirmed",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "partial_fft_operand_setup_omitted",
+      "known_source_issues": "MMA B-fragment initialization is commented out; operand values are uninitialized and compiler dependent.; Whole-transform shared-memory loads/stores occur inside each R iteration.; Timing measures emitted instruction throughput, not a mathematically valid FFT."
+    },
+    "historical_652808b": {
+      "source_commit": "652808b8b5865bacf039cbf576e3b53b946ccd0e",
+      "implementation_kind": "historical_partial_kernel",
+      "kernel": "fft_kernel_radix64_batch16",
+      "source": "ablation/kernels/historical_652808b.cuh",
+      "paper_identity": "unconfirmed",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "partial_fft_operand_setup_and_permutation_omitted",
+      "known_source_issues": "MMA B-fragment initialization is commented out; operand values are uninitialized and compiler dependent.; Inter-stage permutation is commented out.; Timing measures emitted instruction throughput, not a mathematically valid FFT."
+    }
+  },
+  "accuracy_status": "unchecked",
+  "paper_settings_unconfirmed": [
+    "exact original radix16 and stage-wise radix4 implementations",
+    "original repetition count",
+    "exact paper identity of the candidates"
+  ],
+  "utilization": {
+    "method": "tensor_flops_per_second / hardware_peak_flops_per_second",
+    "reference": {
+      "gpu_family": "A100",
+      "precision": "tf32",
+      "hardware_peak_tflops": 156.0,
+      "source": "Supplied paper Table 4: A100 hardware peak, TF32 dense",
+      "paper_pdf_sha256": "02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9"
+    },
+    "calculation_sha256": "9d0352871e25fdfa51ffd98560f0ece086d07112df0751d39f11755656915fdb",
+    "timing_basis": "median compute_us=(t_2R_us-t_R_us)/R; no second division by R",
+    "accuracy_status": "unchecked"
+  },
+  "correctness": "Not checked: timing-only protocol selected",
+  "repeated_outputs_used_for_correctness": false,
+  "compile_commands": [
+    {
+      "directory": "/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7",
+      "command": "/usr/local/cuda-12.9/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/thff_ablation.dir/includes_CUDA.rsp -O3 -DNDEBUG -std=c++17 \"--generate-code=arch=compute_80,code=[compute_80,sm_80]\" -O3 -lineinfo -x cu -c /home/chaewon/ThunderFFT/artifact/table7/ablation/benchmark.cu -o CMakeFiles/thff_ablation.dir/ablation/benchmark.cu.o",
+      "file": "/home/chaewon/ThunderFFT/artifact/table7/ablation/benchmark.cu",
+      "output": "CMakeFiles/thff_ablation.dir/ablation/benchmark.cu.o"
+    }
+  ],
+  "gpu": {
+    "uuid": "GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6",
+    "name": "NVIDIA A100 80GB PCIe",
+    "sm": "8.0",
+    "sm_count": "108",
+    "driver": "12090",
+    "runtime": "12080",
+    "compiler": "12.9.41"
+  },
+  "status": "completed_timing_only",
+  "unit_kernel_comparison": {
+    "available": true,
+    "variants": [
+      "register_branch",
+      "register_uniform",
+      "shared_stage_radix4",
+      "historical_e4aa1b0",
+      "historical_652808b"
+    ],
+    "file": "kernel_comparison.csv",
+    "full_paper_comparison": false
+  }
+}

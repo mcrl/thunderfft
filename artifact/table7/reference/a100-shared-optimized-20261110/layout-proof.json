@@ -1,0 +1,14 @@
+{
+  "scalar": {
+    "bijective_words": 2048,
+    "shared_bytes": 8192,
+    "bank_unique_transactions": 192,
+    "maximum_bank_conflict": 1
+  },
+  "vector2": {
+    "bijective_words": 2048,
+    "shared_bytes": 8192,
+    "bank_unique_transactions": 192,
+    "maximum_bank_conflict": 1
+  }
+}

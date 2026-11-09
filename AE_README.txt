@@ -111,7 +111,8 @@ Final outputs:
 - Default Figures 4/5 show gaps and annotations for skipped cuDNN filters.
   Table 5 reports local boundary coverage. Table 7 estimates its first row
   from Table 6 tcFFT while retaining utilization. Its second row measures a new
-  stage-wise shared-memory radix-4 reconstruction, marked ‡; the original
+  stage-wise shared-memory radix-4 reconstruction, marked ‡. Coefficients are
+  prepared once per launch outside its repeated timing interval; the original
   paper-stage identity remains unconfirmed (see Section 4).
 
 
@@ -342,8 +343,13 @@ Table 5: boundary recheck or full exponent scan
     Table 6 tcFFT evidence it stays blank.
     The second row measures shared_stage_radix4, a new reconstruction using
     shared-memory loads/stores at each radix-4 stage without register-fragment
-    permutation. It is marked ‡ and retains source/binary hashes; the original
-    paper source and its 0.0120 ms result have not been recovered.
+    permutation. Its optimized 8 KiB layout and vector accesses retain all
+    48 MMAs per warp. It prepares 21 invariant coefficient pairs once per kernel
+    launch, before repetition; (t_2R - t_R) / R excludes that preparation.
+    The measured scope is repeated computation, not full FFT launch latency,
+    and is recorded in metadata and the ‡ note. Source/binary hashes identify
+    the reconstruction; the original paper source and its 0.0120 ms experiment
+    have not been recovered.
     Default collection measures all five available kernels in timing-only mode
     (unchecked, marked †). THUNDERFFT_TABLE7_TIMING_ONLY=0 checks the three
     complete-FFT candidates separately at R=1. The selected reduced-communication

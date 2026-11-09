@@ -227,8 +227,13 @@ N64 TF32 time = 0.375 × N256 FP16 time (A100, batch 65536). It is marked as
 estimated; without compatible tcFFT evidence it stays blank. The second row
 measures `shared_stage_radix4`, a new radix-4 reconstruction that exchanges
 values through shared-memory loads/stores at every stage without register-fragment
-permutation. It is marked `‡`, with source/binary hashes retained and the original
-paper-stage identity unconfirmed. Its time is measured anew, not filled from the
+permutation. Its optimized 8 KiB shared layout and vector accesses retain all
+48 MMAs per warp; 21 invariant coefficient pairs are prepared once per kernel
+launch before repetition. The reported `(t_2R - t_R) / R` excludes coefficient
+preparation and measures repeated computation rather than full FFT launch
+latency. This scope is recorded in metadata and the table's `‡` note.
+Source/binary hashes identify the row; the original paper-stage identity remains
+unconfirmed. Its time is measured anew, not filled from the
 paper's 0.0120 ms reference.
 The `+ reducing communication` row selects the `e4aa1b0` timing-only kernel
 (approximately 0.0079 ms on A100); its omitted operand initialization is noted

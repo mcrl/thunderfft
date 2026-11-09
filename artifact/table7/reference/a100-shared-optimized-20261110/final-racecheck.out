@@ -1,0 +1,3 @@
+========= COMPUTE-SANITIZER
+variant,N,batch,precision,trial,inside_repeats,t_R_us,t_2R_us,compute_us,relative_l2,max_transform_relative_l2,nonfinite_outputs,output_guard_changed,passed
+========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)

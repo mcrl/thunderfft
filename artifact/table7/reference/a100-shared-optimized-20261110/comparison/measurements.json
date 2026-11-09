@@ -1,0 +1,42 @@
+[
+  {
+    "candidate": "baseline",
+    "median_us": 22.8014087677,
+    "min_us": 22.7942409515,
+    "max_us": 22.841342926,
+    "trials": 5,
+    "binary_sha256": "90e68cc70fbabdc3b4b7b0d806f805c1ea769a8b6f845c88625cc323b2970d37",
+    "source_sha256": "4f087128a5fec649d34341c311acc981c1c00189092a26f7d07ad6dc1068e43a",
+    "compile_define": null
+  },
+  {
+    "candidate": "strict_shared_layout",
+    "median_us": 15.5013122559,
+    "min_us": 15.4675207138,
+    "max_us": 15.5136003494,
+    "trials": 3,
+    "binary_sha256": "ec044436410cdad9d8bbc8d81ef2a9a1fae00b70d62fb8ab80f274b0ea92ef50",
+    "source_sha256": "10e904ff015ce812cfaa5034eb3a2287758854e3d912f7a9a2a4902b1b0423f3",
+    "compile_define": "THFF_SHARED_TILE=8"
+  },
+  {
+    "candidate": "cached_untiled",
+    "median_us": 12.7518720627,
+    "min_us": 12.3914241791,
+    "max_us": 13.0693120956,
+    "trials": 5,
+    "binary_sha256": "d5b807096ec84edbdb6c26125e0386086960220ab373855f88d8b602348da3cc",
+    "source_sha256": "ab587e267e2c6dfdde48833d8a6bc6e8ab561b12f06120a9b75688cb7c84e62b",
+    "compile_define": null
+  },
+  {
+    "candidate": "cached_tile4",
+    "median_us": 10.9752321243,
+    "min_us": 10.9752311707,
+    "max_us": 10.9783029556,
+    "trials": 5,
+    "binary_sha256": "ce8bbf8f37606084cad4e604967c00a61840b9a3af07ecadcd1f32589a928135",
+    "source_sha256": "e62f24e5b9e0c74e0c7d808649651fd859755d303f0ce8a9d1b7586b23fea8b5",
+    "compile_define": "THFF_SHARED_TILE=4"
+  }
+]

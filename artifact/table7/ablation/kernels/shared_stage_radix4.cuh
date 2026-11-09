@@ -13,15 +13,31 @@
 // lanes q=0,1 load real components, and q=2,3 load imaginary components; each
 // lane owns butterfly indices 2*(q&1) and 2*(q&1)+1. The same mapping stores D.
 //
-// A single shared buffer holds the stage data. Each butterfly waits after its
-// operand loads/MMA and before its stores to prevent cross-lane write-after-read
-// hazards. Distinct butterflies within one stage touch disjoint elements, so
-// they need no extra store-to-next-butterfly fence. The end-of-stage barrier
-// publishes all results for the next stage and for the final global stores.
-// A nine-complex-value padding matches the older shared reconstruction's row
-// spacing. Static shared storage is 16*(64+9)*sizeof(cuFloatComplex) = 9,344 B.
-// Issued arithmetic remains 3*16 MMAs per warp, or 6,144 Tensor Core FLOPs/FFT.
+// One 8 KiB shared buffer uses a fixed bijective XOR bank layout. Adjacent
+// words pair transforms t and t+8, enabling float2 ld/st without bank conflicts
+// in a butterfly. Four disjoint butterflies are scheduled together for ILP;
+// their cross-lane reads finish before in-place writes. An end-of-stage fence
+// publishes every result before the next stage reads it from shared memory.
+//
+// The 21 unique LUT coefficient pairs are prepared once before the repeat loop.
+// The (t_2R-t_R)/R benchmark excludes that one-time setup. Every repetition still
+// performs 48 MMAs and 96 vector shared loads plus 96 vector shared stores per
+// warp (6,144 Tensor Core FLOPs/FFT). The candidate is an optimized reconstruction;
+// it does not establish identity with the original paper implementation.
 namespace thff_table7_shared_stage {
+
+__device__ __forceinline__ int shared_address(int transform, int index,
+                                            int component) {
+    // Transform bit 3 chooses an adjacent word within a float2. For each
+    // 16-lane vector instruction transaction, the bank's upper four bits are
+    // a bijection of the lane bits: transform bits 0,1, component, and parity.
+    // Transform bit 2 and the remaining index bits select the shared row.
+    // The omitted index bit 1 is recovered from parity and bits 3,5.
+    const int parity = ((index >> 1) ^ (index >> 3) ^ (index >> 5)) & 1;
+    const int packed_index = (index & 1) | ((index >> 2) << 1);
+    return (packed_index * 2 + ((transform >> 2) & 1)) * 32 +
+           (transform & 3) * 8 + component * 4 + parity * 2 + (transform >> 3);
+}
 
 // Launch grid(batch/16), block(32), dynamic shared bytes 0.
 // Batch must be a positive multiple of 16; W_64 must contain 64 complex roots
@@ -35,61 +51,94 @@ __global__ void fft_kernel_radix4_shared_stage_batch16(
     constexpr int length = 64;
     constexpr int transforms = 16;
     constexpr int warp_size = 32;
-    constexpr int shared_stride = 2 * (length + 9);
-    __shared__ float shared_data[transforms * shared_stride];
+    __shared__ __align__(16) float shared_data[transforms * length * 2];
 
-    const int lane = threadIdx.x;
+    const int lane = threadIdx.x & 31;
     const int block_offset = blockIdx.x * transforms * length;
 
 #pragma unroll
     for (int transform = 0; transform < transforms; ++transform) {
 #pragma unroll
-        for (int index = lane; index < length; index += warp_size) {
+        for (int tile = 0; tile < length / warp_size; ++tile) {
+            const int index = lane + tile * warp_size;
             const cuFloatComplex value = d_data[
                 block_offset + transform * length +
                 thff_table7_5e37821::reverse_2bit_groups<6>(index)];
-            shared_data[transform * shared_stride + 2 * index] = value.x;
-            shared_data[transform * shared_stride + 2 * index + 1] = value.y;
+            shared_data[shared_address(transform, index, 0)] = value.x;
+            shared_data[shared_address(transform, index, 1)] = value.y;
         }
     }
     __syncwarp();
 
-    const int transform0 = (lane / 4) * shared_stride;
-    const int transform1 = transform0 + 8 * shared_stride;
+    const int transform0 = lane / 4;
     const int component = (lane % 4) / 2;
     const int radix_index0 = 2 * (lane & 1);
     const int radix_index1 = radix_index0 + 1;
     const float zero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+
+    // Cache 1 + 4 + 16 invariant coefficient pairs once per launch. The
+    // repetition loop retains all shared data traffic and all 48 MMAs.
+    float coeff[21][2];
+#pragma unroll
+    for (int stage = 0; stage < 3; ++stage) {
+        const int stride = 1 << (2 * stage);
+        const int base = (stride - 1) / 3;
+#pragma unroll
+        for (int offset = 0; offset < stride; ++offset) {
+            thff_table7_5e37821::fill_reg_b<length>(
+                coeff[base + offset], 2 * stage, stride, 0, 0, offset, W_64);
+            // Keep each pair as an explicit value at the repetition boundary.
+            asm volatile("" : "+f"(coeff[base + offset][0]),
+                              "+f"(coeff[base + offset][1]));
+        }
+    }
 
 #pragma unroll 1
     for (unsigned int repetition = 0; repetition < repeat; ++repetition) {
 #pragma unroll
         for (int stage = 0; stage < 3; ++stage) {
             const int stride = 1 << (2 * stage);
+            constexpr int butterfly_tile = 4;
+            static_assert((length / 4) % butterfly_tile == 0);
 #pragma unroll
-            for (int butterfly = 0; butterfly < length / 4; ++butterfly) {
-                const int group = (butterfly / stride) * (4 * stride);
-                const int offset = butterfly % stride;
-                const int index0 =
-                    2 * (group + offset + stride * radix_index0) + component;
-                const int index1 =
-                    2 * (group + offset + stride * radix_index1) + component;
-                const float a[4] = {
-                    shared_data[transform0 + index0],
-                    shared_data[transform1 + index0],
-                    shared_data[transform0 + index1],
-                    shared_data[transform1 + index1],
-                };
-                float b[2];
-                float d[4];
-                thff_table7_5e37821::fill_reg_b<length>(
-                    b, 2 * stage, stride, 0, 0, offset, W_64);
-                thff_table7_5e37821::mma_m16n8k8_tf32_f32_rowcol(d, a, b, zero);
+            for (int first = 0; first < length / 4; first += butterfly_tile) {
+                float result[butterfly_tile][4];
+#pragma unroll
+                for (int tile = 0; tile < butterfly_tile; ++tile) {
+                    const int butterfly = first + tile;
+                    const int group = (butterfly / stride) * (4 * stride);
+                    const int offset = butterfly % stride;
+                    const int index0 = group + offset + stride * radix_index0;
+                    const int index1 = group + offset + stride * radix_index1;
+                    const int address0 = shared_address(transform0, index0, component);
+                    const int address1 = shared_address(transform0, index1, component);
+                    const float2 pair0 = *reinterpret_cast<const float2*>(&shared_data[address0]);
+                    const float2 pair1 = *reinterpret_cast<const float2*>(&shared_data[address1]);
+                    const float a[4] = {pair0.x, pair0.y, pair1.x, pair1.y};
+                    const int coefficient_base = (stride - 1) / 3;
+                    const float b[2] = {coeff[coefficient_base + offset][0],
+                                        coeff[coefficient_base + offset][1]};
+                    thff_table7_5e37821::mma_m16n8k8_tf32_f32_rowcol(
+                        result[tile], a, b, zero);
+                }
+                // A tile consists of disjoint butterflies. All its cross-lane
+                // reads complete before any in-place writes, then the stage
+                // barrier publishes every tile to the next stage.
                 __syncwarp();
-                shared_data[transform0 + index0] = d[0];
-                shared_data[transform0 + index1] = d[1];
-                shared_data[transform1 + index0] = d[2];
-                shared_data[transform1 + index1] = d[3];
+#pragma unroll
+                for (int tile = 0; tile < butterfly_tile; ++tile) {
+                    const int butterfly = first + tile;
+                    const int group = (butterfly / stride) * (4 * stride);
+                    const int offset = butterfly % stride;
+                    const int index0 = group + offset + stride * radix_index0;
+                    const int index1 = group + offset + stride * radix_index1;
+                    const int address0 = shared_address(transform0, index0, component);
+                    const int address1 = shared_address(transform0, index1, component);
+                    *reinterpret_cast<float2*>(&shared_data[address0]) =
+                        make_float2(result[tile][0], result[tile][2]);
+                    *reinterpret_cast<float2*>(&shared_data[address1]) =
+                        make_float2(result[tile][1], result[tile][3]);
+                }
             }
             __syncwarp();
         }
@@ -98,11 +147,12 @@ __global__ void fft_kernel_radix4_shared_stage_batch16(
 #pragma unroll
     for (int transform = 0; transform < transforms; ++transform) {
 #pragma unroll
-        for (int index = lane; index < length; index += warp_size) {
+        for (int tile = 0; tile < length / warp_size; ++tile) {
+            const int index = lane + tile * warp_size;
             d_data[block_offset + transform * length + index] =
                 make_cuFloatComplex(
-                    shared_data[transform * shared_stride + 2 * index],
-                    shared_data[transform * shared_stride + 2 * index + 1]);
+                    shared_data[shared_address(transform, index, 0)],
+                    shared_data[shared_address(transform, index, 1)]);
         }
     }
 }

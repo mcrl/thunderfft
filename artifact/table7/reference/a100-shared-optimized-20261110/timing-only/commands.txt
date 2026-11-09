@@ -1,0 +1,5 @@
+/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation register_branch 65536 1000 3 --timing-only
+/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation register_uniform 65536 1000 3 --timing-only
+/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation shared_stage_radix4 65536 1000 3 --timing-only
+/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation historical_e4aa1b0 65536 1000 3 --timing-only
+/home/chaewon/ae-e2e-20261110/table7-shared-stage/runner-build/table7/thff_ablation historical_652808b 65536 1000 3 --timing-only

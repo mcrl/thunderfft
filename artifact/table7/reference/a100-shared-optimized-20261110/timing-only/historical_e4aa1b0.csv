@@ -1,0 +1,4 @@
+variant,N,batch,precision,trial,inside_repeats,t_R_us,t_2R_us,compute_us,relative_l2,max_transform_relative_l2,nonfinite_outputs,output_guard_changed,passed
+historical_e4aa1b0,64,65536,tf32,0,1000,7934.97610092,15818.7522888,7.8837761879,nan,nan,-1,-1,0
+historical_e4aa1b0,64,65536,tf32,1,1000,7923.71177673,15828.99189,7.90528011322,nan,nan,-1,-1,0
+historical_e4aa1b0,64,65536,tf32,2,1000,7921.66423798,15823.8716125,7.90220737457,nan,nan,-1,-1,0
