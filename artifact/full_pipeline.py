@@ -259,6 +259,11 @@ def assembly_result(states, assembled, entries, profile, root, cudnn_mode=None, 
         if state is None:
             unresolved.append({"evaluation": evaluation, "reason": "assembly state missing"})
             continue
+        if evaluation in ("table2", "table3", "table4", "table5", "table6", "table7") and "presentation" in state:
+            for name in ("table.pdf", "table.png", "table.html", "table-render.json"):
+                path = assembled / evaluation / name
+                if not path.is_file() or not path.stat().st_size:
+                    missing_files.append(str(path.relative_to(assembled)))
         if evaluation == "table5" and state.get("range_mode") == "boundary":
             record = {"evaluation": evaluation, "item": "finite_scan",
                       "reason": "Finite boundaries rechecked locally; the full profile scan was not repeated."}

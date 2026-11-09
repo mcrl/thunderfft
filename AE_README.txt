@@ -55,8 +55,8 @@ Artifact: thunderfft.zip
 
 - Rough total-time estimate: 20-35 minutes on the prepared evaluation account.
   The new parallel workflow has not been measured end to end.
-- Generates every Table 2-7 output and Figure 2-5 PDF automatically.
-  This shorter version is sufficient to check that all graphs are generated.
+- Generates every Table 2-7 in paper-style PDF, PNG and HTML, plus
+  Figure 2-5 PDFs. This shorter version checks that all tables/graphs render.
 - Uses the paper workload settings and fresh measurements:
   - Table 3: remeasure saved GPU-specific cuFFTDx parameters.
   - Figures 4/5: skip the slow cuDNN filter tails; measure all other libraries.
@@ -98,6 +98,9 @@ Final outputs:
   result/collections/<name>/assembled/figure5/figure.pdf
   result/pipelines/<run_id>/summary.csv
 
+- Each assembled table directory contains table.pdf, table.png, table.html
+  and the original CSVs. Table layouts follow the paper; values come from
+  the collected measurements/model. Table 5 keeps four implementations per N.
 - Expected exit status: 0.
 - Default Figures 4/5 show gaps and annotations for skipped cuDNN filters.
   Table 5 reports local boundary coverage. Table 7 retains two unavailable
@@ -288,6 +291,8 @@ Table 5: boundary recheck or full exponent scan
   (data.csv, table.csv or figure.pdf; metadata.json; status and logs).
 - Per-evaluation status: result/runs/<run_id>/summary.csv.
 - Final merged outputs: result/collections/<name>/assembled/.
+- Tables 2-7: table.pdf (print), table.png (preview), table.html (browser);
+  CSVs retain the underlying data. table-render.json records source/output hashes.
 - Whole-workflow status: result/pipelines/<run_id>/pipeline.json and summary.csv.
 
 | Output | What to check |
@@ -314,6 +319,15 @@ Table 5: boundary recheck or full exponent scan
   - Table 7, both modes: two unavailable historical stages remain blank.
 - The pipeline can report completed_with_coverage_limits with exit status 0.
 - Absolute timings depend on GPU clocks/load. Smoke timings are not paper results.
+
+To regenerate tables from an existing paper collection, without GPU work:
+
+  $ ./run.sh table2 table3 table4 table5 table6 table7 --assemble --collection NAME --profile paper
+
+- Replace NAME with the collection name printed by the original run.
+- Missing measurements remain unfilled, including Table 7's historical gaps.
+  An incomplete collection still renders and returns exit status 2.
+- If rendering fails, the previous assembled output is retained.
 
 
 5. Recorded validation

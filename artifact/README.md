@@ -195,6 +195,11 @@ Table 3 runs before the evaluations that reuse it. The workflow creates a
 collection automatically; `--collection NAME` chooses its name. Final output
 is under `result/collections/<name>/assembled/`. No manual import, status-file
 editing or separate assembly command is needed.
+Each Table 2–7 directory includes `table.pdf`, `table.png` and `table.html`,
+with the paper's grouped headers, row order and numeric formatting. Values
+come from the assembled measurements/model; the original CSVs remain available.
+Table 5 uses the updated four implementations per size. Unavailable results,
+including the two historical Table 7 stages, remain unfilled.
 
 Cloud stages require the evaluator account's Vast.ai credentials and incur
 charges. The combined conservative cost of all concurrent rentals, including
@@ -289,6 +294,18 @@ from the same source. Use separate collections for smoke and paper runs.
 Results from another account or machine are added with
 `--import-result EVALUATION=DIR` (the complete result directory) and `--part`.
 
+To regenerate the paper-style tables from an existing paper collection,
+without rerunning GPU measurements or renting servers:
+
+```bash
+./run.sh table2 table3 table4 table5 table6 table7 --assemble --collection ae --profile paper
+```
+
+Replace `ae` with the collection name printed by the original run. Incomplete
+collections still render, retain their missing-data report, and return status 2.
+Assembly publishes the CSVs and visual tables together; a rendering failure
+preserves the previous assembled output.
+
 ## Progress and logs
 
 On a terminal, `./run.sh` maintains one updating row for each of A100, H100
@@ -334,6 +351,11 @@ result/pipelines/<run_id>/pipeline.log         complete-workflow controller mess
 result/collections/<name>/assembled/<evaluation>/
 result/collections/<name>/assembled/missing.csv
 ```
+
+Assembled Table 2–7 directories contain `table.pdf` for printing, `table.png`
+for preview and `table.html` for browsing. `table-render.json` records the
+input/output hashes for these presentations; `data.csv`, `table.csv` and any
+additional comparison CSVs retain the machine-readable measurements.
 
 `run.sh` reports the stage results and assembly coverage. A complete workflow
 requires the selected measurements and their expected output files. Intentional

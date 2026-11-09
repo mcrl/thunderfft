@@ -257,6 +257,11 @@ def assemble_collection(directory, entries, profile):
                          simple_assembly(evaluation, sources, output, profile))
                 if state.get("status") not in ("complete", "partial", "pending"):
                     raise ValueError(f"{evaluation}: assembler returned an invalid status")
+                if evaluation in ("table2", "table3", "table4", "table5", "table6", "table7"):
+                    # Render within the same transaction as the CSV assembly:
+                    # a presentation failure must retain the previous publication.
+                    from artifact import paper_tables
+                    state["presentation"] = paper_tables.render(evaluation, output)
                 provenance_sources = sources if evaluation in ("table2", "table4") else by_id.get(evaluation, [])
                 full_comparison = profile == "paper" and bool(state.get("full_paper_comparison"))
                 state.update(evaluation=evaluation, profile=profile, operation="offline_assembly",

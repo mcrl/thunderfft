@@ -394,6 +394,7 @@ class ModelRoundTripTests(unittest.TestCase):
             source = temporary / "source"
             source.mkdir()
             selected = ["run.sh", "artifact/runner.py", "artifact/full_pipeline.py", "artifact/collection.py", "artifact/progress.py",
+                        "artifact/paper_tables.py", "artifact/paper_table_performance.py", "artifact/paper_table_accuracy.py",
                         "artifact/common.sh", "artifact/registry.json"]
             selected += [str(path.relative_to(repository))
                          for directory in (repository / "artifact/cloud", repository / "artifact/table2",
@@ -471,6 +472,8 @@ class ModelRoundTripTests(unittest.TestCase):
             self.assertFalse(assembled_status["full_paper_comparison"])
             self.assertIn("cuFFTDx measured row", (assembly_root / "missing.csv").read_text())
             self.assertEqual((assembly_root / "table2/table.csv").read_bytes(), (remote_part / "table.csv").read_bytes())
+            self.assertTrue((assembly_root / "table2/table.pdf").read_bytes().startswith(b"%PDF-"))
+            self.assertFalse(assembled_status["presentation"]["new_gpu_measurements"])
             self.assertTrue((assembly_root / "status.csv").is_file())
 
 
