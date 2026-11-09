@@ -1,4 +1,4 @@
-// Standalone Figure 4 driver for the unmodified pinned FlashFFTConv 4096 kernel.
+// Standalone Figure 5 driver for the unmodified pinned FlashFFTConv 4096 kernel.
 // Same launch tuple as upstream's B%4==0,H%8==0 path. No libtorch runtime.
 #include "monarch_cuda_16_16_16_kernel.h"
 #include "../../sample/utils.h"

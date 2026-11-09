@@ -9,7 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from artifact import full_pipeline
-from artifact.figure4 import policy
+from artifact.figure5 import policy
 
 
 class CudnnCoverageTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class CudnnCoverageTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.output = Path(temporary.name)
         self.entries, self.states = [], []
-        for name in ("figure4", "figure5"):
+        for name in ("figure5", "figure4"):
             (self.output / name).mkdir()
             (self.output / name / "figure.pdf").write_bytes(b"synthetic output fixture")
             self.entries.append({"id": name, "required_outputs": {"paper": ["figure.pdf"]}})

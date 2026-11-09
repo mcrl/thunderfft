@@ -92,7 +92,7 @@ class ConfigurationTests(unittest.TestCase):
                                 config.TABLE5_RANGE_MODE_ENV: "boundary"}}))
             command = [str(ROOT / "run.sh"), "--backend", "vast", "--cloud-batch", str(batch),
                        "--cloud-config", str(settings), "--result-dir", str(output), "--full", "--dry-run"]
-            batch.write_text(json.dumps([{"evaluations": ["figure4"], "part": "requested-fast",
+            batch.write_text(json.dumps([{"evaluations": ["figure5"], "part": "requested-fast",
                 "environment": {config.CUFFTDX_MODE_ENV: "preset", config.CUDNN_MODE_ENV: "fast",
                                 config.TABLE5_RANGE_MODE_ENV: "boundary"}}]))
             result = subprocess.run(command, text=True, capture_output=True, timeout=20)
@@ -100,7 +100,7 @@ class ConfigurationTests(unittest.TestCase):
             preview = json.loads(result.stdout)
             self.assertFalse(preview["api_calls"])
             self.assertEqual(preview["instances_created"], 0)
-            self.assertEqual(preview["jobs"][0]["evaluations"], ["figure4"])
+            self.assertEqual(preview["jobs"][0]["evaluations"], ["figure5"])
             self.assertEqual((preview["jobs"][0]["cufftdx_mode"], preview["jobs"][0]["cudnn_mode"]),
                              ("all", "full"))
             self.assertEqual(preview["jobs"][0]["environment"][config.CUDNN_MODE_ENV], "full")
@@ -156,11 +156,11 @@ class ConfigurationTests(unittest.TestCase):
     def test_library_and_figure_workloads_are_forwarded_without_host_paths(self):
         values = {"THUNDERFFT_TABLE6_LIBRARIES": "tcfft", "THUNDERFFT_TABLE6_TRIALS": "2",
                   "THUNDERFFT_FIGURE3_LIBRARIES": "copy,cufft", "THUNDERFFT_FIGURE3_BATCH": "1024",
-                  "THUNDERFFT_FIGURE4_LIBRARIES": "FlashFFTConv", "THUNDERFFT_FIGURE4_FILTERS": "3,9",
-                  "THUNDERFFT_FIGURE4_VALIDATE_CHANNELS": "16", "THUNDERFFT_FIGURE5_N": "128",
-                  "THUNDERFFT_FIGURE5_LIBRARIES": "ThunderFFT", "THUNDERFFT_FIGURE5_TRIALS": "1"}
+                  "THUNDERFFT_FIGURE5_LIBRARIES": "FlashFFTConv", "THUNDERFFT_FIGURE5_FILTERS": "3,9",
+                  "THUNDERFFT_FIGURE5_VALIDATE_CHANNELS": "16", "THUNDERFFT_FIGURE4_N": "128",
+                  "THUNDERFFT_FIGURE4_LIBRARIES": "ThunderFFT", "THUNDERFFT_FIGURE4_TRIALS": "1"}
         self.assertEqual(config.measurement_environment(values), values)
-        for key in ("THUNDERFFT_FIGURE4_BACKENDS", "THUNDERFFT_FIGURE5_BACKENDS", "FLASHFFTCONV_PYTHON"):
+        for key in ("THUNDERFFT_FIGURE5_BACKENDS", "THUNDERFFT_FIGURE4_BACKENDS", "FLASHFFTCONV_PYTHON"):
             with self.assertRaises(ValueError):
                 config.measurement_environment({key: "/local/path"})
 
@@ -170,11 +170,11 @@ class ConfigurationTests(unittest.TestCase):
                 "THUNDERFFT_" + evaluation.upper() + "_LIBRARIES": libraries}}], mathdx=mathdx)
         self.assertEqual(dependencies("table6", "tcfft"), dict(mathdx=False, cudnn=False, torch_headers=False))
         self.assertEqual(dependencies("table6", "flashfftconv"), dict(mathdx=False, cudnn=False, torch_headers=True))
-        self.assertEqual(dependencies("figure4", "ThunderFFT"), dict(mathdx=False, cudnn=False, torch_headers=False))
-        self.assertEqual(dependencies("figure4", "all"), dict(mathdx=False, cudnn=True, torch_headers=True))
-        self.assertEqual(dependencies("figure4", "auto"), dependencies("figure4", "all"))
-        self.assertEqual(dependencies("figure5", "all"), dict(mathdx=True, cudnn=True, torch_headers=False))
+        self.assertEqual(dependencies("figure5", "ThunderFFT"), dict(mathdx=False, cudnn=False, torch_headers=False))
+        self.assertEqual(dependencies("figure5", "all"), dict(mathdx=False, cudnn=True, torch_headers=True))
         self.assertEqual(dependencies("figure5", "auto"), dependencies("figure5", "all"))
+        self.assertEqual(dependencies("figure4", "all"), dict(mathdx=True, cudnn=True, torch_headers=False))
+        self.assertEqual(dependencies("figure4", "auto"), dependencies("figure4", "all"))
         self.assertEqual(dependencies("table3", "ThunderFFT"), dict(mathdx=False, cudnn=False, torch_headers=False))
         self.assertFalse(dependencies("table3", "all", False)["mathdx"])
 

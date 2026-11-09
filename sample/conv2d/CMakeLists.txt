@@ -11,9 +11,9 @@ if(MATHDX_ROOT AND EXISTS "${MATHDX_ROOT}/include/cufftdx.hpp")
   string(REGEX MATCH "^[0-9]+" thff_conv_arch "${thff_conv_arch}")
   target_compile_definitions(thff_conv PRIVATE THFF_WITH_CUFFTDX=1 THFF_CONV_SM=${thff_conv_arch}0)
   target_include_directories(thff_conv PRIVATE ${MATHDX_ROOT}/external/cutlass/include ${MATHDX_ROOT}/include)
-  set(THFF_CONV_CUFFTDX_ENABLED ON CACHE INTERNAL "Figure 5 cuFFTDx backend" FORCE)
+  set(THFF_CONV_CUFFTDX_ENABLED ON CACHE INTERNAL "Figure 4 cuFFTDx backend" FORCE)
 else()
-  set(THFF_CONV_CUFFTDX_ENABLED OFF CACHE INTERNAL "Figure 5 cuFFTDx backend" FORCE)
+  set(THFF_CONV_CUFFTDX_ENABLED OFF CACHE INTERNAL "Figure 4 cuFFTDx backend" FORCE)
 endif()
 
 target_compile_options(thff_conv PRIVATE
@@ -22,7 +22,7 @@ target_compile_options(thff_conv PRIVATE
 )
 
 
-# Figure 5's cuDNN baseline, when cuDNN is installed (same CUDNN_LIB as sample/conv1d).
+# Figure 4's cuDNN baseline, when cuDNN is installed (same CUDNN_LIB as sample/conv1d).
 find_library(CUDNN_LIB cudnn)
 if(CUDNN_LIB)
   # Headers next to the selected library, so -DCUDNN_LIB=... pins one cuDNN version.

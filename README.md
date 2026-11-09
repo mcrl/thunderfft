@@ -174,7 +174,7 @@ headers; configure with `-DMATHDX_ROOT=/path/to/nvidia/mathdx/25.06`. The option
 - `include/thunderfft/`: public header and implementation details.
 - `sample/`: runnable examples, the active benchmark and their usage guide.
 - `bench/`: earlier benchmark sources, outside the current CMake build.
-- `artifact/figure2/` through `artifact/figure5/`: figure-specific evaluation tasks.
+- `artifact/figure2/` through `artifact/figure4/`: figure-specific evaluation tasks.
 - `artifact/table2/` through `artifact/table7/`: table-specific evaluation tasks.
 - `run.sh`: unified evaluation launcher on this branch.
 - `result/`: generated outputs, separated by evaluation and run ID; ignored by Git.

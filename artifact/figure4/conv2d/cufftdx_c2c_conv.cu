@@ -7,7 +7,7 @@
 #error "THFF_CUFFTDX_SM must name the single compiled architecture, e.g. 800 or 900"
 #endif
 
-namespace figure5 {
+namespace figure4 {
 namespace {
 
 using namespace cufftdx;
@@ -82,21 +82,21 @@ public:
         if (p.f < 1 || p.f > kTile) throw std::runtime_error("cuFFTDx tile requires 1 <= f <= 64");
         stride_ = kTile - p.f + 1;
         tiles_ = (p.M + stride_ - 1) / stride_;
-        FIG5_CUDA(cudaFuncSetAttribute(conv_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, int(kSmemBytes)));
-        FIG5_CUDA(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_, conv_kernel, kTile, kSmemBytes));
-        FIG5_CUFFT(cufftPlan2d(&plan_, kTile, kTile, CUFFT_C2C));
-        FIG5_CUFFT(cufftSetStream(plan_, p.stream));
+        FIG4_CUDA(cudaFuncSetAttribute(conv_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, int(kSmemBytes)));
+        FIG4_CUDA(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_, conv_kernel, kTile, kSmemBytes));
+        FIG4_CUFFT(cufftPlan2d(&plan_, kTile, kTile, CUFFT_C2C));
+        FIG4_CUFFT(cufftSetStream(plan_, p.stream));
     }
     ~CufftdxMethod() override { cufftDestroy(plan_); }
     void run() override {
         const Problem& p = problem_;
         pad_filter<<<16, 256, 0, p.stream>>>(p.d_filter, padded_.data, p.f);
-        FIG5_CUFFT(cufftExecC2C(plan_, reinterpret_cast<cufftComplex*>(padded_.data),
+        FIG4_CUFFT(cufftExecC2C(plan_, reinterpret_cast<cufftComplex*>(padded_.data),
                                 reinterpret_cast<cufftComplex*>(spectrum_.data), CUFFT_FORWARD));
         transpose_spectrum<<<16, 256, 0, p.stream>>>(spectrum_.data, ht_.data);
         conv_kernel<<<dim3(tiles_, tiles_), kTile, kSmemBytes, p.stream>>>(
             p.d_input, reinterpret_cast<const complex_type*>(ht_.data), output_.data, p.N, p.M, stride_);
-        FIG5_CUDA(cudaGetLastError());
+        FIG4_CUDA(cudaGetLastError());
     }
     const float* output() const override { return output_.data; }
     size_t output_pitch() const override { return size_t(problem_.M); }
@@ -120,4 +120,4 @@ private:
 
 std::unique_ptr<Method> make_cufftdx_c2c(const Problem& p) { return std::make_unique<CufftdxMethod>(p); }
 
-}  // namespace figure5
+}  // namespace figure4

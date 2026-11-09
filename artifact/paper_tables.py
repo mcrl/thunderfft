@@ -1,22 +1,28 @@
 #!/usr/bin/env python3
-"""Render assembled Tables 2–7 in the supplied paper's layout, without GPU work.
+"""Render Tables 2–7 with paper/new values in the paper's layout, without GPU work.
 
 Usage: python3 -m artifact.paper_tables ASSEMBLED_DIRECTORY [MORE_DIRECTORIES ...]
-An individual assembled/tableN directory is also accepted. CSVs are never edited.
+An individual table result directory is also accepted. Source CSVs are never edited.
 """
 
 import argparse
+import copy
+import csv
 import hashlib
 import html
 import json
+import math
 from pathlib import Path
 import re
 import tempfile
 
 
 TABLES = tuple(f"table{n}" for n in range(2, 8))
-OUTPUTS = ("table.pdf", "table.png", "table.html")
+OUTPUTS = ("table.pdf", "table.png", "table.html", "comparison.md", "paper-comparison.csv")
 PAPER_SHA256 = "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50"
+COMPARISON_FIELDS = ("table", "panel", "row", "column", "paper_value", "new_value",
+                     "paper_display", "new_display", "relative_difference_pct",
+                     "relative_error_pct", "status")
 
 
 def digest(path):
@@ -83,6 +89,50 @@ def _html_text(value):
     return text.replace("$", "").replace("\n", "<br>")
 
 
+def comparison_view(document):
+    """Preserve the paper's grid and compare unrounded, qualified numbers."""
+    document = copy.deepcopy(document)
+    records = []
+    for panel in document["panels"]:
+        cells = list(_cells(panel))
+        visible = {(r, c) for r, c, *_ in cells}
+        seen = set()
+        for item in panel.get("comparisons", []):
+            r, c = item["row"], item["col"]
+            if (r, c) not in visible or (r, c) in seen or r < panel.get("header_rows", 1):
+                raise ValueError("invalid or duplicate paper comparison cell")
+            seen.add((r, c))
+            paper, current = item["paper"], item["current"]
+            if any(value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                          or not math.isfinite(value)) for value in (paper, current)):
+                raise ValueError("paper comparison requires finite numeric values or missing values")
+            delta = (current - paper) / abs(paper) * 100 if paper not in (None, 0) and current is not None else None
+            item["relative_difference_pct"] = delta
+            item["delta_text"] = f"{delta:+.1f}%" if delta is not None else "—"
+            row_labels = [str(panel["rows"][r][column]) for column in range(len(panel["widths"]))
+                          if (r, column) not in {(x["row"], x["col"]) for x in panel.get("comparisons", [])}
+                          and panel["rows"][r][column]]
+            column_labels = [text for rr, cc, nr, nc, text in cells
+                             if rr < panel.get("header_rows", 1) and cc <= c < cc + nc and text]
+            records.append({"table": document["number"], "panel": panel.get("title", ""),
+                            "row": " / ".join(row_labels), "column": " / ".join(column_labels),
+                            "paper_value": paper, "new_value": current,
+                            "paper_display": item["paper_text"], "new_display": item["current_text"],
+                            "relative_difference_pct": delta,
+                            "relative_error_pct": abs(delta) if delta is not None else None,
+                            "status": item["status"]})
+        # Labels must be captured before replacing numeric strings with multi-line cells.
+        for item in panel.get("comparisons", []):
+            panel["rows"][item["row"]][item["col"]] = "\n".join(
+                (item["paper_text"], item["current_text"], item["delta_text"]))
+    document["notes"] = [
+        "Each numeric cell: Paper / New / Δ%. Δ% = (New − Paper) / |Paper| × 100; its absolute value is the relative error.",
+        "Paper values are the rounded numbers printed in the supplied PDF. — means missing or not exactly comparable; model values and estimates retain their stated scope.",
+        *document.get("notes", [])]
+    document["comparison_records"] = records
+    return document
+
+
 def _write_html(document, path):
     parts = ["<!doctype html>", '<html lang="en"><meta charset="utf-8">',
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -92,8 +142,18 @@ def _write_html(document, path):
              "h1{font-size:1.1rem;font-weight:normal}h2{font-size:1rem;text-align:center;font-weight:normal}",
              ".scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;table-layout:fixed;margin:12px 0 20px}",
              "td,th{padding:5px 4px;text-align:center;font-weight:normal;white-space:nowrap}",
+             ".cell-value{display:block;line-height:1.45}.new-value{font-weight:bold}.paper-value{color:#555}",
+             "body[data-view='new'] .paper-value,body[data-view='new'] .delta-value,"
+             "body[data-view='paper'] .new-value,body[data-view='paper'] .delta-value,"
+             "body[data-view='delta'] .paper-value,body[data-view='delta'] .new-value{display:none}",
+             "nav{font-family:Arial,sans-serif;font-size:.85rem;margin:12px 0}button{margin-right:6px;padding:5px 9px;cursor:pointer}",
              "p{font-size:.85rem;line-height:1.3}sup,sub{font-size:.72em}", "</style><main>",
-             f"<h1><strong>Table {document['number']}.</strong> {_html_text(document['caption'])}</h1>"]
+             f"<h1><strong>Table {document['number']}.</strong> {_html_text(document['caption'])}</h1>",
+             '<nav aria-label="Table view"><button data-view="compare">Paper / New / Δ%</button>'
+             '<button data-view="paper">Paper</button><button data-view="new">New</button>'
+             '<button data-view="delta">Δ%</button> '
+             '<a href="table.pdf">PDF</a> · <a href="paper-comparison.csv">Comparison CSV</a></nav>',
+             '<p>Each numeric cell: Paper / New / Δ%. Δ% = (New − Paper) / |Paper| × 100.</p>']
     for panel in document["panels"]:
         if panel.get("title"):
             parts.append(f"<h2>{_html_text(panel['title'])}</h2>")
@@ -102,6 +162,7 @@ def _write_html(document, path):
         parts.extend(f'<col style="width:{width / total * 100:.4f}%">' for width in panel["widths"])
         parts.append("</colgroup>")
         cells = {(r, c): (nr, nc, text) for r, c, nr, nc, text in _cells(panel)}
+        comparisons = {(item["row"], item["col"]): item for item in panel.get("comparisons", [])}
         rules = _rules(panel)
         for r in range(len(panel["rows"])):
             parts.append("<tr>")
@@ -124,12 +185,22 @@ def _write_html(document, path):
                             style.append(f"border-{side}:{rule.get('weight', .4)}pt solid black")
                 if tag == "th" and panel.get("bold_header", False):
                     style.append("font-weight:bold")
+                item = comparisons.get((r, c))
+                if item:
+                    content = ''.join(f'<span class="cell-value {kind}-value" title="{label}">{_html_text(value)}</span>'
+                                      for kind, label, value in (("paper", "Paper", item["paper_text"]),
+                                          ("new", html.escape("New: " + item["status"], quote=True), item["current_text"]),
+                                          ("delta", "Relative difference (%)", item["delta_text"])))
+                else:
+                    content = _html_text(text)
                 parts.append(f'<{tag} rowspan="{nr}" colspan="{nc}" style="{";".join(style)}">'
-                             f'{_html_text(text)}</{tag}>')
+                             f'{content}</{tag}>')
             parts.append("</tr>")
         parts.append("</table></div>")
     parts += [f"<p>{_html_text(note)}</p>" for note in document.get("notes", [])]
-    parts.append("</main></html>\n")
+    parts.append("</main><script>document.querySelectorAll('button[data-view]').forEach(function(button){"
+                 "button.addEventListener('click',function(){document.body.dataset.view=button.dataset.view;});});"
+                 "</script></html>\n")
     path.write_text("\n".join(parts), encoding="utf-8")
 
 
@@ -240,19 +311,32 @@ def render(evaluation, directory):
     source = directory / "table.csv"
     if not source.is_file():
         raise ValueError(f"assembled table CSV is missing: {source}")
-    document = build(evaluation, directory)
+    document = comparison_view(build(evaluation, directory))
     for panel in document["panels"]:
         list(_cells(panel))
     with tempfile.TemporaryDirectory(prefix=".table-render-", dir=directory) as temporary:
         staging = Path(temporary)
         _write_images(document, staging)
         _write_html(document, staging / "table.html")
+        with (staging / "paper-comparison.csv").open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=COMPARISON_FIELDS)
+            writer.writeheader()
+            writer.writerows(document["comparison_records"])
+        (staging / "comparison.md").write_text(
+            f"# Table {document['number']}\n\n{document['caption']}\n\n"
+            "[HTML: Paper / New / Δ%](table.html) · [PDF](table.pdf) · [Comparison CSV](paper-comparison.csv)\n\n"
+            f"[![Table {document['number']}](table.png)](table.html)\n\n"
+            + "\n\n".join(document["notes"]) + "\n", encoding="utf-8")
         state = {"schema_version": 1, "evaluation": evaluation, "operation": "offline_paper_table_render",
                  "new_gpu_measurements": False, "paper_layout_sha256": PAPER_SHA256,
                  "source_csv_sha256": digest(source),
                  "inputs": {name: digest(directory / name) for name in ("table.csv", "speedup.csv", "metadata.json")
                             if (directory / name).is_file()},
+                 "paper_reference_inputs": {name: digest(Path(__file__).parent / name) for name in
+                                             ("paper_table_references.json", "table3/paper-table3-all-targets.csv",
+                                              "paper_table_accuracy.py")},
                  "outputs": {name: digest(staging / name) for name in OUTPUTS},
+                 "comparison_formula": "100 * (new - paper) / abs(paper); absolute value is relative error",
                  "notes": document.get("notes", [])}
         (staging / "table-render.json").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
         for name in (*OUTPUTS, "table-render.json"):
@@ -267,6 +351,10 @@ def main():
     for directory in args.directories:
         if directory.name in TABLES:
             targets = [(directory.name, directory)]
+        elif (directory / "table.csv").is_file() and (directory / "metadata.json").is_file():
+            metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
+            evaluation = metadata.get("evaluation") if isinstance(metadata, dict) else None
+            targets = [(evaluation, directory)] if evaluation in TABLES else []
         else:
             targets = [(evaluation, directory / evaluation) for evaluation in TABLES
                        if (directory / evaluation / "table.csv").is_file()]
@@ -274,7 +362,7 @@ def main():
             parser.error(f"no assembled table CSVs in {directory}")
         for evaluation, target in targets:
             render(evaluation, target)
-            print(f"{evaluation}: {target / 'table.pdf'}")
+            print(f"{evaluation}: {target / 'table.html'} (PDF: {target / 'table.pdf'})")
 
 
 if __name__ == "__main__":

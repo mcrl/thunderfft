@@ -662,7 +662,7 @@ class DefaultRoutingTests(unittest.TestCase):
             proposal = json.loads(output.getvalue())
             self.assertFalse(proposal["api_calls"])
             self.assertFalse(result.exists())
-            self.assertTrue({"table5", "table6", "table7", "figure5"} <= set(proposal["jobs"][0]["evaluations"]))
+            self.assertTrue({"table5", "table6", "table7", "figure4"} <= set(proposal["jobs"][0]["evaluations"]))
             self.assertNotIn("figure2", proposal["jobs"][0]["evaluations"])
 
 

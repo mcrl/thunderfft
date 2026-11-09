@@ -1,4 +1,4 @@
-// Shared definitions for the Figure 5 2D convolution driver: single-channel FP32 valid
+// Shared definitions for the Figure 4 2D convolution driver: single-channel FP32 valid
 // cross-correlation out[i][j] = sum_{a,b < f} in[i + a][j + b] * filter[a][b], 0 <= i, j < N - f + 1.
 #pragma once
 
@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-namespace figure5 {
+namespace figure4 {
 
 inline void check_cuda(cudaError_t error, const char* expression, const char* file, int line) {
     if (error != cudaSuccess)
@@ -25,14 +25,14 @@ inline void check_cufft(cufftResult error, const char* expression, const char* f
         throw std::runtime_error(std::string(expression) + ": cuFFT error " + std::to_string(int(error)) + " (" + file +
                                  ":" + std::to_string(line) + ")");
 }
-#define FIG5_CUDA(expression) ::figure5::check_cuda((expression), #expression, __FILE__, __LINE__)
-#define FIG5_CUFFT(expression) ::figure5::check_cufft((expression), #expression, __FILE__, __LINE__)
+#define FIG4_CUDA(expression) ::figure4::check_cuda((expression), #expression, __FILE__, __LINE__)
+#define FIG4_CUFFT(expression) ::figure4::check_cufft((expression), #expression, __FILE__, __LINE__)
 
 template <class T> struct DeviceBuffer {
     T* data = nullptr;
     size_t count = 0;
     DeviceBuffer() = default;
-    explicit DeviceBuffer(size_t n) : count(n) { FIG5_CUDA(cudaMalloc(&data, n * sizeof(T))); }
+    explicit DeviceBuffer(size_t n) : count(n) { FIG4_CUDA(cudaMalloc(&data, n * sizeof(T))); }
     ~DeviceBuffer() { if (data) cudaFree(data); }
     DeviceBuffer(const DeviceBuffer&) = delete;
     DeviceBuffer& operator=(const DeviceBuffer&) = delete;
@@ -63,4 +63,4 @@ std::unique_ptr<Method> make_cufft(const Problem&);
 std::unique_ptr<Method> make_cufftdx_c2c(const Problem&);
 std::unique_ptr<Method> make_thunderfft_c2c(const Problem&);
 
-}  // namespace figure5
+}  // namespace figure4

@@ -1,4 +1,4 @@
-// Figure 5 driver: one 2D convolution library per run, correctness gate before timing.
+// Figure 4 driver: one 2D convolution library per run, correctness gate before timing.
 //
 // Operation: valid 2D cross-correlation (complex FP32 for cuFFTDx; real parts for cuDNN/cuFFT)
 //   y[i][j] = sum_{a,b < f} x[i+a][j+b] * h[a][b],  0 <= i, j < N-f+1,

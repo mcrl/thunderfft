@@ -395,6 +395,7 @@ class ModelRoundTripTests(unittest.TestCase):
             source.mkdir()
             selected = ["run.sh", "artifact/runner.py", "artifact/full_pipeline.py", "artifact/collection.py", "artifact/progress.py",
                         "artifact/paper_tables.py", "artifact/paper_table_performance.py", "artifact/paper_table_accuracy.py",
+                        "artifact/paper_table_references.json",
                         "artifact/common.sh", "artifact/registry.json"]
             selected += [str(path.relative_to(repository))
                          for directory in (repository / "artifact/cloud", repository / "artifact/table2",

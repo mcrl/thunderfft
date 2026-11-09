@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Normalize Figure 4 library selectors before optional build targets are chosen."""
+"""Normalize Figure 5 library selectors before optional build targets are chosen."""
 import sys
 
 LIBRARIES = ("ThunderFFT", "cuDNN", "FlashFFTConv")

@@ -94,13 +94,18 @@ Final outputs:
   result/collections/<name>/assembled/table2/ ... table7/
   result/collections/<name>/assembled/figure2/figure.pdf
   result/collections/<name>/assembled/figure3/figure.pdf
-  result/collections/<name>/assembled/figure4/figure.pdf
   result/collections/<name>/assembled/figure5/figure.pdf
+  result/collections/<name>/assembled/figure4/figure.pdf
   result/pipelines/<run_id>/summary.csv
 
 - Each assembled table directory contains table.pdf, table.png, table.html
-  and the original CSVs. Table layouts follow the paper; values come from
-  the collected measurements/model. Table 5 keeps four implementations per N.
+  and the original CSVs. Open table.html for the paper's row/column layout:
+  each numeric cell shows Paper / New / relative difference (%).
+  paper-comparison.csv contains signed differences and absolute relative errors;
+  comparison.md links to the preview. Table 5 keeps four implementations per N.
+- Latest manuscript numbering: Figure 4 = 2D, Figure 5 = 1D. Use a new
+  collection after this update; old figure parts keep their original IDs.
+  Figure 4 currently measures A100; its caption distinguishes the paper's H100.
 - Expected exit status: 0.
 - Default Figures 4/5 show gaps and annotations for skipped cuDNN filters.
   Table 5 reports local boundary coverage. Table 7 estimates its first row
@@ -143,8 +148,8 @@ Final outputs:
 | Table 6 | A100 | Under 1 minute | Under 1 minute |
 | Table 7 | A100 | Under 1 minute | Under 1 minute |
 | Figure 3 | A100 | Under 1 minute | Under 1 minute |
-| Figure 4 | A100 | 1-2 minutes | 2-3 minutes |
-| Figure 5 | A100 | 2-4 minutes | 9-12 minutes |
+| Figure 4 | A100 | 2-4 minutes | 9-12 minutes |
+| Figure 5 | A100 | 1-2 minutes | 2-3 minutes |
 | Tables 3/4, complete cloud stage | H100 PCIe | 8-12 minutes | 10-15 minutes |
 | Tables 3/4, complete cloud stage | B200 | 8-12 minutes | 10-15 minutes |
 | Final tables and Figure 2-5 PDFs | CPU | Under 1 minute | Under 1 minute |
@@ -217,14 +222,14 @@ Table 3: saved parameters or full parameter search
 - The 84 saved candidates were selected in the validated A100/H100/B200
   full search. Provenance: artifact/table3/cufftdx_presets.json.
 - Compilation still builds all candidates. This option does not affect
-  Figure 5's tiled cuFFTDx implementation.
+  Figure 4's tiled cuFFTDx implementation.
 
 Figures 4/5: short or complete cuDNN filter grids
 
   $ ./run.sh figure4 figure5 --profile paper --cudnn-mode fast
   $ ./run.sh figure4 figure5 --profile paper --cudnn-mode full
 
-- Fast mode: cuDNN odd filters 3..25 for Figure 4, 3..11 for Figure 5.
+- Fast mode: cuDNN odd filters 3..25 for Figure 5, 3..11 for Figure 4.
 - Other libraries retain the full requested filter grid.
 - Full mode restores all filters and disables optional SLOW_RATIO cutoffs.
 - THUNDERFFT_CUDNN_MODE accepts fast or full; CLI options take precedence.
@@ -293,25 +298,31 @@ Table 5: boundary recheck or full exponent scan
 - Per-evaluation status: result/runs/<run_id>/summary.csv.
 - Final merged outputs: result/collections/<name>/assembled/.
 - Tables 2-7: table.pdf (print), table.png (preview), table.html (browser);
-  CSVs retain the underlying data. table-render.json records source/output hashes.
+  Paper / New / delta (%) use the paper's row/column layout. In HTML, select
+  one view or show all three. Delta = 100 * (New - Paper) / abs(Paper).
+  paper-comparison.csv also reports absolute relative error and measurement
+  status. Original CSVs/notes remain intact; table-render.json records hashes.
+  Reference numbers are from the supplied PPoPP27_chaewon__FFT_ (3).pdf.
+  Missing references, missing measurements and censored bounds have no exact
+  delta. The added FP16 cuFFTDx column has no reference in that archived PDF.
 - Whole-workflow status: result/pipelines/<run_id>/pipeline.json and summary.csv.
 
 | Output | What to check |
 | --- | --- |
 | Validation | All 500 paper FFT cases and 18 host API checks pass; relative L2 <= 5e-3. |
-| Table 2 | table.md: calculated model rows and the measured cuFFTDx row from Table 3. |
-| Table 3 | table.csv: measured latency and paper value; speedup.csv: cuFFTDx/ThunderFFT. |
-| Table 4 | table.md: ideal MMA TFLOPS, unit-kernel TFLOPS and efficiency. |
-| Table 5 | table.md and comparison.csv: four rows per N, alpha=1 error and finite-range coverage. |
-| Table 6 | table.csv: comparison with cuFFTDx, tcFFT and FlashFFTConv. |
-| Table 7 | kernel_comparison.csv / table.csv: time, TFLOPS and utilization. |
+| Table 2 | table.html: model rows and the measured cuFFTDx row; paper/new differences. |
+| Table 3 | table.html: register/shared, precision and GPU groups; latency and speedup. |
+| Table 4 | table.html: GPU columns; peak, ideal MMA and unit-kernel TFLOPS rows. |
+| Table 5 | table.html: four implementation columns per metric; alpha=1 error and finite range. |
+| Table 6 | table.html: library rows, time and speedup columns. |
+| Table 7 | table.html: stage rows, time/utilization/speedup; estimates and unchecked timings marked. |
 | Figures 2-5 | figure.pdf and summary.csv: compare measured trends with the paper. |
 
 - Successful assembly retains the following explicit coverage limits:
   - Figures 4/5 default: skipped cuDNN tails have no fabricated values;
     policy_skipped is recorded and coverage_complete=false.
-    Figure 4 means cover 12 sizes for cuDNN and 26 for other libraries.
-    Figure 5 summary.csv contains per-filter means over trials, with skipped
+    Figure 5 means cover 12 sizes for cuDNN and 26 for other libraries.
+    Figure 4 summary.csv contains per-filter means over trials, with skipped
     cuDNN cells empty; its plot uses a linear time axis.
     --full restores all 26 cuDNN sizes.
   - Table 5 default: boundary_recheck confirms a local finite/non-finite
@@ -348,7 +359,7 @@ Checks below were run on 2026-11-09 at the stated source revisions.
 | --- | --- |
 | 6864641: former full workflow | A100/H100 PCIe/B200, 61m52s, exit 0; all tables and Figure 2-5 PDFs assembled. |
 | 317593c: Table 3 presets, A100 | 56 configurations passed; Table 2/Figure 2 and offline assembly passed. Measurement 4m56s + build/setup 2m09s. |
-| a0f5755: fast cuDNN, A100 paper | Figure 4: 1m28s; Figure 5: 2m42s, including build/setup and plotting. All 192 / 249 raw rows passed correctness. |
+| a0f5755: fast cuDNN, A100 paper | 1D (now Figure 5): 1m28s; 2D (now Figure 4): 2m42s, including build/setup and plotting. All 192 / 249 raw rows passed correctness. |
 | 4344f24: Table 5 boundary, A100 paper | 4m03s; 80 raw rows, 16 summary rows. All 16 accuracy values and 12 prior boundaries matched retained results. |
 
 - Historical full workflow: 500 FFT cases and 18 host API checks passed;
@@ -418,7 +429,7 @@ Checks below were run on 2026-11-09 at the stated source revisions.
   or skip a missing GPU.
 - CMake older than 3.18: set THUNDERFFT_CMAKE=/path/to/cmake.
 - CUDA not found: set CUDACXX=/path/to/nvcc and CUDAToolkit_ROOT=/path/to/cuda.
-- Table 6 / Figure 4 need GitHub access for pinned tcFFT/FlashFFTConv sources.
+- Table 6 / Figure 5 need GitHub access for pinned tcFFT/FlashFFTConv sources.
 - Library overview: README.md.
 - Runner, collections and assembly: artifact/README.md.
 - Per-experiment settings: artifact/<table|figure>/README.md.

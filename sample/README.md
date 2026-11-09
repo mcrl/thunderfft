@@ -32,7 +32,7 @@ Use explicit targets when those optional dependencies are unavailable.
 | `thff_conv1d` | [conv1d/main.cu](conv1d/main.cu) | Tiled, valid 1D operation using 64-point FFTs |
 | `thff_conv1d_fullfft4096` | [conv1d/conv1d_fullfft_l4096_thunder.cu](conv1d/conv1d_fullfft_l4096_thunder.cu) | Full-length FFT convolution with an optional correctness gate |
 | `thff_conv1d_compare` | [conv1d/conv1d_compare_cudnn_thunder.cu](conv1d/conv1d_compare_cudnn_thunder.cu) | Optional timing driver for CUDA, cuDNN, and ThunderFFT paths |
-| `thff_conv` | [conv2d/main.cu](conv2d/main.cu) | Correctness-gated 2D convolution (cuDNN, cuFFT, tiled cuFFTDx) for Figure 5 |
+| `thff_conv` | [conv2d/main.cu](conv2d/main.cu) | Correctness-gated 2D convolution (cuDNN, cuFFT, tiled cuFFTDx) for Figure 4 |
 
 ## Basic FFT: thff_fft
 
@@ -380,7 +380,7 @@ The arguments are `N f[,f...] cufft|cufftdx|cudnn [warmup=5] [runs=20] [trials=1
 input, passes a sampled direct-reference relL2 ≤ 5e-3 gate (including tile
 boundaries), and then prints its mean time. cuDNN is available when CMake finds
 it. cuDNN uses the real parts only (real FP32), the FFT paths complex FP32; see
-[Figure 5](../artifact/figure5/README.md) for the exact operation. `thunder.cu`
+[Figure 4](../artifact/figure4/README.md) for the exact operation. `thunder.cu`
 and the tile kernels remain experimental sources and are not called by this driver.
 
 ## Kernel composition

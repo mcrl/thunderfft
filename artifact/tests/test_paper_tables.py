@@ -21,6 +21,8 @@ class PaperTableRendererTests(unittest.TestCase):
             source.write_text("gpu,status,hardware_peak_tflops,ideal_mma_status,ideal_mma_tflops,unit_tflops\n"
                               "A100,complete,156,measured,155.59,112\n")
             original = source.read_bytes()
+            (directory / "table.md").write_text("original hashed measurement notes")
+            (directory / "comparison.csv").write_text("original scientific comparison")
             savefig = Figure.savefig
             checked = []
 
@@ -41,6 +43,8 @@ class PaperTableRendererTests(unittest.TestCase):
             with patch.object(Figure, "savefig", capture):
                 state = paper_tables.render("table4", directory)
             self.assertEqual(source.read_bytes(), original)
+            self.assertEqual((directory / "table.md").read_text(), "original hashed measurement notes")
+            self.assertEqual((directory / "comparison.csv").read_text(), "original scientific comparison")
             self.assertFalse(state["new_gpu_measurements"])
             self.assertEqual(state["source_csv_sha256"], hashlib.sha256(original).hexdigest())
             self.assertTrue((directory / "table.pdf").read_bytes().startswith(b"%PDF-"))
@@ -52,6 +56,13 @@ class PaperTableRendererTests(unittest.TestCase):
             self.assertIn("Hardware Peak FLOPS", html)
             self.assertIn("155.59", html)
             self.assertIn("—", html)
+            self.assertIn('data-view="delta"', html)
+            self.assertIn("paper-comparison.csv", html)
+            with (directory / "paper-comparison.csv").open() as stream:
+                comparisons = list(csv.DictReader(stream))
+            ideal = next(row for row in comparisons if "Ideal" in row["row"] and row["column"] == "A100")
+            self.assertAlmostEqual(float(ideal["relative_difference_pct"]), (155.59 - 147.22) / 147.22 * 100)
+            self.assertTrue((directory / "comparison.md").is_file())
             self.assertTrue(any("Hardware peaks are published" in text for text in checked))
 
     def test_failed_export_does_not_replace_prior_presentation(self):
@@ -70,6 +81,24 @@ class PaperTableRendererTests(unittest.TestCase):
         self.assertEqual(paper_tables._html_text(r"$1.23\times 10^{-4}$"), "1.23× 10<sup>-4</sup>")
         self.assertEqual(paper_tables._html_text(r"$N\log_2 N$"), "Nlog<sub>2</sub> N")
         self.assertEqual(paper_tables._html_text("<script>&"), "&lt;script&gt;&amp;")
+
+    def test_comparison_preserves_missing_zero_reference_and_raw_precision(self):
+        panel = {"rows": [["Case", "Metric"], ["raw", "1.00"], ["missing", "—"], ["zero", "2.00"]],
+                 "widths": [1, 1], "header_rows": 1, "comparisons": [
+                     {"row": r, "col": 1, "paper": old, "current": new, "paper_text": str(old),
+                      "current_text": text, "status": "measured" if new is not None else "missing"}
+                     for r, old, new, text in ((1, 1.0, 1.004, "1.00"), (2, 2.0, None, "—"), (3, 0.0, 2.0, "2.00"))]}
+        document = {"number": 3, "panels": [panel]}
+        view = paper_tables.comparison_view(document)
+        records = view["comparison_records"]
+        self.assertAlmostEqual(records[0]["relative_difference_pct"], .4)
+        self.assertIsNone(records[1]["relative_difference_pct"])
+        self.assertIsNone(records[2]["relative_difference_pct"])
+        self.assertEqual(panel["rows"][1][1], "1.00")
+        self.assertEqual(view["panels"][0]["rows"][1][1], "1.0\n1.00\n+0.4%")
+        panel["comparisons"][0]["current"] = float("nan")
+        with self.assertRaisesRegex(ValueError, "finite numeric"):
+            paper_tables.comparison_view(document)
 
 
 if __name__ == "__main__":

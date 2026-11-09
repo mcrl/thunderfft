@@ -1,4 +1,4 @@
-// Figure 5 artifact implementation: fused 64x64 tiled complex cross-correlation.
+// Figure 4 artifact implementation: fused 64x64 tiled complex cross-correlation.
 // Uses the current public N=64 TF32 kernels, not a recovered paper binary.
 #include <thunderfft/thunderfft.cuh>
 #include "../utils.h"

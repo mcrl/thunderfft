@@ -1,13 +1,13 @@
 """Declared cuDNN subsets for quick Figure 4/5 reproduction.
 
-The limits precede the first 3x (Figure 4) / 10x (Figure 5) slowdown versus
+The limits precede the first 3x (Figure 5) / 10x (Figure 4) slowdown versus
 the fastest measured FFT library in the retained 2026-11-09 A100 sweep.
 Filters are batched in one invocation, preserving input-generation reuse.
 """
 
 MODES = ("fast", "full")
 ENVIRONMENT = "THUNDERFFT_CUDNN_MODE"
-MAX_FILTER = {"figure4": 25, "figure5": 11}
+MAX_FILTER = {"figure5": 25, "figure4": 11}
 
 
 def validate_mode(mode):

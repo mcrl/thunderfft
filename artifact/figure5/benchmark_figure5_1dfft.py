@@ -63,7 +63,7 @@ def main():
     script_path = Path(__file__).resolve()
     repo_root = Path(os.environ.get("THUNDERFFT_ROOT", script_path.parents[2]))
     build_dir = Path(os.environ.get("THUNDERFFT_BUILD_DIR", repo_root / "build"))
-    result_dir = Path(os.environ.get("THUNDERFFT_RESULT_DIR", repo_root / "result" / "figure4"))
+    result_dir = Path(os.environ.get("THUNDERFFT_RESULT_DIR", repo_root / "result" / "figure5"))
     default_ours_bin = build_dir / "sample" / "conv1d" / "thff_conv1d_fullfft4096"
     default_csv = result_dir / "legacy_timings.csv"
 
@@ -87,7 +87,7 @@ def main():
     p.add_argument("--csv", type=str, default=str(default_csv))
     args = p.parse_args()
 
-    print("WARNING: legacy timing draft; correctness is disabled and baseline semantics are unresolved. See artifact/figure4/README.md.", file=sys.stderr)
+    print("WARNING: legacy timing draft; correctness is disabled and baseline semantics are unresolved. See artifact/figure5/README.md.", file=sys.stderr)
 
     assert args.L == 4096, "this script assumes L=4096"
     flash_root = Path(args.flash_root).resolve()

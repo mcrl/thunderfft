@@ -17,7 +17,7 @@ default/full modes and estimated times; this page provides the detailed runner g
 | [table7](table7/README.md) | Table 7, p. 9 | A100 | A100 stage |
 | [figure2](figure2/README.md) | Figure 2, p. 9 | A100 | A100 stage |
 | [figure3](figure3/README.md) | Figure 3, p. 10 | A100 | A100 stage |
-| [figure4](figure4/README.md) | Figure 4, p. 10 | A100 | A100 stage |
+| [figure4](figure4/README.md) | Figure 4, 2D convolution | A100 (paper: H100) | A100 stage |
 | [figure5](figure5/README.md) | Figure 5, p. 10 | A100 | A100 stage |
 
 Figure 1 and Table 1 have no evaluation.
@@ -87,7 +87,7 @@ timings with the same paper settings; Table 2 and Figure 2 reuse those results.
 See [Table 3](table3/README.md) for preset provenance and compatibility checks.
 
 Figures 4 and 5 default to `--cudnn-mode fast`: cuDNN measures filters up to
-25 in Figure 4 and up to 11 in Figure 5. Every other library measures the
+25 in Figure 5 and up to 11 in Figure 4. Every other library measures the
 whole requested filter grid. Each library's selected filters run in one
 native process. The fixed cutoffs precede the first observed 3x/10x cuDNN
 slowdown relative to the fastest other library in the retained A100 sweep.
@@ -111,7 +111,7 @@ give 16 accuracy rows and 64 finite checks. This is a local boundary recheck;
 and Table 5 respectively. `THUNDERFFT_CUDNN_MODE`
 also accepts `fast` or `full`; an explicit CLI option takes precedence.
 Full cuDNN mode measures every requested filter and disables the optional
-`THUNDERFFT_FIGURE4_SLOW_RATIO` / `THUNDERFFT_FIGURE5_SLOW_RATIO` cutoff.
+`THUNDERFFT_FIGURE5_SLOW_RATIO` / `THUNDERFFT_FIGURE4_SLOW_RATIO` cutoff.
 
 Approximate paper-workflow times on the prepared evaluation account, with
 dependencies and local builds already available:
@@ -126,8 +126,8 @@ dependencies and local builds already available:
 | Table 6 | A100 | Under 1 minute | Under 1 minute |
 | Table 7 | A100 | Under 1 minute | Under 1 minute |
 | Figure 3 | A100 | Under 1 minute | Under 1 minute |
-| Figure 4 | A100 | 1–2 minutes | 2–3 minutes |
-| Figure 5 | A100 | 2–4 minutes | 9–12 minutes |
+| Figure 4 | A100 | 2–4 minutes | 9–12 minutes |
+| Figure 5 | A100 | 1–2 minutes | 2–3 minutes |
 | Tables 3 and 4, complete cloud stage | H100 PCIe | 8–12 minutes | 10–15 minutes |
 | Tables 3 and 4, complete cloud stage | B200 | 8–12 minutes | 10–15 minutes |
 | Final table assembly and Figure 2–5 PDFs | CPU | Under 1 minute | Under 1 minute |
@@ -162,7 +162,7 @@ That historical Table 5 result covered all four accuracy rows per size and
 three finite-range implementations; cuFFTDx FP16 range was then uncollected.
 
 On 2026-11-09, commit `a0f5755` passed 525 CPU tests and actual A100 fast
-paper runs of Figures 4/5. Figure 4 took 1 minute 28 seconds and Figure 5
+paper runs of Figures 4/5. 1D (now Figure 5) took 1 minute 28 seconds and 2D (now Figure 4)
 2 minutes 42 seconds, including incremental build/setup and plotting;
 their measurement phases took 74.2 and 146.6 seconds. All 192 / 249 raw
 trial rows passed the native correctness gates. Full-mode smoke runs
@@ -196,8 +196,27 @@ collection automatically; `--collection NAME` chooses its name. Final output
 is under `result/collections/<name>/assembled/`. No manual import, status-file
 editing or separate assembly command is needed.
 Each Table 2–7 directory includes `table.pdf`, `table.png` and `table.html`,
-with the paper's grouped headers, row order and numeric formatting. Values
-come from the assembled measurements/model; the original CSVs remain available.
+with the paper's grouped headers, row/column orientation and numeric formatting.
+Each numeric cell shows **Paper / New / Δ%**, where
+`Δ% = 100 × (New − Paper) / |Paper|`. Its absolute value is the relative error.
+The browser view can show Paper, New or Δ% separately. `paper-comparison.csv`
+retains unrounded operands, signed differences, absolute relative errors and
+measurement status; `comparison.md` links to the readable table. Original CSVs,
+metadata and measurement notes are preserved. Standalone table runs also render
+these views when their summary CSV is available.
+
+Table references come from the supplied `PPoPP27_chaewon__FFT_ (3).pdf`;
+printed rounding can cause small differences even in identical model formulas.
+Missing/censored values have no exact relative error. The added FP16 cuFFTDx
+column has no reference in that PDF. Estimated and unchecked Table 7 rows
+remain explicitly qualified.
+
+Figure numbering follows the latest manuscript clarification: **Figure 4 is 2D
+convolution; Figure 5 is 1D convolution** (the archived PDF has these reversed).
+Use a new collection after updating: previous figure parts retain their old IDs
+and are not silently reinterpreted. Figure 4 currently runs on A100 in the
+complete pipeline; its caption identifies the measured GPU and the paper's
+H100 reference. Figure 5 runs on A100.
 Table 5 uses the updated four implementations per size. Table 7's first row is
 an estimate from validated Table 6 tcFFT timings, assuming retained utilization:
 N64 TF32 time = 0.375 × N256 FP16 time (A100, batch 65536). It is marked as
@@ -245,9 +264,9 @@ range coverage `boundary_recheck`; full mode uses `full_profile_scan`.
 A boundary recheck does not establish global monotonicity or the maximum
 finite exponent across the entire `0..127` grid. Default Figures 4/5 record
 intentional cuDNN omissions in `policy_skipped` with `coverage_complete=false`;
-their assembly can complete with no unexpected missing cells. Figure 4's
+their assembly can complete with no unexpected missing cells. Figure 5's
 arithmetic means cover the measured sizes only: cuDNN uses `mean(12)`, while
-the other libraries use `mean(26)` on the paper grid. Figure 5's `summary.csv`
+the other libraries use `mean(26)` on the paper grid. Figure 4's `summary.csv`
 holds per-filter means over trials and leaves skipped cuDNN cells empty. Use
 `--full` for all 26 cuDNN sizes. Table 7 records its estimated radix-16 baseline
 and the unavailable radix-4 stage as coverage limitations. The baseline uses
@@ -260,7 +279,7 @@ retains the assumption, formula and source evidence.
 ./run.sh --list
 ./run.sh all --backend local --profile paper --jobs 8  # all A100 evaluations
 ./run.sh validation table2 table3 --jobs 8   # named evaluations default to local smoke
-./run.sh table6 figure3 figure4 --profile paper --jobs 8
+./run.sh table6 figure3 figure5 --profile paper --jobs 8
 ```
 
 `smoke` checks paths with small workloads; `paper` uses the paper's settings.
@@ -362,10 +381,11 @@ result/collections/<name>/assembled/<evaluation>/
 result/collections/<name>/assembled/missing.csv
 ```
 
-Assembled Table 2–7 directories contain `table.pdf` for printing, `table.png`
-for preview and `table.html` for browsing. `table-render.json` records the
-input/output hashes for these presentations; `data.csv`, `table.csv` and any
-additional comparison CSVs retain the machine-readable measurements.
+Use `table.html` to read Tables 2–7 in paper orientation with Paper/New/Δ%
+controls, `table.pdf` for printing, or `table.png` for preview.
+`paper-comparison.csv` contains per-cell relative differences/errors and
+`comparison.md` links to the views. `table-render.json` records input/output
+and paper-reference hashes; source CSVs and measurement notes are preserved.
 
 `run.sh` reports the stage results and assembly coverage. A complete workflow
 requires the selected measurements and their expected output files. Intentional

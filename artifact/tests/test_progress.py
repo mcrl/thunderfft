@@ -117,7 +117,7 @@ class DashboardTests(unittest.TestCase):
         for count in range(11):
             display.update("A100", {"progress": aggregate(count)})
             display.refresh(force=True)
-        display.update("A100", {"progress": aggregate(evaluation="figure4", detail=None)})
+        display.update("A100", {"progress": aggregate(evaluation="figure5", detail=None)})
         display.refresh(force=True)
         display.update("A100", {"status": "cleaning"})
         display.refresh(force=True)

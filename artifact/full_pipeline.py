@@ -244,7 +244,7 @@ def run_local(args, root, folder, stop_process, gpu_uuid=None, cancel_event=None
 
 def assembly_result(states, assembled, entries, profile, root, cudnn_mode=None, table5_range_mode=None):
     """Missing required cells fail; validated fast subsets remain explicit limits."""
-    from artifact.figure4 import policy
+    from artifact.figure5 import policy
     missing_files, unresolved, limits = [], [], []
     variants = json.loads((root / "artifact/table7/variants.json").read_text())["variants"]
     unavailable = {v["id"] for v in variants if v["status"] != "available"}
@@ -260,7 +260,8 @@ def assembly_result(states, assembled, entries, profile, root, cudnn_mode=None, 
             unresolved.append({"evaluation": evaluation, "reason": "assembly state missing"})
             continue
         if evaluation in ("table2", "table3", "table4", "table5", "table6", "table7") and "presentation" in state:
-            for name in ("table.pdf", "table.png", "table.html", "table-render.json"):
+            for name in dict.fromkeys(("table.pdf", "table.png", "table.html", "table-render.json",
+                                       *state["presentation"].get("outputs", {}))):
                 path = assembled / evaluation / name
                 if not path.is_file() or not path.stat().st_size:
                     missing_files.append(str(path.relative_to(assembled)))
@@ -291,10 +292,10 @@ def assembly_result(states, assembled, entries, profile, root, cudnn_mode=None, 
         skipped = state.get("policy_skipped", [])
         if skipped:
             filters = tuple(range(3, 54, 2)) if profile == "paper" else (
-                (3, 9, 53) if evaluation == "figure4" else (3, 33, 53))
+                (3, 9, 53) if evaluation == "figure5" else (3, 33, 53))
             allowed = ({f"cuDNN:filter={item['filter']}": item["reason"]
                         for item in policy.skipped_cells(evaluation, filters, ["cuDNN"], "fast")}
-                       if evaluation in ("figure4", "figure5") else {})
+                       if evaluation in ("figure5", "figure4") else {})
             seen = set()
             for item in skipped:
                 record = dict(item, evaluation=evaluation)

@@ -66,6 +66,55 @@ class PaperTableAccuracyTests(unittest.TestCase):
         row = tables.build("table5", self.directory)["panels"][0]["rows"][2]
         self.assertEqual(row[1:5], ["—", "—", "$0$", r"$1.00\times 10^{-7}$"])
 
+    def comparisons(self, evaluation):
+        return {(item["row"], item["col"]): item
+                for item in tables.build(evaluation, self.directory)["panels"][0]["comparisons"]}
+
+    def test_table5_paper_references_use_actual_alpha_and_no_invented_fourth_series(self):
+        self.write([
+            {"N": 64, "precision": "fp16", "accuracy_status": "complete", "rel_l2_alpha1": .000434123,
+             "range_status": "complete", "boundary_status": "observed", "largest_finite_exponent_observed": 10},
+            {"N": 64, "precision": "fp16_cufftdx", "accuracy_status": "complete", "rel_l2_alpha1": .00051,
+             "range_status": "complete", "boundary_status": "observed", "largest_finite_exponent_observed": 11}])
+        cells = self.comparisons("table5")
+        self.assertEqual(len(cells), 32)
+        self.assertEqual(cells[2, 1]["paper"], 4.34e-4)
+        self.assertEqual(cells[2, 1]["current"], .000434123)
+        self.assertEqual(cells[2, 5]["paper"], 2048)
+        self.assertEqual(cells[2, 5]["current"], 1024)
+        self.assertEqual(cells[2, 5]["paper_text"], "$2^{11}$")
+        self.assertEqual(cells[5, 8]["paper"], 2 ** 120)
+        for column in (2, 6):
+            self.assertIsNone(cells[2, column]["paper"])
+            self.assertEqual(cells[2, column]["paper_text"], tables.MISSING)
+            self.assertIsNotNone(cells[2, column]["current"])
+            self.assertEqual(cells[2, column]["status"], "missing_paper_reference")
+        self.assertIsNone(cells[3, 1]["current"])
+        self.assertEqual(cells[3, 1]["status"], "missing_measurement")
+
+    def test_table5_censored_comparisons_preserve_bounds_without_exact_values(self):
+        self.write([
+            {"N": 64, "precision": "fp16", "range_status": "complete", "boundary_status": "right_censored",
+             "scan_exponent_max": 10},
+            {"N": 64, "precision": "tf32", "range_status": "complete", "boundary_status": "left_censored",
+             "scan_exponent_min": 122}])
+        cells = self.comparisons("table5")
+        for column, status, text in ((5, "censored_right", r"$\geq 2^{10}$"),
+                                     (7, "censored_left", "$<2^{122}$")):
+            self.assertIsNone(cells[2, column]["current"])
+            self.assertIsNotNone(cells[2, column]["paper"])
+            self.assertEqual(cells[2, column]["current_text"], text)
+            self.assertEqual(cells[2, column]["status"], status)
+
+    def test_table5_comparison_does_not_promote_pending_or_invalid_accuracy(self):
+        self.write([
+            {"N": 64, "precision": "fp16", "accuracy_status": "pending", "rel_l2_alpha1": .0004},
+            {"N": 64, "precision": "tf32", "accuracy_status": "complete", "rel_l2_alpha1": -1}])
+        cells = self.comparisons("table5")
+        for column in (1, 3):
+            self.assertIsNone(cells[2, column]["current"])
+            self.assertEqual(cells[2, column]["status"], "missing_measurement")
+
     def test_table6_uses_a100_in_paper_library_order_and_measurement_units(self):
         self.write([
             {"gpu": "B200", "library": "ThunderFFT", "median_time_ms": 99, "speedup_vs_cufftdx": 99},
@@ -84,6 +133,33 @@ class PaperTableAccuracyTests(unittest.TestCase):
         rows = tables.build("table6", self.directory)["panels"][0]["rows"]
         self.assertEqual(rows[1][1:], ["—", "—"])
         self.assertEqual(rows[-1][1:], ["0.016", "—"])
+
+    def test_table6_comparison_preserves_raw_timings_and_printed_paper_speedups(self):
+        self.write([
+            {"gpu": "A100", "library": "cuFFTDx", "status": "collected", "median_time_ms": .023123,
+             "speedup_vs_cufftdx": 1},
+            {"gpu": "A100", "library": "tcFFT", "status": "collected", "median_time_ms": .021,
+             "speedup_vs_cufftdx": 1.101095238095238},
+            {"gpu": "A100", "library": "ThunderFFT", "status": "collected", "median_time_ms": .016432,
+             "speedup_vs_cufftdx": 1.4071920642648492}])
+        cells = self.comparisons("table6")
+        self.assertEqual(len(cells), 8)
+        self.assertEqual(cells[4, 1]["paper"], .016)
+        self.assertEqual(cells[4, 1]["current"], .016432)
+        self.assertEqual(cells[4, 1]["current_text"], "0.016")
+        self.assertEqual(cells[2, 2]["paper"], 1.11)
+        self.assertNotAlmostEqual(cells[2, 2]["paper"], .023 / .021)
+        self.assertEqual(cells[3, 1]["paper"], .018)
+        self.assertIsNone(cells[3, 1]["current"])
+        self.assertEqual(cells[3, 1]["status"], "missing_measurement")
+
+    def test_table6_comparison_without_measured_baseline_has_no_current_speedup(self):
+        self.write([{"gpu": "A100", "library": "ThunderFFT", "status": "collected",
+                     "median_time_ms": .016432, "speedup_vs_cufftdx": 1.46}])
+        cells = self.comparisons("table6")
+        self.assertEqual(cells[4, 2]["paper"], 1.46)
+        self.assertIsNone(cells[4, 2]["current"])
+        self.assertEqual(cells[4, 2]["current_text"], tables.MISSING)
 
     def test_table7_missing_baseline_never_creates_speedups_or_promotes_microbenchmark(self):
         self.write([
@@ -211,6 +287,39 @@ class PaperTableAccuracyTests(unittest.TestCase):
         for text in ("MMA B-fragment initialization", "shared-memory round trip", "FFT outputs are undefined",
                      "unit-kernel timings", "complete-FFT speedup", "identities remain unconfirmed"):
             self.assertIn(text, notes)
+
+    def test_table7_comparison_keeps_estimation_and_partial_fft_status(self):
+        baseline, selected, metadata = self.selected_table7()
+        self.write([baseline, selected], metadata)
+        cells = self.comparisons("table7")
+        self.assertEqual(len(cells), 12)
+        self.assertEqual([cells[1, col]["paper"] for col in (1, 2, 3)], [.0074, 70, 1])
+        self.assertEqual(cells[1, 1]["current"], .008161125)
+        self.assertEqual(cells[1, 2]["current"], 63.25378)
+        self.assertEqual(cells[1, 1]["status"], "estimated")
+        self.assertEqual(cells[3, 1]["status"], "timing_only_partial_fft")
+        self.assertEqual(cells[3, 1]["current"], .00788889598846)
+        self.assertEqual(cells[3, 3]["status"], "timing_only_partial_fft_estimated_baseline")
+        self.assertEqual(cells[3, 3]["current"], baseline["estimated_time_ms"] / selected["median_time_ms"])
+        self.assertEqual(cells[3, 3]["paper"], .95)
+        self.assertEqual(cells[2, 1]["paper"], .0120)
+        self.assertIsNone(cells[2, 1]["current"])
+        self.assertEqual(cells[2, 1]["status"], "missing_measurement")
+
+    def test_table7_comparison_unvalidated_timing_cannot_create_full_fft_speedup(self):
+        self.write([
+            {"variant": "radix16", "median_time_ms": .0074, "timing_status": "collected",
+             "accuracy_status": "passed", "radix16_speedup": 1},
+            {"variant": "register_uniform", "median_time_ms": .003512, "utilization_pct": 75.2,
+             "timing_status": "collected_unvalidated", "accuracy_status": "unchecked",
+             "utilization_status": "calculated_unvalidated", "radix16_speedup": 2.18}])
+        cells = self.comparisons("table7")
+        self.assertEqual(cells[4, 1]["status"], "timing_only_unvalidated")
+        self.assertEqual(cells[4, 1]["current"], .003512)
+        self.assertEqual(cells[4, 2]["paper"], 75)
+        self.assertEqual(cells[4, 2]["current"], 75.2)
+        self.assertEqual(cells[4, 3]["paper"], 2.18)
+        self.assertIsNone(cells[4, 3]["current"])
 
     def test_table7_selected_source_rejects_mismatched_mapping(self):
         mutations = (("source_variant", "register_branch"), ("source_variant", "historical_652808b"),

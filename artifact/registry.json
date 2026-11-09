@@ -4,7 +4,8 @@
     "filename": "PPoPP27_chaewon__FFT_ (3).pdf",
     "sha256": "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50",
     "implementation_name_in_paper": "xFFT",
-    "repository_name": "ThunderFFT"
+    "repository_name": "ThunderFFT",
+    "figure_numbering_note": "Current manuscript numbering confirmed by the author: Figure 4 is 2D convolution and Figure 5 is 1D convolution. The archived PDF identified above has these two figure numbers reversed."
   },
   "excluded": [
     {
@@ -108,7 +109,10 @@
     },
     {
       "id": "table5",
-      "backends": ["local", "vast"],
+      "backends": [
+        "local",
+        "vast"
+      ],
       "title": "Numerical accuracy and finite dynamic range",
       "paper_page": 9,
       "implementation": "ready",
@@ -129,7 +133,10 @@
     },
     {
       "id": "table6",
-      "backends": ["local", "vast"],
+      "backends": [
+        "local",
+        "vast"
+      ],
       "title": "Comparison with prior Tensor Core FFT libraries",
       "paper_page": 9,
       "implementation": "ready",
@@ -151,13 +158,18 @@
     },
     {
       "id": "table7",
-      "backends": ["local", "vast"],
+      "backends": [
+        "local",
+        "vast"
+      ],
       "title": "64-point optimization ablation",
       "paper_page": 9,
       "implementation": "ready_subset",
       "owner": null,
       "depends_on": [],
-      "optional_depends_on": ["table6"],
+      "optional_depends_on": [
+        "table6"
+      ],
       "required_outputs": {
         "smoke": [
           "data.csv",
@@ -175,7 +187,9 @@
     },
     {
       "id": "figure2",
-      "backends": ["local"],
+      "backends": [
+        "local"
+      ],
       "title": "A100 register-resident FFT kernel timing",
       "paper_page": 9,
       "implementation": "ready",
@@ -218,6 +232,30 @@
     },
     {
       "id": "figure4",
+      "backends": [
+        "local",
+        "vast"
+      ],
+      "title": "2D convolution comparison (paper: H100)",
+      "paper_page": 10,
+      "implementation": "ready",
+      "owner": null,
+      "depends_on": [],
+      "required_outputs": {
+        "smoke": [
+          "data.csv"
+        ],
+        "paper": [
+          "data.csv",
+          "figure.pdf"
+        ]
+      },
+      "available": false,
+      "full_paper_comparison": false,
+      "coverage": "Native cuDNN, full-image cuFFT, tiled64 cuFFTDx C2C and tiled64 TF32 ThunderFFT C2C (real FP32 input/output) with validation and offline assembly; default pipeline measures A100 while the paper caption specifies H100, and plot captions preserve the measured GPU"
+    },
+    {
+      "id": "figure5",
       "title": "A100 1D convolution comparison",
       "paper_page": 10,
       "implementation": "ready",
@@ -235,27 +273,6 @@
       "available": false,
       "full_paper_comparison": false,
       "coverage": "Native ThunderFFT, cuDNN and pinned FlashFFTConv L4096 convolution with validation, per-library/filter collection and offline assembly; precision details recorded"
-    },
-    {
-      "id": "figure5",
-      "backends": ["local", "vast"],
-      "title": "A100 2D convolution comparison",
-      "paper_page": 10,
-      "implementation": "ready",
-      "owner": null,
-      "depends_on": [],
-      "required_outputs": {
-        "smoke": [
-          "data.csv"
-        ],
-        "paper": [
-          "data.csv",
-          "figure.pdf"
-        ]
-      },
-      "available": false,
-      "full_paper_comparison": false,
-      "coverage": "Native cuDNN, full-image cuFFT, tiled64 cuFFTDx C2C and tiled64 TF32 ThunderFFT C2C (real FP32 input/output) with validation and offline assembly"
     }
   ]
 }

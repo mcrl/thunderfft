@@ -1,31 +1,268 @@
 #!/usr/bin/env python3
-"""CPU checks: Figure 5 native gate parsing and paper workload (synthetic input)."""
+"""CPU checks: native gate parsing, backend semantics and plotting (synthetic input)."""
 
+import csv
 import importlib.util
+import json
 from pathlib import Path
+import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 HERE = Path(__file__).resolve().parent
-SPEC = importlib.util.spec_from_file_location("figure5_measure", HERE / "measure.py")
-MEASURE = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(MEASURE)
-NATIVE = ("Filter size: 53\n"
-          "Validation 2D (cufftdx) vs direct reference: L2_rel=1.2e-06 samples=5000\n"
-          "Convolution validation: PASS (relative L2 limit=0.005)\n"
-          "cufftdx 2D conv (N=16384, f=53, filter_fft_included=1, trial=0) time: 42.5 ms\n")
+
+
+def module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
+MEASURE = module("figure5_measure", HERE / "measure.py")
+PLOT = module("figure5_plot", HERE / "plot.py")
+NATIVE = ("Filter size: 3\n"
+          "Validation N=4096 vs direct circular conv (raw/N): L2_rel=0.00096 max_abs=1e-4\n"
+          "Validation sequences: 1025 of 49152\n"
+          "Circular convolution validation: PASS (raw/N relative L2 limit=0.005)\n"
+          "ThunderFFT full FFT-Conv (N=4096, include_filter_fft=1, K=3, trial=0) time: 1.861 ms\n"
+          "ThunderFFT full FFT-Conv (N=4096, include_filter_fft=1, K=3, trial=1) time: 1.862 ms\n")
+SHAPE = "L=4096,B=64,D=768"
+
+
+class FigureIdentity(unittest.TestCase):
+    def test_captions_keep_paper_numbering_and_actual_gpu(self):
+        self.assertEqual(PLOT.caption("figure5", "A100"), "Figure 5: 1D convolution on A100")
+        self.assertEqual(PLOT.caption("figure4", "H100"), "Figure 4: 2D convolution on H100")
+        self.assertEqual(PLOT.caption("figure4", "A100"),
+                         "Figure 4: 2D convolution on A100 (paper: H100)")
+
+    def test_missing_gpu_is_not_inferred_from_the_paper(self):
+        self.assertIn("measured GPU unspecified", PLOT.caption("figure4", None))
+        self.assertIn("paper: H100", PLOT.caption("figure4", None))
+
+    def test_old_numbered_summary_cannot_be_plotted_as_opposite_dimension(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            summary = Path(temporary) / "summary.csv"
+            summary.write_text("filter,library,median_time_ms\n3,ThunderFFT,1.8\n")
+            with self.assertRaisesRegex(ValueError, "convolution dimension"):
+                PLOT.read_summary(summary, "figure4")
+            self.assertEqual(PLOT.read_summary(summary, "figure5")[0]["time_ms"], "1.8")
+            summary.write_text("filter,thunderfft,cufft\n3,2.0,16.0\n")
+            with self.assertRaisesRegex(ValueError, "convolution dimension"):
+                PLOT.read_summary(summary, "figure5")
+            self.assertEqual(len(PLOT.read_summary(summary, "figure4")), 2)
 
 
 class NativeContract(unittest.TestCase):
     def test_parse_and_gate(self):
-        self.assertEqual(MEASURE.parse(NATIVE), [(53, 0, 42.5, 1.2e-06, "5000 sampled outputs")])
-        for text in (NATIVE.replace("PASS", "FAIL"), NATIVE.replace(" time: 42.5 ms", "")):
+        self.assertEqual(MEASURE.figure5_parse(NATIVE), [(3, 0, 1.861, 0.00096, "1025/49152 sequences"),
+                                                         (3, 1, 1.862, 0.00096, "1025/49152 sequences")])
+        two = NATIVE + NATIVE.replace("Filter size: 3", "Filter size: 5").replace("K=3", "K=5")
+        self.assertEqual([r[0] for r in MEASURE.figure5_parse(two)], [3, 3, 5, 5])
+        for text in (NATIVE.replace("PASS", "FAIL"), NATIVE.replace(" time: 1.861 ms", "").replace(" time: 1.862 ms", ""),
+                     NATIVE.replace("Validation sequences: 1025 of 49152\n", "")):
             with self.subTest(text=text), self.assertRaises(ValueError):
-                MEASURE.parse(text)
+                MEASURE.figure5_parse(text)
 
-    def test_paper_command(self):
-        argv, shape = MEASURE.command("cufft")(Path("/bin/thff_conv"), [3, 53], "paper", 3)
-        self.assertEqual((argv[1:4], argv[-1], shape), (["16384", "3,53", "cufft"], "3", "N=16384"))
+    def test_cudnn_output_parses_with_same_gate(self):
+        text = ("Filter size: 7\nValidation N=4096 vs direct circular conv (cuDNN): L2_rel=0.0004\n"
+                "Validation sequences: 1025 of 49152\nCircular convolution validation: PASS\n"
+                "cuDNN depthwise circular conv1d (N=4096, K=7, trial=0) time: 2.5 ms\n")
+        self.assertEqual(MEASURE.figure5_parse(text), [(7, 0, 2.5, 0.0004, "1025/49152 sequences")])
+        argv, shape = MEASURE.figure5_cudnn_command(Path("/bin/c"), [3, 7], "paper", 3)
+        self.assertEqual((argv[1:6], argv[-1], shape), (["--figure5", "4096", "3,7", "64", "768"], "3", SHAPE))
+
+    def test_library_selection_and_flash_contract(self):
+        with patch.dict("os.environ", {"THUNDERFFT_FIGURE5_LIBRARIES": "FlashFFTConv"}):
+            self.assertEqual(MEASURE.selected_libraries(MEASURE.FIGURE5, ("ThunderFFT", "FlashFFTConv")), ("FlashFFTConv",))
+            with self.assertRaisesRegex(ValueError, "unavailable"):
+                MEASURE.selected_libraries(MEASURE.FIGURE5, ("ThunderFFT",))
+        argv, shape = MEASURE.figure5_flash_command(Path("/flash"), [3, 53], "paper", 3)
+        self.assertEqual((argv[1:4], shape), (["3,53", "64", "768"], SHAPE))
+        text = NATIVE.replace("(raw/N)", "(FlashFFTConv)")
+        self.assertEqual(MEASURE.figure5_parse(text)[0][3], 0.00096)
+
+    def test_paper_command_uses_paper_workload_and_gate(self):
+        argv, shape = MEASURE.figure5_command(Path("/bin/x"), [53], "paper", 3)
+        self.assertEqual(shape, SHAPE)
+        self.assertEqual(argv[1:6] + argv[8:10] + argv[-1:], ["4096", "53", "0", "64", "768", "1", "1", "3"])
+
+
+class DeviceIdentity(unittest.TestCase):
+    def test_numeric_and_unset_visibility_use_cuda_probe(self):
+        first = "GPU-11111111-2222-3333-4444-555555555555"
+        second = "GPU-99999999-2222-3333-4444-555555555555"
+        log = "GPU=NVIDIA A100 compute=8.0 batch=256 seed=42\n"
+        metadata = {"gpu_inventory_before": {"exit_code": 0, "stdout":
+                    f"0, {first}, NVIDIA A100, 580\n1, {second}, NVIDIA A100, 580\n"},
+                    "device_uuid_probe": {"exit_code": 0, "stdout": f"GPU_UUID={second}\n"}}
+        for mask in (None, "0", "1"):
+            with self.subTest(mask=mask):
+                metadata["effective_CUDA_VISIBLE_DEVICES"] = mask
+                self.assertEqual(MEASURE.measured_identity(metadata, log)[3:], (second, "580"))
+        metadata["device_uuid_probe"]["exit_code"] = 1
+        with self.assertRaisesRegex(ValueError, "unambiguously"):
+            MEASURE.measured_identity(metadata, log)
+
+    def test_whitespace_library_selector(self):
+        with patch.dict("os.environ", {"THUNDERFFT_FIGURE5_LIBRARIES": " ThunderFFT , FlashFFTConv "}):
+            self.assertEqual(MEASURE.selected_libraries(MEASURE.FIGURE5, ("ThunderFFT", "FlashFFTConv")),
+                             ("ThunderFFT", "FlashFFTConv"))
+        for text in ("ThunderFFT,,FlashFFTConv", "Flash FFTConv", "ThunderFFT,"):
+            with self.subTest(text=text), patch.dict("os.environ", {"THUNDERFFT_FIGURE5_LIBRARIES": text}):
+                with self.assertRaises(ValueError):
+                    MEASURE.selected_libraries(MEASURE.FIGURE5, MEASURE.FIGURE5["libraries"])
+
+
+class Backends(unittest.TestCase):
+    def write(self, path, **changes):
+        row = {"gpu": "A100", "shape": SHAPE, "filter": 3, "library": "FlashFFTConv", "repeat": 0,
+               "time_ms": 2.14, "rel_l2": 1e-3, "passed": "true", "operation": MEASURE.FIGURE5["operation"]}
+        row.update(changes)
+        with path.open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, list(row))
+            writer.writeheader()
+            writer.writerow(row)
+
+    def test_join_summary_and_plot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            self.write(output / "flash.csv")
+            rows, _ = MEASURE.read_backends([output / "flash.csv"], MEASURE.FIGURE5, "A100", SHAPE, (3, 5))
+            ours = [{"gpu": "A100", "shape": SHAPE, "filter": size, "library": "ThunderFFT", "time_ms": time}
+                    for size, time in ((3, 1.8), (5, 2.0))]
+            summary = MEASURE.summarize(ours + rows)
+            mean = [row for row in summary if row["library"] == "ThunderFFT" and row["filter"] == "mean(2)"]
+            self.assertAlmostEqual(mean[0]["median_time_ms"], 1.9)
+            MEASURE.TABLE3.write_csv(output / "summary.csv", summary, MEASURE.SUMMARY_FIELDS)
+            try:
+                libraries = PLOT.make_plot(PLOT.read_summary(output / "summary.csv"), output / "figure.pdf", "figure5")
+            except PLOT.Pending:
+                self.skipTest("matplotlib unavailable")
+            self.assertEqual(libraries, ["FlashFFTConv", "ThunderFFT"])
+
+    def test_divergence_rule_cuts_only_far_slower_library(self):
+        rows = [{"filter": 19, "library": "cuFFTDx", "time_ms": 7.5}, {"filter": 19, "library": "cuFFT", "time_ms": 14.7},
+                {"filter": 19, "library": "cuDNN", "time_ms": 76.5}, {"filter": 17, "library": "cuDNN", "time_ms": 900}]
+        self.assertTrue(MEASURE.diverged(rows, "cuDNN", 19, 10))
+        self.assertFalse(MEASURE.diverged(rows, "cuDNN", 19, 11))
+        self.assertFalse(MEASURE.diverged(rows, "cuDNN", 19, 0))     # 0 disables truncation
+        self.assertFalse(MEASURE.diverged(rows, "cuDNN", 17, 10))    # nothing to compare at f=17
+
+    def test_rejects_mismatched_backends(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "b.csv"
+            for changes in ({"passed": "false"}, {"gpu": "H100"}, {"shape": "L=4096,B=1,D=1"}, {"filter": 7},
+                            {"operation": "cross-correlation"}, {"rel_l2": 0.01}, {"time_ms": "nan"},
+                            {"library": "ThunderFFT"}):
+                self.write(path, **changes)
+                with self.subTest(changes=changes), self.assertRaises(ValueError):
+                    MEASURE.read_backends([path], MEASURE.FIGURE5, "A100", SHAPE, (3, 5))
+
+
+class CudnnWorkSelection(unittest.TestCase):
+    def collect(self, spec, mode=None, overrides=None, expected_exit=0):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        directory = Path(temporary.name)
+        binary = directory / "native"
+        binary.write_bytes(b"synthetic native fixture")
+        calls = []
+        def command(path, sizes, profile, trials):
+            return [str(path), ",".join(map(str, sizes)), str(trials)], spec.get("shape", "N=16384")
+        def native(argv, **options):
+            calls.append(argv)
+            values = [(int(size), trial, 1.0, 0.001, "checked")
+                      for size in argv[1].split(",") for trial in range(int(argv[2]))]
+            options["stdout"].write(json.dumps(values))
+            options["stderr"].write("native fixture\n")
+            return SimpleNamespace(returncode=0)
+        runners = [(library, binary, command, json.loads, "n/a" if library == "cuDNN" else "true")
+                   for library in spec["libraries"]]
+        environment = dict(overrides or {})
+        if mode is not None:
+            environment["THUNDERFFT_CUDNN_MODE"] = mode
+        with patch.dict("os.environ", environment, clear=True), \
+                patch.object(MEASURE.TABLE3, "capture", return_value={}), \
+                patch.object(MEASURE, "measured_identity", return_value=("A100", "NVIDIA A100", "8.0", "GPU-fixture", "580")), \
+                patch.object(MEASURE.subprocess, "run", side_effect=native):
+            result = MEASURE.collect(spec, runners, directory, directory / "result", "paper", [HERE / "policy.py"])
+        self.assertEqual(result, expected_exit)
+        metadata = json.loads((directory / "result/metadata.json").read_text())
+        if result:
+            return metadata, []
+        with (directory / "result/data.csv").open() as stream:
+            rows = list(csv.DictReader(stream))
+        return metadata, rows
+
+    def test_default_batches_only_cudnn_prefix_for_each_figure(self):
+        figure4 = module("fast_cudnn_figure4", HERE.parent / "figure4/measure.py").FIGURE4
+        for spec, limit, count in ((MEASURE.FIGURE5, 25, 192), (figure4, 11, 249)):
+            with self.subTest(evaluation=spec["evaluation"]):
+                metadata, rows = self.collect(spec)
+                self.assertEqual(metadata["settings"]["cudnn_mode"], "fast")
+                self.assertEqual(len(rows), count)
+                self.assertEqual(len(metadata["commands"]), len(spec["libraries"]))
+                self.assertEqual({int(row["filter"]) for row in rows if row["library"] == "cuDNN"},
+                                 set(range(3, limit + 1, 2)))
+                self.assertEqual(metadata["policy_skipped"], MEASURE.POLICY.skipped_cells(
+                    spec["evaluation"], spec["filters"]["paper"], spec["libraries"], "fast"))
+                self.assertFalse(metadata["coverage_complete"])
+
+    def test_progress_excludes_policy_skips_without_splitting_native_sweeps(self):
+        figure4 = module("progress_figure4", HERE.parent / "figure4/measure.py").FIGURE4
+        for spec, total in ((MEASURE.FIGURE5, 64), (figure4, 83)):
+            with self.subTest(evaluation=spec['evaluation']), \
+                    patch.object(MEASURE.TABLE3, 'report_progress') as progress:
+                metadata, rows = self.collect(spec)
+                self.assertEqual(len(metadata['commands']), len(spec['libraries']))
+                self.assertEqual(progress.call_args_list[0].args, (0, total))
+                self.assertEqual(progress.call_args.args, (total, total))
+                self.assertEqual(len(progress.call_args_list), 2 * len(metadata['commands']))
+                self.assertEqual(total, len({(r['library'], r['filter']) for r in rows}))
+
+    def test_progress_truncation_excludes_omitted_tail_from_done_and_total(self):
+        with patch.object(MEASURE.TABLE3, 'report_progress') as progress:
+            _, rows = self.collect(MEASURE.FIGURE5, overrides={'THUNDERFFT_FIGURE5_SLOW_RATIO': '0.5'})
+        self.assertEqual(progress.call_args_list[0].args, (0, 64))
+        measured = len({(r['library'], r['filter']) for r in rows})
+        self.assertEqual(measured, 53)
+        self.assertEqual(progress.call_args.args, (measured, measured))
+        self.assertTrue(any('11 larger filters skipped' in call.kwargs['detail']
+                            for call in progress.call_args_list))
+
+    def test_failed_correctness_does_not_advance_progress(self):
+        with patch.object(MEASURE.TABLE3, 'report_progress') as progress, \
+                patch.object(MEASURE, 'check_row', side_effect=ValueError('invalid output')):
+            metadata, _ = self.collect(MEASURE.FIGURE5, expected_exit=1)
+        self.assertEqual(metadata['status'], 'failed')
+        self.assertEqual([call.args for call in progress.call_args_list], [(0, 64)])
+
+    def test_full_measures_every_filter_and_disables_ratio_cutoff(self):
+        metadata, rows = self.collect(MEASURE.FIGURE5, "full", {"THUNDERFFT_FIGURE5_SLOW_RATIO": "0.1"})
+        self.assertEqual(len(rows), 234)
+        self.assertEqual(len(metadata["commands"]), 3)
+        self.assertEqual(metadata["policy_skipped"], [])
+        self.assertEqual(metadata["settings"]["slow_ratio"], 0)
+        self.assertTrue(metadata["coverage_complete"])
+
+    def test_all_omitted_cudnn_filters_do_not_start_a_native_process(self):
+        metadata, rows = self.collect(MEASURE.FIGURE5, overrides={"THUNDERFFT_FIGURE5_FILTERS": "53"})
+        self.assertEqual({c["library"] for c in metadata["commands"]}, {"ThunderFFT", "FlashFFTConv"})
+        self.assertNotIn("cuDNN", metadata["binary_sha256"])
+        self.assertEqual(len(rows), 6)
+        with self.assertRaisesRegex(ValueError, "skips every"):
+            self.collect(MEASURE.FIGURE5, overrides={"THUNDERFFT_FIGURE5_FILTERS": "53",
+                                                   "THUNDERFFT_FIGURE5_LIBRARIES": "cuDNN"})
+
+    def test_invalid_modes_and_ratio_are_rejected_before_launch(self):
+        for mode, extra in (("invalid", {}), ("fast", {"THUNDERFFT_FIGURE5_SLOW_RATIO": "nan"}),
+                            ("fast", {"THUNDERFFT_FIGURE5_SLOW_RATIO": "-1"})):
+            with self.subTest(mode=mode, extra=extra), self.assertRaises(ValueError):
+                self.collect(MEASURE.FIGURE5, mode, extra)
 
 
 if __name__ == "__main__":

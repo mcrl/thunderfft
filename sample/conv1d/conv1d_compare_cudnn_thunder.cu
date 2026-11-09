@@ -165,7 +165,7 @@ float run_thunder_ms(const std::string& thff_bin, int L, int K, int device, int 
     return std::stof(m[1].str());
 }
 
-// Figure 4 cuDNN path. Same inputs as thff_conv1d_fullfft4096 (seed 42, same
+// Figure 5 cuDNN path. Same inputs as thff_conv1d_fullfft4096 (seed 42, same
 // rand() order): x[b][d][n] ~ U[0,1], w[d][k] ~ U[0,1]. Computes the same depthwise
 // circular convolution y[n] = sum_k x[(n-k) mod L] w[k] over all L outputs (that
 // driver stores w/L to absorb its unnormalized inverse FFT). cuDNN has no
@@ -173,10 +173,10 @@ float run_thunder_ms(const std::string& thff_bin, int L, int K, int device, int 
 // filter is stored reversed and applied with CUDNN_CROSS_CORRELATION (the mode
 // PyTorch's F.conv1d uses; cuDNN's grouped direct kernel is faster in this mode
 // than with CUDNN_CONVOLUTION), using the fastest found algorithm.
-int run_figure4(int argc, char** argv) {
+int run_figure5(int argc, char** argv) {
     if (argc < 9) {
         std::cerr << "usage: " << argv[0]
-                  << " --figure4 L K[,K...] B D warmup runs validate_channels [trials=1] [device=0]\n";
+                  << " --figure5 L K[,K...] B D warmup runs validate_channels [trials=1] [device=0]\n";
         return EXIT_FAILURE;
     }
     const int L = std::atoi(argv[2]), B = std::atoi(argv[4]), D = std::atoi(argv[5]);
@@ -313,7 +313,7 @@ int run_figure4(int argc, char** argv) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc >= 2 && std::string(argv[1]) == "--figure4") return run_figure4(argc, argv);
+    if (argc >= 2 && std::string(argv[1]) == "--figure5") return run_figure5(argc, argv);
     int L = 16384 * 16384;
     int Kb = 3;
     int Ke = 63;

@@ -1,4 +1,4 @@
-// Figure 5 driver: one library per process over a list of filter sizes; each size is checked
+// Figure 4 driver: one library per process over a list of filter sizes; each size is checked
 // against a direct FP64 reference before it is timed.
 //   thff_conv2d N f[,f...] cufft|cufftdx|cudnn|thunderfft [warmup=5] [runs=20] [trials=1] [device=0]
 // x (N x N) and h (f x f) are U[0,1] from minstd_rand seeds 42 and 42 + f (real parts of the complex
@@ -14,7 +14,7 @@
 #include <set>
 #include <string>
 
-namespace figure5 {
+namespace figure4 {
 namespace {
 
 constexpr double kTolerance = 5e-3;
@@ -43,7 +43,7 @@ std::vector<std::pair<int, int>> sample_points(int M, int f, int count) {
 double rel_l2(const Method& method, const Problem& p, const std::vector<float>& x, const std::vector<float>& h,
               const std::vector<std::pair<int, int>>& points) {
     std::vector<float> out(size_t(p.M) * p.M);
-    FIG5_CUDA(cudaMemcpy2D(out.data(), sizeof(float) * p.M, method.output(), sizeof(float) * method.output_pitch(),
+    FIG4_CUDA(cudaMemcpy2D(out.data(), sizeof(float) * p.M, method.output(), sizeof(float) * method.output_pitch(),
                            sizeof(float) * p.M, p.M, cudaMemcpyDeviceToHost));
     for (float v : out)
         if (!std::isfinite(v)) return NAN;
@@ -97,9 +97,9 @@ int run(int argc, char** argv) {
         return 2;
     }
 
-    FIG5_CUDA(cudaSetDevice(device));
+    FIG4_CUDA(cudaSetDevice(device));
     cudaDeviceProp prop{};
-    FIG5_CUDA(cudaGetDeviceProperties(&prop, device));
+    FIG4_CUDA(cudaGetDeviceProperties(&prop, device));
     char uuid[48];
     int at = std::snprintf(uuid, sizeof(uuid), "GPU-");
     for (int i = 0; i < 16; ++i) {
@@ -115,13 +115,13 @@ int run(int argc, char** argv) {
 
     Problem p;
     p.N = N;
-    FIG5_CUDA(cudaStreamCreateWithFlags(&p.stream, cudaStreamNonBlocking));
+    FIG4_CUDA(cudaStreamCreateWithFlags(&p.stream, cudaStreamNonBlocking));
     DeviceBuffer<float> d_input(x.size());
-    FIG5_CUDA(cudaMemcpy(d_input.data, x.data(), sizeof(float) * x.size(), cudaMemcpyHostToDevice));
+    FIG4_CUDA(cudaMemcpy(d_input.data, x.data(), sizeof(float) * x.size(), cudaMemcpyHostToDevice));
     p.d_input = d_input.data;
     cudaEvent_t start, stop;
-    FIG5_CUDA(cudaEventCreate(&start));
-    FIG5_CUDA(cudaEventCreate(&stop));
+    FIG4_CUDA(cudaEventCreate(&start));
+    FIG4_CUDA(cudaEventCreate(&stop));
 
     for (const int f : filters) {
         std::cout << "Filter size: " << f << "\n";
@@ -129,7 +129,7 @@ int run(int argc, char** argv) {
         std::minstd_rand filter_rng(42 + f);
         for (auto& v : h) v = float(filter_rng()) / float(filter_rng.max());
         DeviceBuffer<float> d_filter(h.size());
-        FIG5_CUDA(cudaMemcpy(d_filter.data, h.data(), sizeof(float) * h.size(), cudaMemcpyHostToDevice));
+        FIG4_CUDA(cudaMemcpy(d_filter.data, h.data(), sizeof(float) * h.size(), cudaMemcpyHostToDevice));
         p.f = f;
         p.M = N - f + 1;
         p.d_filter = d_filter.data;
@@ -141,7 +141,7 @@ int run(int argc, char** argv) {
         }
         if (!method->details().empty()) std::cout << method->details() << "\n";
         method->run();
-        FIG5_CUDA(cudaStreamSynchronize(p.stream));
+        FIG4_CUDA(cudaStreamSynchronize(p.stream));
         const auto points = sample_points(p.M, f, 2048);
         const double rel = rel_l2(*method, p, x, h, points);
         const bool passed = std::isfinite(rel) && rel <= kTolerance;
@@ -153,12 +153,12 @@ int run(int argc, char** argv) {
 
         for (int i = 0; i < warmup; ++i) method->run();
         for (int t = 0; t < trials; ++t) {
-            FIG5_CUDA(cudaEventRecord(start, p.stream));
+            FIG4_CUDA(cudaEventRecord(start, p.stream));
             for (int r = 0; r < runs; ++r) method->run();
-            FIG5_CUDA(cudaEventRecord(stop, p.stream));
-            FIG5_CUDA(cudaEventSynchronize(stop));
+            FIG4_CUDA(cudaEventRecord(stop, p.stream));
+            FIG4_CUDA(cudaEventSynchronize(stop));
             float ms = 0.0f;
-            FIG5_CUDA(cudaEventElapsedTime(&ms, start, stop));
+            FIG4_CUDA(cudaEventElapsedTime(&ms, start, stop));
             std::cout << std::fixed << std::setprecision(6) << library << " 2D conv (N=" << N << ", f=" << f
                       << ", filter_fft_included=" << int(method->filter_fft_included()) << ", trial=" << t
                       << ") time: " << ms / runs << " ms\n" << std::defaultfloat;
@@ -170,11 +170,11 @@ int run(int argc, char** argv) {
 }
 
 }  // namespace
-}  // namespace figure5
+}  // namespace figure4
 
 int main(int argc, char** argv) {
     try {
-        return figure5::run(argc, argv);
+        return figure4::run(argc, argv);
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << std::endl;
         return 1;

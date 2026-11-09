@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <string>
 
-namespace figure5 {
+namespace figure4 {
 namespace {
 
 constexpr int kTile = 64;
@@ -29,10 +29,10 @@ __device__ __forceinline__ int out_index(int row, int col) {
 __device__ __forceinline__ int rev2(int i) { return ((i & 3) << 2) | (i >> 2); }
 
 __device__ __forceinline__ void rev2_permute(float2* r) {
-#define FIG5_SWAP(a, b) { const float2 t_ = r[a]; r[a] = r[b]; r[b] = t_; }
-    FIG5_SWAP(1, 4) FIG5_SWAP(2, 8) FIG5_SWAP(3, 12) FIG5_SWAP(6, 9) FIG5_SWAP(7, 13) FIG5_SWAP(11, 14)
-    FIG5_SWAP(17, 20) FIG5_SWAP(18, 24) FIG5_SWAP(19, 28) FIG5_SWAP(22, 25) FIG5_SWAP(23, 29) FIG5_SWAP(27, 30)
-#undef FIG5_SWAP
+#define FIG4_SWAP(a, b) { const float2 t_ = r[a]; r[a] = r[b]; r[b] = t_; }
+    FIG4_SWAP(1, 4) FIG4_SWAP(2, 8) FIG4_SWAP(3, 12) FIG4_SWAP(6, 9) FIG4_SWAP(7, 13) FIG4_SWAP(11, 14)
+    FIG4_SWAP(17, 20) FIG4_SWAP(18, 24) FIG4_SWAP(19, 28) FIG4_SWAP(22, 25) FIG4_SWAP(23, 29) FIG4_SWAP(27, 30)
+#undef FIG4_SWAP
 }
 
 __device__ __forceinline__ void load_tile(float* stage, const float* __restrict__ in, const Geometry& g, int tile, int tid) {
@@ -166,25 +166,25 @@ public:
         geometry_.S = kTile - p.f + 1;
         geometry_.tiles_x = (p.M + geometry_.S - 1) / geometry_.S;
         geometry_.tiles = geometry_.tiles_x * geometry_.tiles_x;
-        FIG5_CUDA(cudaFuncSetAttribute(conv_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, int(kSmemBytes)));
+        FIG4_CUDA(cudaFuncSetAttribute(conv_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, int(kSmemBytes)));
         int device = 0, sms = 0;
-        FIG5_CUDA(cudaGetDevice(&device));
-        FIG5_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, device));
-        FIG5_CUDA(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_, conv_kernel, 128, kSmemBytes));
+        FIG4_CUDA(cudaGetDevice(&device));
+        FIG4_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, device));
+        FIG4_CUDA(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm_, conv_kernel, 128, kSmemBytes));
         if (blocks_per_sm_ < 1) throw std::runtime_error("ThunderFFT tile kernel cannot be resident");
         grid_ = std::min(geometry_.tiles, sms * blocks_per_sm_);
-        FIG5_CUFFT(cufftPlan2d(&plan_, kTile, kTile, CUFFT_C2C));
-        FIG5_CUFFT(cufftSetStream(plan_, p.stream));
+        FIG4_CUFFT(cufftPlan2d(&plan_, kTile, kTile, CUFFT_C2C));
+        FIG4_CUFFT(cufftSetStream(plan_, p.stream));
     }
     ~ThunderFFTMethod() override { cufftDestroy(plan_); }
     void run() override {
         const Problem& p = problem_;
         pad_filter<<<16, 256, 0, p.stream>>>(p.d_filter, padded_.data, p.f);
-        FIG5_CUFFT(cufftExecC2C(plan_, reinterpret_cast<cufftComplex*>(padded_.data),
+        FIG4_CUFFT(cufftExecC2C(plan_, reinterpret_cast<cufftComplex*>(padded_.data),
                                 reinterpret_cast<cufftComplex*>(spectrum_.data), CUFFT_FORWARD));
         permute_spectrum<<<16, 256, 0, p.stream>>>(spectrum_.data, hfrag_.data);
         conv_kernel<<<grid_, dim3(32, 4), kSmemBytes, p.stream>>>(p.d_input, hfrag_.data, output_.data, geometry_);
-        FIG5_CUDA(cudaGetLastError());
+        FIG4_CUDA(cudaGetLastError());
     }
     const float* output() const override { return output_.data; }
     size_t output_pitch() const override { return size_t(problem_.M); }
@@ -208,4 +208,4 @@ private:
 
 std::unique_ptr<Method> make_thunderfft_c2c(const Problem& p) { return std::make_unique<ThunderFFTMethod>(p); }
 
-}  // namespace figure5
+}  // namespace figure4

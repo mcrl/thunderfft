@@ -36,7 +36,7 @@ class RunnerChecks(unittest.TestCase):
                 self.assertIn("Complete pipeline; profile: paper", output)
                 self.assertIn("H100 PCIe 80GB: table3, table4; B200: table3, table4", output)
                 self.assertIn("Then assemble all tables and figures automatically", output)
-                for evaluation in ("table5", "table6", "table7", "figure3", "figure4", "figure5"):
+                for evaluation in ("table5", "table6", "table7", "figure3", "figure5", "figure4"):
                     self.assertIn(evaluation, output)
 
     def test_explicit_local_all_keeps_single_machine_smoke_default(self):
@@ -44,7 +44,7 @@ class RunnerChecks(unittest.TestCase):
         self.assertNotIn("Complete pipeline", output)
         self.assertIn("Profile: smoke; device: 0; sequential execution", output)
         self.assertIn("table6", output)
-        self.assertIn("figure5", output)
+        self.assertIn("figure4", output)
 
     def test_named_tasks_keep_local_smoke_default(self):
         output = self.dry_plan("validation", "table3")
@@ -52,7 +52,7 @@ class RunnerChecks(unittest.TestCase):
         self.assertIn("Profile: smoke; device: 0; sequential execution", output)
         self.assertIn("validation", output)
         self.assertIn("table3", output)
-        self.assertNotIn("figure5", output)
+        self.assertNotIn("figure4", output)
 
     def test_cufftdx_mode_local_plan_default_environment_and_cli_precedence(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -63,16 +63,16 @@ class RunnerChecks(unittest.TestCase):
 
     def test_fast_default_and_full_shorthand_report_all_effective_modes(self):
         with patch.dict(os.environ, {}, clear=True):
-            output = self.dry_plan("figure4")
+            output = self.dry_plan("figure5")
             self.assertIn("cuFFTDx mode: preset", output)
             self.assertIn("cuDNN mode: fast", output)
             self.assertIn("Table 5 range mode: boundary", output)
-            output = self.dry_plan("figure4", "--cufftdx-mode", "all")
+            output = self.dry_plan("figure5", "--cufftdx-mode", "all")
             self.assertIn("cuFFTDx mode: all", output)
             self.assertIn("cuDNN mode: fast", output)
         with patch.dict(os.environ, {runner.CUFFTDX_MODE_ENV: "preset", runner.CUDNN_MODE_ENV: "fast",
                                     runner.TABLE5_RANGE_MODE_ENV: "boundary"}):
-            for arguments in (("--full",), ("figure4", "--full")):
+            for arguments in (("--full",), ("figure5", "--full")):
                 output = self.dry_plan(*arguments)
                 self.assertIn("cuFFTDx mode: all", output)
                 self.assertIn("cuDNN mode: full", output)
@@ -88,7 +88,7 @@ class RunnerChecks(unittest.TestCase):
             self.assertEqual(raised.exception.code, 2)
 
     def test_full_cloud_dispatch_carries_all_explicit_overrides(self):
-        with patch("sys.argv", ["run.sh", "figure4", "--backend", "vast", "--full"]), \
+        with patch("sys.argv", ["run.sh", "figure5", "--backend", "vast", "--full"]), \
                 patch.object(runner.cloud, "run", return_value=0) as cloud_run:
             self.assertEqual(runner.main(), 0)
         args = cloud_run.call_args.args[0]
@@ -97,8 +97,8 @@ class RunnerChecks(unittest.TestCase):
 
     def test_cudnn_environment_and_explicit_cli_precedence(self):
         with patch.dict(os.environ, {runner.CUDNN_MODE_ENV: "full"}):
-            self.assertIn("cuDNN mode: full", self.dry_plan("figure5"))
-            self.assertIn("cuDNN mode: fast", self.dry_plan("figure5", "--cudnn-mode", "fast"))
+            self.assertIn("cuDNN mode: full", self.dry_plan("figure4"))
+            self.assertIn("cuDNN mode: fast", self.dry_plan("figure4", "--cudnn-mode", "fast"))
 
     def test_table5_range_environment_and_explicit_cli_precedence(self):
         with patch.dict(os.environ, {runner.TABLE5_RANGE_MODE_ENV: "full"}):

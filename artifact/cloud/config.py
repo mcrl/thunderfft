@@ -61,7 +61,7 @@ ENVIRONMENT = {
     "THUNDERFFT_FIGURE" + figure + "_" + suffix
     for figure in ("4", "5") for suffix in ("FILTERS", "TRIALS", "TIMEOUT", "LIBRARIES", "SLOW_RATIO")
 } | {
-    "THUNDERFFT_FIGURE4_VALIDATE_CHANNELS", "THUNDERFFT_FIGURE5_N", CUDNN_MODE_ENV,
+    "THUNDERFFT_FIGURE5_VALIDATE_CHANNELS", "THUNDERFFT_FIGURE4_N", CUDNN_MODE_ENV,
 }
 
 
@@ -77,11 +77,11 @@ def required_dependencies(jobs, *, mathdx=True):
             selected = lambda library: bool(libraries & {"all", "auto", library})
             if evaluation == "table5":
                 needed["mathdx"] = mathdx
-            elif evaluation in ("table3", "table6", "figure2", "figure3", "figure5") and selected("cufftdx"):
+            elif evaluation in ("table3", "table6", "figure2", "figure3", "figure4") and selected("cufftdx"):
                 needed["mathdx"] |= mathdx
-            if evaluation in ("figure4", "figure5") and selected("cudnn"):
+            if evaluation in ("figure5", "figure4") and selected("cudnn"):
                 needed["cudnn"] = True
-            if evaluation in ("table6", "figure4") and selected("flashfftconv"):
+            if evaluation in ("table6", "figure5") and selected("flashfftconv"):
                 needed["torch_headers"] = True
     return needed
 

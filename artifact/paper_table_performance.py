@@ -14,6 +14,8 @@ import statistics
 MISSING = "—"
 GPUS = ("A100", "H100", "B200")
 SIZES = (64, 128, 256, 512, 1024, 2048, 4096)
+REFERENCE_FILE = Path(__file__).with_name("paper_table_references.json")
+TABLE3_TIMING_FILE = Path(__file__).with_name("table3") / "paper-table3-all-targets.csv"
 
 
 def _csv(path):
@@ -82,9 +84,28 @@ def _span(row, col, rowspan=1, colspan=1):
     return {"row": row, "col": col, "rowspan": rowspan, "colspan": colspan}
 
 
+def _references(table):
+    return json.loads(REFERENCE_FILE.read_text(encoding="utf-8"))[table]
+
+
+def _comparison(row, col, paper, current, paper_text, current_text, status):
+    """Keep numeric operands separate from the rounded, paper-shaped display."""
+    paper, current = _number(paper), _number(current)
+    if current is None:
+        status = "missing"
+    elif paper is None:
+        status = "missing_reference"
+    return {"row": row, "col": col, "paper": paper, "current": current,
+            "paper_text": paper_text if paper is not None else MISSING,
+            "current_text": current_text if current is not None else MISSING,
+            "status": status}
+
+
 def _table2(directory):
     metadata = _metadata(directory)
     by_design = _index(_csv(directory / "table.csv"), ("design",))
+    reference = _references("table2")["rows"]
+    comparisons = []
     rows = [["Engine", "TFLOPS", "Design", "MMA Shape", "Load", "Max Util", "Rel. Time"]]
     ideal = by_design.get(("Ideal FFT",), {})
     for design in ("Ideal FFT", "cuFFTDx", "Radix-4", "Radix-8", "Radix-16"):
@@ -113,6 +134,23 @@ def _table2(directory):
                   "Tensor\nCore" if design == "Radix-4" else "")
         peak = _format(source.get("peak_tflops"), digits=0) if engine else ""
         rows.append([engine, peak, design, shape, _format(load, digits=1), util, time])
+        paper_row = reference.get(design, {})
+        numeric = [(4, "arithmetic_coefficient", load, "model"),
+                   (5, "utilization_pct", None if utilization is None else utilization * 100,
+                    "measured" if measured else "model"),
+                   (6, "relative_time", source.get("relative_time"),
+                    "measured" if measured else "model")]
+        if engine:
+            numeric.insert(0, (1, "peak_tflops", source.get("peak_tflops"), "model"))
+        for col, field, current, status in numeric:
+            paper_value = paper_row.get(field)
+            paper_text = str(paper_value) if _number(paper_value) is not None else MISSING
+            if col == 5 and paper_text != MISSING:
+                paper_text += "%"
+            if measured and col in (5, 6) and paper_text != MISSING:
+                paper_text += "†"
+            comparisons.append(_comparison(len(rows) - 1, col, paper_value, current,
+                                           paper_text, rows[-1][col], status))
     notes = ["Load is the coefficient of $N\\log_2 N$. Calculated rows use the paper's A100 FP16 model assumptions.",
              "† cuFFTDx utilization and relative time are measured from Table 3; — means unavailable."]
     if not by_design.get(("cuFFTDx",)):
@@ -122,6 +160,7 @@ def _table2(directory):
             "caption": "Theoretical FFT performance model on NVIDIA A100 (FP16).",
             "width": 8.1, "font_size": 10,
             "panels": [{"widths": [1.0, 0.85, 1.35, 1.55, 0.7, 1.0, 1.05], "rows": rows,
+                        "comparisons": comparisons,
                         "header_rows": 1,
                         "spans": [_span(1, 0, rowspan=2), _span(1, 1, rowspan=2),
                                   _span(3, 0, rowspan=3), _span(3, 1, rowspan=3)],
@@ -140,11 +179,16 @@ def _time(row):
 def _table3(directory):
     metadata = _metadata(directory)
     source = _index(_csv(directory / "table.csv"), ("gpu", "N", "precision", "placement", "library"))
+    paper_times = _index(_csv(TABLE3_TIMING_FILE), ("gpu", "N", "precision", "placement", "implementation"))
+    paper_reference = _references("table3")
+    if tuple(paper_reference["gpu_order"]) != GPUS:
+        raise ValueError("Table 3 paper reference GPU order disagrees with layout")
     speedup_path = directory / "speedup.csv"
     speedups = _index(_csv(speedup_path), ("gpu", "N", "thunderfft_precision", "placement")) \
         if speedup_path.is_file() else {}
     panels = []
     for placement, title in (("register", "(a) Inputs in register"), ("shared", "(b) Inputs in shared memory")):
+        comparisons = []
         rows = [["N"] + [""] * 18, [""] * 19, [""] + list(GPUS) * 6]
         rows[0][1], rows[0][10] = "FP16", "TF32 / FP32"
         spans = [_span(0, 0, rowspan=3), _span(0, 1, colspan=9), _span(0, 10, colspan=9)]
@@ -158,9 +202,9 @@ def _table3(directory):
         ratios = {}
         for n in SIZES:
             row = [str(n)]
-            for precision, baseline_precision in (("fp16", "fp16"), ("tf32", "fp32")):
+            for offset, precision, baseline_precision in ((1, "fp16", "fp16"), (10, "tf32", "fp32")):
                 dx_values, xfft_values, speed_values = [], [], []
-                for gpu in GPUS:
+                for gpu_index, gpu in enumerate(GPUS):
                     dx = _time(source.get((gpu, str(n), baseline_precision, placement, "cuFFTDx"), {}))
                     xfft = _time(source.get((gpu, str(n), precision, placement, "ThunderFFT"), {}))
                     ratio = dx / xfft if dx is not None and xfft is not None else None
@@ -176,6 +220,14 @@ def _table3(directory):
                     dx_values.append(_format(dx))
                     xfft_values.append(_format(xfft))
                     speed_values.append(_format(ratio))
+                    paper_dx = paper_times.get((gpu, str(n), baseline_precision, placement, "cufftdx"), {}).get("target_us")
+                    paper_xfft = paper_times.get((gpu, str(n), precision, placement, "xfft"), {}).get("target_us")
+                    paper_speed = paper_reference["speedups"].get(placement, {}).get(precision, {}).get(str(n), [None] * 3)[gpu_index]
+                    for group, original, current, status in ((0, paper_dx, dx, "measured"),
+                                                             (1, paper_xfft, xfft, "measured"),
+                                                             (2, paper_speed, ratio, "derived")):
+                        comparisons.append(_comparison(len(rows), offset + group * 3 + gpu_index,
+                                                       original, current, _format(original), _format(current), status))
                 row.extend(dx_values + xfft_values + speed_values)
             rows.append(row)
         average = ["Avg."] + [""] * 18
@@ -189,6 +241,9 @@ def _table3(directory):
                     if recorded is None or not math.isclose(mean, recorded, rel_tol=1e-9):
                         raise ValueError("Table 3 geometric mean disagrees with seven measured sizes")
                 average[offset + gpu_index] = _format(mean)
+                paper_mean = paper_reference["speedups"].get(placement, {}).get(precision, {}).get("Avg.", [None] * 3)[gpu_index]
+                comparisons.append(_comparison(len(rows), offset + gpu_index, paper_mean, mean,
+                                               _format(paper_mean), _format(mean), "derived"))
         rows.append(average)
         vrules = [{"col": col, "row": 0.1, "end": 10.9, "weight": 0.5} for col in (1, 10)]
         vrules += [{"col": col, "row": 2.1, "end": 9.9, "weight": 0.35}
@@ -196,6 +251,7 @@ def _table3(directory):
         vrules += [{"col": col, "row": 10.1, "end": 10.9, "weight": 0.35}
                    for col in (8, 9, 17, 18)]
         panels.append({"title": title, "widths": [0.8] + [1.0] * 18,
+                       "comparisons": comparisons,
                        "rows": rows, "spans": spans, "rules": rules,
                        "vrules": vrules, "header_rows": 3, "row_height": 0.23})
     return {"number": 3,
@@ -209,12 +265,14 @@ def _table3(directory):
 def _table4(directory):
     metadata = _metadata(directory)
     source = _index(_csv(directory / "table.csv"), ("gpu",))
+    reference = _references("table4")["rows"]
+    comparisons = []
     rows = [[""] + list(GPUS)]
     for label, field in (("Hardware Peak FLOPS", "hardware_peak_tflops"),
                          ("Ideal $m16n8k8$ FLOPS", "ideal_mma_tflops"),
                          ("Unit kernel ($N=64$)", "unit_tflops")):
         row = [label]
-        for gpu in GPUS:
+        for col, gpu in enumerate(GPUS, 1):
             result = source.get((gpu,), {})
             value = result.get(field)
             if field == "ideal_mma_tflops" and result.get("ideal_mma_status") != "measured":
@@ -222,11 +280,17 @@ def _table4(directory):
             if field == "unit_tflops" and result.get("status") in ("pending", "failed"):
                 value = None
             row.append(_format(value, comma=True))
+            paper_value = reference.get(field, {}).get(gpu)
+            status = {"hardware_peak_tflops": "reference", "ideal_mma_tflops": "measured",
+                      "unit_tflops": "derived"}[field]
+            comparisons.append(_comparison(len(rows), col, paper_value, value,
+                                           _format(paper_value, comma=True), row[-1], status))
         rows.append(row)
     return {"number": 4,
             "caption": "Reported chip-level peak throughput, measured ideal $m16n8k8$ throughput, and achieved throughput of the 64-point unit kernel (TFLOPS).",
             "width": 6.9, "font_size": 10,
             "panels": [{"widths": [3.2, 1.0, 1.0, 1.25], "rows": rows,
+                        "comparisons": comparisons,
                         "header_rows": 1,
                         "rules": [_rule(1, 0, 4)], "align": {0: "left"}}],
             "notes": ["Hardware peaks are published reference values. Ideal MMA values are measured; unit throughput is derived from Table 3 timings.",

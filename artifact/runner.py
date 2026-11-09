@@ -275,6 +275,13 @@ def execute(entry, output, args, dependency_results=None):
             if missing:
                 state.update(status="failed", runner_exit_code=65,
                              detail="adapter exited 0 but required outputs are missing or empty: " + ", ".join(missing))
+            elif entry["id"] in ("table2", "table3", "table4", "table5", "table6", "table7") and (output / "table.csv").is_file():
+                from artifact import paper_tables
+                try:
+                    state["presentation"] = paper_tables.render(entry["id"], output)
+                except (OSError, ValueError, RuntimeError) as error:
+                    state.update(status="failed", runner_exit_code=65,
+                                 detail="measurement retained, table rendering failed: " + str(error))
         if code:
             lines = (output / "run.log").read_text(encoding="utf-8", errors="replace").splitlines()
             state["detail"] = "\n".join(lines[-8:])
@@ -461,6 +468,8 @@ def main():
                 states = collection.assemble_collection(collection_dir, entries, args.profile)
                 for state in states:
                     print(f"[{state['evaluation']}] {state['status']}; missing {len(state.get('missing', []))}")
+                    if "presentation" in state:
+                        print(f"  View table: {collection_dir / 'assembled' / state['evaluation'] / 'table.html'}")
                 print(f"Assembled outputs: {collection_dir / 'assembled'}")
                 print("No GPU measurements executed. Missing values remain uncollected.")
                 return 0 if all(s["status"] == "complete" for s in states) else 2
@@ -569,6 +578,8 @@ def main():
         if state['status'] != 'completed':
             print(f"[{state['evaluation']}] {state['status']} (exit {state['exit_code']}); "
                   f"details: {state.get('result_dir', batch_dir)}/run.log", file=sys.stderr, flush=True)
+        elif "presentation" in state:
+            print(f"[{state['evaluation']}] View table: {Path(state['result_dir']) / 'table.html'}", flush=True)
     metadata.update(finished_at=now(), exit_code=exit_code)
     atomic_json(batch_dir / "manifest.json", metadata)
     print(f"Summary: {batch_dir / 'summary.csv'}", flush=True)

@@ -11,7 +11,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE.parent / "table6"))
-_spec = importlib.util.spec_from_file_location("figure4_external_build", HERE.parent / "table6/build.py")
+_spec = importlib.util.spec_from_file_location("figure5_external_build", HERE.parent / "table6/build.py")
 BUILD = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(BUILD)
 SPEC = dict(BUILD.FLASHFFTCONV, files=dict(BUILD.FLASHFFTCONV["files"]))
@@ -31,7 +31,7 @@ def main():
     if not nvcc:
         parser.error(f"nvcc not found: {args.nvcc}")
     include, version = BUILD.torch_include(args.python)
-    out = args.build_dir.resolve() / "artifact_figure4"
+    out = args.build_dir.resolve() / "artifact_figure5"
     out.mkdir(parents=True, exist_ok=True)
     source = out / "flashfftconv"
     # Reuse only exact pinned, unmodified files. A changed source is fetched again.
@@ -40,7 +40,7 @@ def main():
         provenance = BUILD.clone(SPEC, source)
     else:
         provenance = {"root": str(source), "url": SPEC["url"], "pinned_commit": SPEC["commit"], "files": SPEC["files"]}
-    binary = out / "figure4_flashfftconv"
+    binary = out / "figure5_flashfftconv"
     command = [nvcc, "-std=c++17", "-O3", "-lineinfo", f"-gencode=arch=compute_{args.arch},code=sm_{args.arch}",
                str(HERE / "flashfftconv.cu"), "-I", str(HERE.parent / "table6/src/shim"), "-I", include,
                "-I", str(source / BUILD.FLASH_DIR), *BUILD.TORCH_EXTENSION_DEFINES, "-lcufft", "-o", str(binary)]
@@ -59,5 +59,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except (OSError, RuntimeError) as error:
-        print(f"Figure 4 FlashFFTConv build failed: {error}", file=sys.stderr)
+        print(f"Figure 5 FlashFFTConv build failed: {error}", file=sys.stderr)
         raise SystemExit(1)

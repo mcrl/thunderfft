@@ -1,0 +1,73 @@
+{
+  "source": "PPoPP27_chaewon__FFT_ (3).pdf, printed Tables 2, 3 and 4",
+  "pdf_sha256": "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50",
+  "notes": "Values are the printed paper numbers, not unrounded inferred measurements. Table 3 timing references remain in table3/paper-table3-all-targets.csv. Speedup and Avg. references below are transcribed directly and are not recomputed from rounded timings. GPU order is A100, H100, B200.",
+  "table2": {
+    "page": 3,
+    "rows": {
+      "Ideal FFT": {"peak_tflops": "78", "arithmetic_coefficient": "5.0", "utilization_pct": "100", "relative_time": "1.00"},
+      "cuFFTDx": {"arithmetic_coefficient": "5.0", "utilization_pct": "55.8", "relative_time": "1.79"},
+      "Radix-4": {"peak_tflops": "312", "arithmetic_coefficient": "16.0", "utilization_pct": "25", "relative_time": "3.20"},
+      "Radix-8": {"arithmetic_coefficient": "21.3", "utilization_pct": "50", "relative_time": "2.13"},
+      "Radix-16": {"arithmetic_coefficient": "32.0", "utilization_pct": "100", "relative_time": "1.60"}
+    }
+  },
+  "table3": {
+    "page": 8,
+    "gpu_order": ["A100", "H100", "B200"],
+    "speedups": {
+      "register": {
+        "fp16": {
+          "64": ["1.28", "1.28", "1.36"],
+          "128": ["1.96", "1.99", "2.21"],
+          "256": ["1.12", "1.02", "1.14"],
+          "512": ["1.30", "1.20", "1.11"],
+          "1024": ["1.30", "1.17", "1.19"],
+          "2048": ["1.15", "1.10", "1.23"],
+          "4096": ["1.22", "1.19", "1.31"],
+          "Avg.": ["1.31", "1.25", "1.33"]
+        },
+        "tf32": {
+          "64": ["2.29", "1.33", "1.22"],
+          "128": ["3.02", "3.11", "3.55"],
+          "256": ["1.91", "1.77", "1.82"],
+          "512": ["1.96", "1.83", "1.66"],
+          "1024": ["2.23", "2.01", "1.67"],
+          "2048": ["2.08", "1.66", "1.52"],
+          "4096": ["2.00", "1.75", "1.68"],
+          "Avg.": ["2.19", "1.86", "1.78"]
+        }
+      },
+      "shared": {
+        "fp16": {
+          "64": ["3.35", "3.05", "2.53"],
+          "128": ["2.56", "2.32", "2.29"],
+          "256": ["1.38", "1.39", "1.20"],
+          "512": ["1.28", "1.25", "0.99"],
+          "1024": ["1.39", "1.12", "1.08"],
+          "2048": ["1.02", "1.12", "1.15"],
+          "4096": ["1.80", "1.34", "1.22"],
+          "Avg.": ["1.69", "1.54", "1.40"]
+        },
+        "tf32": {
+          "64": ["3.92", "3.06", "3.33"],
+          "128": ["3.44", "2.72", "2.93"],
+          "256": ["1.71", "1.45", "1.49"],
+          "512": ["1.28", "1.14", "1.12"],
+          "1024": ["2.96", "1.87", "1.75"],
+          "2048": ["1.69", "1.54", "1.45"],
+          "4096": ["2.32", "1.82", "1.60"],
+          "Avg.": ["2.30", "1.84", "1.82"]
+        }
+      }
+    }
+  },
+  "table4": {
+    "page": 8,
+    "rows": {
+      "hardware_peak_tflops": {"A100": "156.00", "H100": "378.00", "B200": "1100.00"},
+      "ideal_mma_tflops": {"A100": "147.22", "H100": "243.82", "B200": "275.80"},
+      "unit_tflops": {"A100": "113.42", "H100": "156.67", "B200": "202.34"}
+    }
+  }
+}

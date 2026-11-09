@@ -162,7 +162,7 @@ std::vector<float> cufftdx_convolution(const float2* h_input, const float2* h_fi
     CHECK_CUDA(cudaMemcpy(d_filter_spatial, h_filter_padded, sizeof(cufftdx::complex<float>) * tile_size * tile_size, cudaMemcpyHostToDevice));
     std::free(h_filter_padded);
 
-    // The filter FFT runs inside every timed iteration (Figure 5 timing scope).
+    // The filter FFT runs inside every timed iteration (Figure 4 timing scope).
     cufftHandle plan_forward;
     CHECK_CUFFT(cufftPlan2d(&plan_forward, tile_size, tile_size, CUFFT_C2C));
 
