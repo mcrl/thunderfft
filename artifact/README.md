@@ -64,6 +64,30 @@ or with `all`, it uses the paper profile and runs these stages in order:
 3. Rent a B200 for Tables 3 and 4, download its results and destroy it.
 4. Assemble the collected measurements into the final tables and figures.
 
+Approximate times for the default paper workflow on the prepared evaluation
+account, with dependencies and local builds already available:
+
+| Step, in execution order | GPU | Estimated time |
+| --- | --- | --- |
+| Validation | A100 | Under 1 minute |
+| Table 3 | A100 | 8–12 minutes |
+| Table 2 | A100 | Under 1 minute |
+| Table 4 | A100 | Under 1 minute |
+| Table 5 | A100 | 18–22 minutes |
+| Table 6 | A100 | Under 1 minute |
+| Table 7 | A100 | Under 1 minute |
+| Figure 3 | A100 | Under 1 minute |
+| Figure 4 | A100 | 2–3 minutes |
+| Figure 5 | A100 | 9–12 minutes |
+| Tables 3 and 4, complete cloud stage | H100 PCIe | 10–15 minutes |
+| Tables 3 and 4, complete cloud stage | B200 | 10–15 minutes |
+| Final table assembly and Figure 2–5 PDFs | CPU | Under 1 minute |
+| **Total** | | **About 60–80 minutes** |
+
+Cloud-stage estimates include startup, builds, measurements, result download
+and cleanup. Initial setup/local builds, GPU waiting and cloud retries can add
+time. Figure 2 reuses Table 3 measurements during final assembly.
+
 Table 3 runs before the evaluations that reuse it. The workflow creates a
 collection automatically; `--collection NAME` chooses its name. Final output
 is under `result/collections/<name>/assembled/`. No manual import, status-file
