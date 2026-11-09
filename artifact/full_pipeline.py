@@ -516,4 +516,6 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
         save()
         print(f"Pipeline summary: {folder / 'pipeline.json'}", flush=True)
         print(f"Tables and figures: {destination / 'assembled'}", flush=True)
+        if (destination / 'assembled/table3/table.html').is_file():
+            print(f"Table 3: {destination / 'assembled/table3/table.html'} (also PDF/PNG)", flush=True)
     return code

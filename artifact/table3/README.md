@@ -97,10 +97,21 @@ selected native candidate and launch geometry, and rejects mixing modes.
 
 ## Output
 
-Written to `result/table3/<run_id>/`:
+`./run.sh table3` automatically writes the readable table to
+`result/table3/<run_id>/table.html`, with `table.pdf` and `table.png` for viewing
+or sharing. `table.md` provides an image preview and links to these files.
+Collection assembly generates the same four files in
+`result/collections/ae/assembled/table3/`.
+
+The layout follows the paper: register and shared-memory sections, FP16 and
+TF32/FP32 precision groups, then cuFFTDx, xFFT (ThunderFFT) and speedup columns
+for each of A100, H100 and B200. Cells without measurements display `—`.
+
+The CSV files retain the detailed machine-readable results. Each run also writes:
 
 - `data.csv`: every validated timing trial (ThunderFFT and the measured cuFFTDx candidates)
-- `table.csv`: median/min/max latency per configuration; paper targets on paper-profile runs
+- `table.csv`: median/min/max latency per configuration; `paper_target_us` is that
+  row's library/precision/placement/GPU paper reference on paper-profile runs
 - `cufftdx_candidates.csv`: every cuFFTDx candidate, selected one marked (cuFFTDx runs only)
 - `speedup.csv`: cuFFTDx/ThunderFFT speedups and geometric means (cuFFTDx runs only)
 - `metadata.json`: settings, selection mode/preset provenance, coverage, GPU and software versions, hashes
@@ -113,7 +124,16 @@ A Vast.ai run downloads the same directory to
 `--collection`, the result is also stored as
 `result/collections/ae/parts/table3/<part>/`.
 
-Assembly writes `result/collections/ae/assembled/table3/` (`data.csv`,
+Assembly also writes `result/collections/ae/assembled/table3/` (`data.csv`,
 `table.csv`, `cufftdx_candidates.csv`, `speedup.csv`, `metadata.json`,
 `status.json`) and `result/collections/ae/assembled/missing.csv`, listing
 uncollected configurations.
+
+To refresh the readable table from an existing result without GPU measurement,
+run from the repository root:
+
+```sh
+python3 -m artifact.paper_tables result/table3/<run_id>
+# Or refresh an assembled collection:
+python3 -m artifact.paper_tables result/collections/ae/assembled/table3
+```
