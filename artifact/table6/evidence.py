@@ -52,7 +52,7 @@ def metadata(part, evaluation, profile):
     return result
 
 
-def native_identity(meta, log, table3):
+def native_identity(meta, log, table3, *, binary=None):
     observed = table3.gpu_name(log)
     if observed != (meta.get("gpu"), meta.get("gpu_name"), meta.get("compute_capability")):
         raise ValueError("native GPU identity disagrees with metadata")
@@ -70,10 +70,23 @@ def native_identity(meta, log, table3):
     versions = re.findall(r"^compiled_CUDART=(\d+) runtime=(\d+) driver=(\d+)", log, re.MULTILINE)
     if len(versions) != 1:
         raise ValueError("missing or duplicate native CUDA version evidence")
-    return {"gpu": observed[0], "gpu_name": observed[1], "compute_capability": observed[2],
+    identity = {"gpu": observed[0], "gpu_name": observed[1], "compute_capability": observed[2],
             "gpu_uuid": uuid, "driver_version": matches[0][3].strip(), "native_cuda": versions[0],
             **{key: meta["settings"][key] for key in ("batch", "repeats", "trials")},
             "source_sha256": meta["source_sha256"]}
+    if binary is not None:
+        # Table 6 compares distinct executables. A statically linked external
+        # library may use a different CUDA runtime from the shared-runtime
+        # paper_fft executable on the same GPU. Preserve and compare these
+        # versions per library and actual executable hash; two modes using the
+        # same executable must agree too. The actual driver remains common.
+        binary_digest = meta.get("binary_sha256", {}).get(binary)
+        if not digest(binary_digest):
+            raise ValueError(f"missing {binary} binary SHA256")
+        identity["native_cuda_by_binary"] = {binary: identity.pop("native_cuda")}
+        identity["native_cuda_by_digest"] = {binary_digest: versions[0]}
+        identity["native_driver_api"] = versions[0][2]
+    return identity
 
 
 def check_saved(stored, parsed, fields):
@@ -86,10 +99,26 @@ def check_saved(stored, parsed, fields):
 
 def merge_identity(identities, identity):
     gpu = identity["gpu"]
-    if gpu in identities and identities[gpu] != identity:
-        differences = [key for key in identity if identities[gpu].get(key) != identity[key]]
+    previous = identities.get(gpu)
+    if previous is None:
+        identities[gpu] = identity
+        return
+    scoped = ("native_cuda_by_binary", "native_cuda_by_digest")
+    common = lambda value: {key: item for key, item in value.items() if key not in scoped}
+    if common(previous) != common(identity):
+        differences = sorted(key for key in common(previous).keys() | common(identity).keys()
+                             if previous.get(key) != identity.get(key))
         raise ValueError(f"incompatible {gpu} parts ({', '.join(differences)}); use separate collections")
-    identities[gpu] = identity
+    merged = dict(identity)
+    for key in scoped:
+        native = dict(previous.get(key, {}))
+        for binary, versions in identity.get(key, {}).items():
+            if binary in native and native[binary] != versions:
+                raise ValueError(f"incompatible {gpu} parts ({key}.{binary}); use separate collections")
+            native[binary] = versions
+        if native:
+            merged[key] = native
+    identities[gpu] = merged
 
 
 def assembly_paths(parts, output):

@@ -92,6 +92,15 @@ class Assembly(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "evidence"):
                 A.load_part(part, "smoke")
 
+    def test_runtime_change_in_same_executable_still_conflicts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first, second = bundle(root / "copy", "copy"), bundle(root / "fft", "thunderfft")
+            log = second / "raw/data.log"
+            log.write_text(log.read_text().replace("runtime=12090", "runtime=12080"))
+            with self.assertRaisesRegex(ValueError, "native_cuda"):
+                A.assemble([first, second], root / "out", "smoke")
+
     def test_library_selection(self):
         with patch.dict(os.environ, {"THUNDERFFT_FIGURE3_LIBRARIES": "thunderfft"}):
             self.assertEqual(A.M.selected_libraries(False), ("thunderfft",))

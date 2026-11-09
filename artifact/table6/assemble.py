@@ -42,7 +42,7 @@ def load_part(part, profile):
         csv_path = E.evidence_file(part, record.get("stdout"))
         log_path = E.evidence_file(part, record.get("stderr"))
         log = log_path.read_text()
-        identity = E.native_identity(meta, log, M.TABLE3)
+        identity = E.native_identity(meta, log, M.TABLE3, binary=library)
         E.merge_identity(identities, identity)
         args = [str(meta["settings"][key]) for key in ("repeats", "trials", "batch")]
         if library == "cufftdx":
