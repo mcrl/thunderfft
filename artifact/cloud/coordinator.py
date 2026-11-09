@@ -73,27 +73,76 @@ def make_jobs(args, entries, registry, config, select_tasks, parser):
     return jobs
 
 
+class OfferSelectionUnavailable(ProviderError):
+    """No eligible offer, with separate availability, price and balance evidence."""
+
+    def __init__(self, gpu, diagnostics):
+        self.diagnostics = diagnostics
+        count = diagnostics["matching_offers"]
+        if not count:
+            self.reason = "no_matching_offers"
+            detail = "no matching hardware offers were returned"
+        elif diagnostics["excluded_host_offers"] == count:
+            self.reason = "excluded_hosts_only"
+            detail = "all matching offers are on excluded/unavailable hosts"
+        else:
+            self.reason = "no_eligible_offers"
+            detail = "no matching offer passed the eligibility checks"
+        counts = (f"matching={count}, excluded hosts={diagnostics['excluded_host_offers']}, "
+                  f"invalid host IDs={diagnostics['invalid_host_ids']}, "
+                  f"rejected cost plans={diagnostics['rejected_cost_plans']}, "
+                  f"above available balance={diagnostics['above_available_balance']}")
+        message = (f"No {gpu} offer is currently selectable: {detail} ({counts}; "
+                   f"allocation USD {diagnostics['budget_usd']:.2f}, "
+                   f"available balance USD {diagnostics['balance_usd']:.2f})")
+        if diagnostics["cost_plan_errors"]:
+            message += "; cost-plan details: " + "; ".join(diagnostics["cost_plan_errors"])
+        if diagnostics["lowest_over_balance_plan_usd"] is not None:
+            message += (f"; lowest otherwise eligible all-in plan USD "
+                        f"{diagnostics['lowest_over_balance_plan_usd']:.4f}")
+        super().__init__(message)
+
+
 def plan(client, config, gpu):
     account = client.account_summary()
     client.billing_preflight()
-    candidates, rejected = [], 0
+    candidates = []
+    diagnostics = {"matching_offers": 0, "excluded_host_offers": 0,
+                   "invalid_host_ids": 0, "rejected_cost_plans": 0,
+                   "above_available_balance": 0, "cost_plan_errors": [],
+                   "lowest_over_balance_plan_usd": None,
+                   "budget_usd": config["budget_usd"], "balance_usd": account["balance_usd"]}
     keys = ("disk_gb", "startup_seconds", "execution_seconds", "download_seconds", "cleanup_seconds",
             "billing_delay_seconds", "upload_gb", "download_gb", "budget_usd", "reserve_usd")
     for offer in client.search_offers(gpu, config["disk_gb"]):
+        diagnostics["matching_offers"] += 1
         # A known machine ID is required to exclude failed hosts on retry.
         if (not isinstance(offer.get("machine_id"), int) or isinstance(offer["machine_id"], bool)
-                or offer["machine_id"] <= 0 or offer["machine_id"] in config["exclude_machine_ids"]):
-            rejected += 1
+                or offer["machine_id"] <= 0):
+            diagnostics["invalid_host_ids"] += 1
+            continue
+        if offer["machine_id"] in config["exclude_machine_ids"]:
+            diagnostics["excluded_host_offers"] += 1
             continue
         try:
             cost = plan_cost(offer, **{k: config[k] for k in keys})
-        except ProviderError:
-            rejected += 1
+        except ProviderError as error:
+            diagnostics["rejected_cost_plans"] += 1
+            # plan_cost emits only locally generated price/configuration errors,
+            # never a provider response body or credentials.
+            detail = str(error)[:256]
+            if detail not in diagnostics["cost_plan_errors"] and len(diagnostics["cost_plan_errors"]) < 3:
+                diagnostics["cost_plan_errors"].append(detail)
             continue
         if account["balance_usd"] >= cost["planned_total_usd"]:
             candidates.append((cost["planned_total_usd"], offer, cost))
+        else:
+            diagnostics["above_available_balance"] += 1
+            lowest = diagnostics["lowest_over_balance_plan_usd"]
+            diagnostics["lowest_over_balance_plan_usd"] = min(
+                cost["planned_total_usd"], lowest if lowest is not None else cost["planned_total_usd"])
     if not candidates:
-        raise ProviderError(f"No matching {gpu} offer fits the all-in budget and available balance ({rejected} price plans rejected)")
+        raise OfferSelectionUnavailable(gpu, diagnostics)
     _, offer, cost = min(candidates, key=lambda value: value[0])
     # Retain prices and identifying hardware fields, not account PII/provider
     # credentials or the potentially extensive raw offer response.
@@ -200,7 +249,30 @@ def acquire_instance(client, config, gpu, state, folder, proposal, *,
             if log is not None:
                 log(f"[{gpu}] selected offer is no longer available; searching another host "
                     f"within the same budget and startup deadline ({index + 2}/3)")
-            replacement = plan(client, retry_config, gpu)
+            try:
+                replacement = plan(client, retry_config, gpu)
+            except ProviderError as replacement_error:
+                evidence = {"error_type": type(replacement_error).__name__,
+                            "error": str(replacement_error),
+                            "previous_create_rejection": {
+                                "offer_id": proposal["offer"]["id"],
+                                "machine_id": proposal["offer"]["machine_id"],
+                                "planned_total_usd": proposal["cost"]["planned_total_usd"],
+                                "budget_usd": config["budget_usd"],
+                                "balance_usd": proposal["account_before"]["balance_usd"],
+                                "http_status": error.code, "reason": error.reason,
+                                "error": str(error)}}
+                if isinstance(replacement_error, OfferSelectionUnavailable):
+                    evidence.update(reason=replacement_error.reason,
+                                    diagnostics=replacement_error.diagnostics)
+                write_json(folder / "replacement-error.json", evidence)
+                raise ProviderError(
+                    f"Vast.ai rejected offer {proposal['offer']['id']} on host "
+                    f"{proposal['offer']['machine_id']}: {error}; "
+                    f"its all-in plan USD {proposal['cost']['planned_total_usd']:.4f} "
+                    f"was within allocation USD {config['budget_usd']:.2f}; "
+                    f"replacement search failed: {replacement_error}. "
+                    "No replacement rental was created. Wait for another eligible offer and retry.") from None
             checkpoint()
             if validate_plan is not None:
                 validate_plan(replacement)

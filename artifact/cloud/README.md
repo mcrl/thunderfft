@@ -195,6 +195,14 @@ HTTP 400 stops the run with these diagnostics; it is not assumed to mean that
 the GPU was sold out. Rejected offers and replacement plans are retained in
 `creation-attempts.json`.
 
+Offer selection reports unavailable/excluded hosts, invalid price information,
+budget overruns and insufficient balance separately. A host excluded after
+`no_such_ask` is an availability failure, even when the search still advertises
+that host. If replacement selection fails, the final error retains the original
+creation rejection and writes `replacement-error.json` with the selection
+details. A successful cost plan followed by this error does not mean the GPU
+exceeded the budget.
+
 ## Unavailable cloud GPUs
 
 We are sorry for the interruption when no compatible offer is available.

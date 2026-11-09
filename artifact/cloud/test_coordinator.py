@@ -389,6 +389,102 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual(proposal["offer"]["machine_id"], 9)
         self.assertEqual(self.client.create_count, 0)
 
+    def test_excluded_only_offer_is_availability_failure_not_price_rejection(self):
+        self.settings["exclude_machine_ids"] = [8]
+        with self.assertRaises(coordinator.OfferSelectionUnavailable) as caught:
+            coordinator.plan(self.client, self.settings, "A100")
+        error = caught.exception
+        self.assertEqual(error.reason, "excluded_hosts_only")
+        self.assertEqual(error.diagnostics["excluded_host_offers"], 1)
+        self.assertEqual(error.diagnostics["rejected_cost_plans"], 0)
+        self.assertEqual(error.diagnostics["cost_plan_errors"], [])
+        self.assertIn("excluded/unavailable hosts", str(error))
+        self.assertIn("rejected cost plans=0", str(error))
+        self.assertEqual(self.client.create_count, 0)
+
+    def test_empty_search_distinguishes_unavailable_hardware_from_budget(self):
+        self.client.offers = []
+        with self.assertRaises(coordinator.OfferSelectionUnavailable) as caught:
+            coordinator.plan(self.client, self.settings, "A100")
+        self.assertEqual(caught.exception.reason, "no_matching_offers")
+        self.assertIn("no matching hardware offers were returned", str(caught.exception))
+        self.assertEqual(caught.exception.diagnostics["rejected_cost_plans"], 0)
+
+    def test_plan_reports_actual_cost_rejection_and_allocation(self):
+        self.settings["budget_usd"] = .5
+        with self.assertRaises(coordinator.OfferSelectionUnavailable) as caught:
+            coordinator.plan(self.client, self.settings, "A100")
+        error = caught.exception
+        self.assertEqual(error.diagnostics["rejected_cost_plans"], 1)
+        self.assertEqual(error.diagnostics["excluded_host_offers"], 0)
+        self.assertIn("Conservative all-in plan USD", str(error))
+        self.assertIn("exceeds budget USD 0.50", str(error))
+        self.assertIn("allocation USD 0.50", str(error))
+
+    def test_plan_reports_insufficient_balance_separately_from_cost_and_exclusion(self):
+        with mock.patch.object(self.client, "account_summary", return_value={"balance_usd": .1}):
+            with self.assertRaises(coordinator.OfferSelectionUnavailable) as caught:
+                coordinator.plan(self.client, self.settings, "A100")
+        error = caught.exception
+        self.assertEqual(error.diagnostics["above_available_balance"], 1)
+        self.assertEqual(error.diagnostics["rejected_cost_plans"], 0)
+        self.assertGreater(error.diagnostics["lowest_over_balance_plan_usd"], .1)
+        self.assertIn("available balance USD 0.10", str(error))
+
+    def test_plan_preserves_missing_price_field_and_invalid_host_diagnostics(self):
+        self.client.offers[0].pop("storage_cost")
+        self.client.offers.append(dict(self.client.offers[0], id=13, machine_id=None))
+        with self.assertRaises(coordinator.OfferSelectionUnavailable) as caught:
+            coordinator.plan(self.client, self.settings, "A100")
+        error = caught.exception
+        self.assertEqual(error.diagnostics["invalid_host_ids"], 1)
+        self.assertEqual(error.diagnostics["rejected_cost_plans"], 1)
+        self.assertIn("Missing or invalid storage_cost", str(error))
+        self.assertNotIn("exceeds budget", str(error))
+
+    def test_unavailable_create_retains_original_reason_if_no_replacement_exists(self):
+        proposal = coordinator.plan(self.client, self.settings, "A100")
+        folder = self.root / "unavailable-create"
+        folder.mkdir()
+        now = time.time()
+        state = {"created_at": now, "deadline": now + 1000, "label": "test-unavailable",
+                 "create_attempted": False, "instance_id": None}
+        rejection = provider.CreateRejected("Vast.ai returned HTTP 400 (no_such_ask)",
+            code=400, reason="no_such_ask", retryable_offer=True)
+        with mock.patch.object(self.client, "create_instance", side_effect=rejection) as create:
+            with self.assertRaises(provider.ProviderError) as caught:
+                coordinator.acquire_instance(self.client, self.settings, "A100", state, folder, proposal)
+        self.assertEqual(create.call_count, 1)
+        self.assertIn("no_such_ask", str(caught.exception))
+        self.assertIn("was within allocation", str(caught.exception))
+        self.assertIn("rejected cost plans=0", str(caught.exception))
+        self.assertFalse(state["create_attempted"])
+        self.assertIsNone(state["instance_id"])
+        evidence = json.loads((folder / "replacement-error.json").read_text())
+        self.assertEqual(evidence["reason"], "excluded_hosts_only")
+        self.assertEqual(evidence["previous_create_rejection"]["reason"], "no_such_ask")
+        self.assertEqual(evidence["previous_create_rejection"]["http_status"], 400)
+        self.assertEqual(evidence["previous_create_rejection"]["planned_total_usd"],
+                         proposal["cost"]["planned_total_usd"])
+        self.assertEqual(evidence["diagnostics"]["rejected_cost_plans"], 0)
+
+    def test_unavailable_create_can_still_select_an_alternate_host(self):
+        self.alternate_offer()
+        proposal = coordinator.plan(self.client, self.settings, "A100")
+        folder = self.root / "alternate-create"
+        folder.mkdir()
+        now = time.time()
+        state = {"created_at": now, "deadline": now + 1000, "label": "test-alternate",
+                 "create_attempted": False, "instance_id": None}
+        rejection = provider.CreateRejected("Vast.ai returned HTTP 400 (no_such_ask)",
+            code=400, reason="no_such_ask", retryable_offer=True)
+        with mock.patch.object(self.client, "create_instance", side_effect=[rejection, 456]) as create:
+            coordinator.acquire_instance(self.client, self.settings, "A100", state, folder, proposal)
+        self.assertEqual([call.args[0] for call in create.call_args_list], [12, 13])
+        self.assertEqual(proposal["offer"]["machine_id"], 9)
+        self.assertEqual(state["instance_id"], 456)
+        self.assertFalse((folder / "replacement-error.json").exists())
+
     def test_startup_retry_destroys_before_rearming_and_preserves_one_budget(self):
         self.alternate_offer()
         with self.patches(), mock.patch.object(coordinator, "wait_ssh", side_effect=[
