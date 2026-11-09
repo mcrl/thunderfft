@@ -18,12 +18,6 @@
       "1024": 120,
       "4096": 119
     },
-    "fp32": {
-      "64": 123,
-      "256": 121,
-      "1024": 120,
-      "4096": 119
-    },
     "fp16_cufftdx": {
       "64": 11,
       "256": 9,
@@ -51,18 +45,6 @@
       "precision": "tf32",
       "csv": "range_tf32.csv",
       "sha256": "73074f4a1ed3a1d70fa54cd428db3e33e7cbe6821c96132fd26d59ffea31732f",
-      "exponent_window": [
-        0,
-        127
-      ]
-    },
-    {
-      "id": "a100-full-20261109",
-      "commit": "6864641058f2f4abd0875ff20b0f912b04416343",
-      "collection": "full-20261109T031050Z-fc3a57ec",
-      "precision": "fp32",
-      "csv": "range_fp32_cufft.csv",
-      "sha256": "4981830a021a60e31d7489f630f66979cd2df61a029ee29701154917c2930c88",
       "exponent_window": [
         0,
         127

@@ -96,7 +96,8 @@ are filled in for skipped filters.
 
 Table 5 defaults to `--table5-range-mode boundary`. For every FFT size, it
 measures fresh `alpha=1` accuracy and finite-range results for four rows:
-xFFT/ThunderFFT FP16, cuFFTDx FP16, xFFT/ThunderFFT TF32 and cuFFT FP32.
+xFFT/ThunderFFT FP16, cuFFTDx FP16, xFFT/ThunderFFT TF32 and cuFFTDx FP32
+(cuFFT C2C FP32 through commit `af0f4ea`), with batch 64.
 The range check measures `k-1..k+2` around each retained last-finite exponent
 `k`, expanding the window if the boundary shifts or is not bracketed. The
 saved values choose the starting window; they do not supply the reported
@@ -227,10 +228,11 @@ range coverage `boundary_recheck`; full mode uses `full_profile_scan`.
 A boundary recheck does not establish global monotonicity or the maximum
 finite exponent across the entire `0..127` grid. Default Figures 4/5 record
 intentional cuDNN omissions in `policy_skipped` with `coverage_complete=false`;
-their assembly can complete with no unexpected missing cells. Their arithmetic
-means cover the measured sizes only: cuDNN uses `mean(12)` / `mean(5)`, while
-the other libraries use `mean(26)` on the paper grid. Use `--full` for all
-26 cuDNN sizes. Table 7 still has two unavailable historical paper stages;
+their assembly can complete with no unexpected missing cells. Figure 4's
+arithmetic means cover the measured sizes only: cuDNN uses `mean(12)`, while
+the other libraries use `mean(26)` on the paper grid. Figure 5's `summary.csv`
+holds per-filter means over trials and leaves skipped cuDNN cells empty. Use
+`--full` for all 26 cuDNN sizes. Table 7 still has two unavailable historical paper stages;
 its assembled table retains blank cells and coverage metadata for them.
 
 ## Run selected evaluations locally

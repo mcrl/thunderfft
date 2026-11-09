@@ -29,10 +29,24 @@ def read_summary(path):
     if not path.is_file():
         raise Pending(f"missing {path}; run measure.py first")
     with path.open(newline="", encoding="utf-8") as stream:
-        rows = [row for row in csv.DictReader(stream) if row["filter"].isdecimal()]
+        reader = csv.DictReader(stream)
+        rows = [row for row in reader if row["filter"].isdecimal()]
+        fields = reader.fieldnames or []
+    if "library" in fields:
+        rows = [{"library": row["library"], "filter": row["filter"], "time_ms": row["median_time_ms"]} for row in rows]
+    else:
+        # Wide per-filter mean table (Figure 5): one lower-case column per library.
+        names = {name.lower(): name for name in SERIES}
+        rows = [{"library": names.get(column, column), "filter": row["filter"], "time_ms": row[column] or "nan"}
+                for row in rows for column in fields if column != "filter"]
     if not rows:
         raise Pending("summary.csv has no per-filter rows")
     return rows
+
+
+def statistic(path):
+    with path.open(newline="", encoding="utf-8") as stream:
+        return "median over trials" if "library" in next(csv.reader(stream), []) else "mean over trials"
 
 
 def make_plot(rows, output, evaluation, policy_skipped=()):
@@ -43,7 +57,7 @@ def make_plot(rows, output, evaluation, policy_skipped=()):
     except ImportError as error:
         raise Pending("matplotlib is required: python3 -m pip install -r artifact/requirements.txt") from error
     xlabel, title = LABELS[evaluation]
-    values = {(row["library"], int(row["filter"])): float(row["median_time_ms"]) for row in rows}
+    values = {(row["library"], int(row["filter"])): float(row["time_ms"]) for row in rows}
     for item in policy_skipped:
         if "item" in item:
             library, separator, size = item["item"].partition(":filter=")
@@ -66,17 +80,7 @@ def make_plot(rows, output, evaluation, policy_skipped=()):
     axis.set_xticks(filters[::2] if len(filters) > 14 else filters)
     axis.set_xlabel(xlabel)
     axis.set_ylabel("Time (ms)")
-    finite = [v for v in values.values() if math.isfinite(v) and v > 0]
-    if evaluation == "figure5" and finite:
-        # Direct convolution grows quadratically with the filter; a log axis keeps the FFT paths readable.
-        from matplotlib.ticker import NullLocator, ScalarFormatter
-        axis.set_yscale("log")
-        axis.set_yticks([y for y in (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)
-                         if min(finite) / 1.5 <= y <= max(finite) * 1.5])
-        axis.yaxis.set_major_formatter(ScalarFormatter())
-        axis.yaxis.set_minor_locator(NullLocator())
-    else:
-        axis.set_ylim(bottom=0)
+    axis.set_ylim(bottom=0)
     axis.grid(axis="y", color="#d7d7d7", linewidth=0.6)
     axis.set_axisbelow(True)
     figure.legend(*axis.get_legend_handles_labels(), loc="upper center", ncol=len(libraries), frameon=False)
@@ -102,7 +106,7 @@ def main():
         policy_skipped = metadata.get("policy_skipped", [])
         libraries = make_plot(rows, output / "figure.pdf", args.evaluation, policy_skipped=policy_skipped)
         metadata["plot"] = {"command": [sys.executable, *sys.argv], "script_sha256": sha256(Path(__file__)),
-                            "series": libraries, "statistic": "median over trials",
+                            "series": libraries, "statistic": statistic(output / "summary.csv"),
                             "policy_skipped": policy_skipped,
                             "outputs": {name: sha256(output / name) for name in ("data.csv", "summary.csv", "figure.pdf")
                                         if (output / name).is_file()}}

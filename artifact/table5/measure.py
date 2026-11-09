@@ -12,10 +12,13 @@ import subprocess
 
 HERE = Path(__file__).resolve().parent
 FIELDS = ('N', 'batch', 'mode', 'alpha', 'precision', 'rel_l2', 'max_abs', 'rel_linf', 'all_finite')
-RANGES = {'range_fp16': 'fp16', 'range_tf32': 'tf32', 'range_fp32_cufft': 'fp32',
-          'range_fp16_cufftdx': 'fp16_cufftdx'}
-ACCURACY = {'accuracy_reduced': 'both', 'accuracy_fp32_cufft': 'fp32',
-            'accuracy_fp16_cufftdx': 'cufftdx_fp16'}
+RANGES = {'range_fp16': 'fp16', 'range_tf32': 'tf32', 'range_fp16_cufftdx': 'fp16_cufftdx',
+          'range_fp32_cufftdx': 'fp32_cufftdx'}
+ACCURACY = {'accuracy_reduced': 'both', 'accuracy_fp16_cufftdx': 'cufftdx_fp16',
+            'accuracy_fp32_cufftdx': 'cufftdx_fp32'}
+NATIVE_PRECISION = {'fp16_cufftdx': 'cufftdx_fp16', 'fp32_cufftdx': 'cufftdx_fp32'}
+# A ThunderFFT boundary of the same storage format provides a starting hint only.
+HINT_FALLBACK = {'fp16_cufftdx': 'fp16', 'fp32_cufftdx': 'tf32'}
 
 
 def now():
@@ -72,9 +75,9 @@ def boundary(rows, n, precision, window, batch):
 def starting_window(presets, precision, n, limits, metadata):
     values = presets['entries'].get(precision, {})
     source_precision = precision
-    if str(n) not in values and precision == 'fp16_cufftdx':
-        # A different FP16 implementation can provide a starting hint only.
-        values, source_precision = presets['entries'].get('fp16', {}), 'fp16'
+    if str(n) not in values and precision in HINT_FALLBACK:
+        source_precision = HINT_FALLBACK[precision]
+        values = presets['entries'].get(source_precision, {})
     hint = values.get(str(n))
     if hint is None:
         return list(limits), None, 'no retained boundary; full profile interval'
@@ -152,7 +155,7 @@ def collect(output, binary, cufftdx_binary, timeout):
                                                    '--reference', 'fp64'], phase)
         elif phase in RANGES:
             precision = RANGES[phase]
-            native_precision = 'cufftdx_fp16' if precision == 'fp16_cufftdx' else precision
+            native_precision = NATIVE_PRECISION.get(precision, precision)
             common = ['--precision', native_precision, '--alpha-sweep', '--fast-finite-only']
             limits = metadata['range_exponents'][precision]
             if mode == 'full':
