@@ -1,5 +1,7 @@
 """Measured-value mapping and honest missing/bounded cells in paper tables."""
 import csv
+import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -270,6 +272,90 @@ class PaperTableAccuracyTests(unittest.TestCase):
         selected["radix16_speedup"] = .008161125 / .00788889598846
         self.write([baseline, selected], metadata)
         self.assertEqual(tables.build("table7", self.directory)["panels"][0]["rows"][3][-1], "—")
+
+    def default_table7_assembly(self):
+        """Assemble retained native timings with a synthetic Table 6 baseline."""
+        specification = importlib.util.spec_from_file_location(
+            "table7_default_presentation_assembly", ROOT / "artifact/table7/assemble.py")
+        assembly = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(assembly)
+        source = self.directory / "table6"
+        source.mkdir()
+        records = {
+            "table.csv": [{"gpu": "A100", "N": 256, "batch": 65536,
+                "library": "tcFFT", "variant": "layer_256_0_A100",
+                "selected_candidate": "layer_256_0_A100", "status": "collected",
+                "median_time_ms": .030}],
+            "data.csv": [{"gpu": "A100", "N": 256, "batch": 65536,
+                "library": "tcFFT", "variant": "layer_256_0_A100",
+                "candidate": "layer_256_0_A100", "precision": "fp16",
+                "input": "complex", "passed": True, "time_ms": .030}],
+        }
+        for name, rows in records.items():
+            with (source / name).open("w", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+                writer.writeheader()
+                writer.writerows(rows)
+        (source / "metadata.json").write_text(json.dumps({
+            "evaluation": "table6", "profile": "paper",
+            "assembly_schema": "table6-validated-parts-v1",
+            "outputs": {name: hashlib.sha256((source / name).read_bytes()).hexdigest()
+                        for name in records}}))
+        output = self.directory / "assembled"
+        metadata = assembly.assemble(
+            [ROOT / "artifact/table7/reference/a100-20261107"], output, "paper", table6=source)
+        with (output / "table.csv").open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual(set(metadata["collected"]["unchecked"]), {
+            "register_branch", "register_uniform", "historical_e4aa1b0", "historical_652808b"})
+        self.assertEqual(metadata["collected"]["validated"], [])
+        return rows, metadata
+
+    def test_table7_default_assembly_keeps_both_qualified_timing_ratios(self):
+        rows, metadata = self.default_table7_assembly()
+        self.write(rows, metadata)
+        layout = tables.build("table7", self.directory)
+        displayed = layout["panels"][0]["rows"]
+        baseline = next(row for row in rows if row["variant"] == "radix16")
+        for index, variant in ((3, "register_branch"), (4, "register_uniform")):
+            measured = next(row for row in rows if row["variant"] == variant)
+            expected = float(baseline["estimated_time_ms"]) / float(measured["median_time_ms"])
+            self.assertEqual(displayed[index][-1], f"{expected:.2f}")
+            self.assertTrue(displayed[index][0].endswith("†"))
+        notes = " ".join(layout["notes"])
+        self.assertIn("correctness was not checked", notes)
+        self.assertIn("do not represent correctness-validated complete-FFT speedups", notes)
+        self.assertEqual(displayed[2][1:], ["—", "—", "—"])
+
+    def test_table7_default_uniform_ratio_requires_known_source_and_consistent_evidence(self):
+        rows, metadata = self.default_table7_assembly()
+        for field, value in (
+                ("source_variant", ""), ("source_commit", "unknown"),
+                ("implementation_kind", "historical_partial_kernel"),
+                ("operation_coverage", "partial_fft_operand_setup_omitted"),
+                ("timing_status", "missing"), ("accuracy_status", "passed"),
+                ("utilization_status", "calculated"), ("median_time_ms", "nan"),
+                ("median_time_ms", "inf"), ("median_time_ms", 0),
+                ("speedup_vs_estimated_radix16", 99), ("speedup_vs_estimated_radix16", "nan"),
+                ("speedup_vs_estimated_radix16", "inf"), ("speedup_vs_estimated_radix16", -1)):
+            with self.subTest(field=field, value=value):
+                modified = [dict(row, **{field: value}) if row["variant"] == "register_uniform"
+                            else dict(row) for row in rows]
+                self.write(modified, metadata)
+                self.assertEqual(tables.build("table7", self.directory)["panels"][0]["rows"][4][-1], "—")
+
+    def test_table7_default_uniform_ratio_does_not_relax_measured_baseline_validation(self):
+        rows, metadata = self.default_table7_assembly()
+        for status, accuracy in (("collected", "passed"), ("collected_unvalidated", "unchecked")):
+            with self.subTest(status=status, accuracy=accuracy):
+                modified = [dict(row) for row in rows]
+                baseline = next(row for row in modified if row["variant"] == "radix16")
+                baseline.update(timing_status=status, accuracy_status=accuracy,
+                                median_time_ms=baseline["estimated_time_ms"], utilization_status="calculated")
+                uniform = next(row for row in modified if row["variant"] == "register_uniform")
+                uniform["radix16_speedup"] = uniform["speedup_vs_estimated_radix16"]
+                self.write(modified, metadata)
+                self.assertEqual(tables.build("table7", self.directory)["panels"][0]["rows"][4][-1], "—")
 
     def test_table7_remapped_source_requires_selection_metadata(self):
         baseline, selected, _ = self.selected_table7()

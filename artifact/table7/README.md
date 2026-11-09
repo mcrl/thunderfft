@@ -25,6 +25,9 @@ selected partial kernel. It skips numerical checks and marks rows
 `accuracy_status=unchecked`. `e4aa1b0` omits MMA B-fragment initialization and
 includes a shared-memory round trip; its reported time measures that instruction
 path rather than a complete FFT. The table retains this qualification.
+With the estimated tcFFT baseline available, the identified `e4aa1b0` and
+`5e37821` rows also show their timing ratios. These retain the `†` unchecked
+marker and are not correctness-validated FFT speedups.
 Explicit validated mode (`THUNDERFFT_TABLE7_TIMING_ONLY=0`) checks the two
 complete candidates at R=1 against an FP64 DFT; it cannot supply the selected
 partial-kernel row.

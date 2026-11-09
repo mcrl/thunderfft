@@ -19,6 +19,7 @@ ROLES = (("radix16", "radix-16 (tcFFT)"),
          ("register_uniform", "+ reducing branch divergence"))
 SELECTED_BRANCH_SOURCE = "historical_e4aa1b0"
 SELECTED_BRANCH_COMMIT = "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375"
+UNIFORM_COMMIT = "5e37821a24e02e9986b61acda044bfdf2f99f563"
 
 
 def _read(directory):
@@ -198,6 +199,7 @@ def _table7(rows, metadata):
     displayed = [["Configuration", "Time (ms)", "Utilization",
                   "Speedup*" if estimated_baseline else "Speedup"]]
     unchecked = False
+    unchecked_ratio_shown = False
     for variant, label in ROLES:
         row = indexed.get((variant,), {})
         selected_partial = variant in selected_sources
@@ -220,16 +222,22 @@ def _table7(rows, metadata):
         speedup_field = "speedup_vs_estimated_radix16" if estimated_baseline else "radix16_speedup"
         speedup_value = _number(row.get(speedup_field))
         measured_time = _number(row.get("median_time_ms"))
-        selected_ratio = (selected_partial and estimated_baseline
-                          and status == "collected_unvalidated"
-                          and row.get("accuracy_status") == "unchecked"
-                          and row.get("utilization_status") == "calculated_unvalidated"
-                          and measured_time is not None and measured_time > 0
-                          and speedup_value is not None and speedup_value > 0
-                          and math.isclose(speedup_value, estimated_time / measured_time,
-                                           rel_tol=1e-8))
+        known_uniform = (variant == "register_uniform"
+                         and row.get("source_variant") == "register_uniform"
+                         and row.get("source_commit") == UNIFORM_COMMIT
+                         and row.get("implementation_kind") == "recovered"
+                         and row.get("operation_coverage") == "complete_fft_candidate")
+        timing_ratio = ((selected_partial or known_uniform) and estimated_baseline
+                        and status == "collected_unvalidated"
+                        and row.get("accuracy_status") == "unchecked"
+                        and row.get("utilization_status") == "calculated_unvalidated"
+                        and measured_time is not None and measured_time > 0
+                        and speedup_value is not None and speedup_value > 0
+                        and math.isclose(speedup_value, estimated_time / measured_time,
+                                         rel_tol=1e-8))
+        unchecked_ratio_shown = unchecked_ratio_shown or timing_ratio
         speedup = (_decimal(speedup_value, 2)
-                   if (baseline_ok or estimated_baseline) and collected and (not unvalidated or selected_ratio)
+                   if (baseline_ok or estimated_baseline) and collected and (not unvalidated or timing_ratio)
                    and measured_time is not None and measured_time > 0
                    and speedup_value is not None and speedup_value > 0 else MISSING)
         displayed.append([label + ("†" if unvalidated else ""), timing, utilization, speedup])
@@ -243,8 +251,8 @@ def _table7(rows, metadata):
         notes.append("† Timing-only measurement: FFT numerical correctness was not checked.")
     if selected_sources:
         notes.append("The selected e4aa1b0 kernel omits MMA B-fragment initialization and includes a shared-memory round trip each repeat; its FFT outputs are undefined.")
-        if estimated_baseline:
-            notes.append("The e4aa1b0 ratio compares unit-kernel timings with the estimated baseline; it does not represent complete-FFT speedup.")
+    if unchecked_ratio_shown:
+        notes.append("Displayed ratios on † rows compare unit-kernel timings with the estimated baseline; they do not represent correctness-validated complete-FFT speedups.")
     if any(row.get("variant") not in {variant for variant, _ in ROLES} for row in rows):
         notes.append("Additional native variants remain in kernel_comparison.csv; only the explicit paper-row source mapping selects a displayed stage.")
     return {"number": 7, "caption": "Ablation study of the optimization steps.",
