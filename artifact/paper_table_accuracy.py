@@ -8,6 +8,7 @@ import csv
 import json
 import math
 from pathlib import Path
+import re
 
 
 MISSING = "—"
@@ -21,6 +22,8 @@ ROLES = (("radix16", "radix-16 (tcFFT)"),
 SELECTED_BRANCH_SOURCE = "historical_e4aa1b0"
 SELECTED_BRANCH_COMMIT = "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375"
 UNIFORM_COMMIT = "5e37821a24e02e9986b61acda044bfdf2f99f563"
+SHARED_STAGE_SOURCE = "shared_stage_radix4"
+SHARED_STAGE_PATH = "ablation/kernels/shared_stage_radix4.cuh"
 
 # Transcribed from PPoPP27_chaewon__FFT_ (4).pdf, SHA-256
 # 02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9.
@@ -230,6 +233,29 @@ def _table7_selected_sources(indexed, metadata):
         if source == role:
             continue
         row = indexed.get((role,), {})
+        if role == "radix4_compute" and source == SHARED_STAGE_SOURCE:
+            status = row.get("timing_status")
+            accuracy = row.get("accuracy_status")
+            collected = status in ("collected", "collected_unvalidated")
+            if (selection.get("selection_status") != "artifact_selected_reconstruction"
+                    or not isinstance(selection.get("selection_basis"), str)
+                    or not selection["selection_basis"].strip()
+                    or row.get("source_variant") != source
+                    or row.get("source") != SHARED_STAGE_PATH
+                    or row.get("source_commit", "")
+                    or row.get("implementation_kind") != "reconstructed"
+                    or row.get("operation_coverage") != "complete_fft_candidate"
+                    or row.get("paper_identity") != "unconfirmed"
+                    or metadata.get("full_paper_comparison") is True
+                    or (status, accuracy) not in (("missing", "not_collected"),
+                                                  ("collected", "passed"),
+                                                  ("collected_unvalidated", "unchecked"))
+                    or (collected and (any(not re.fullmatch(r"[0-9a-f]{64}", row.get(key, ""))
+                                               for key in ("source_sha256", "binary_sha256"))
+                                       or _number(row.get("tensor_flops_per_fft")) != 6144))):
+                raise ValueError("Selected Table 7 reconstruction disagrees with its source, hashes, or accuracy scope")
+            selected.add(role)
+            continue
         if (role != "register_branch" or source != SELECTED_BRANCH_SOURCE
                 or selection.get("selection_status") != "artifact_selected"
                 or not isinstance(selection.get("selection_basis"), str)
@@ -280,7 +306,8 @@ def _table7(rows, metadata):
         paper_values = PAPER_TABLE7[variant]
         paper_texts = [_decimal(paper_values[0], 4),
                        _decimal(paper_values[1], 0) + "%", _decimal(paper_values[2], 2)]
-        selected_partial = variant in selected_sources
+        selected_partial = variant == "register_branch" and variant in selected_sources
+        selected_reconstruction = variant == "radix4_compute" and variant in selected_sources
         if variant == "radix16" and estimated_baseline:
             displayed.append([label + "*", _decimal(estimated_time, 4),
                               _decimal(estimated_utilization, 0) + "%", "1.00"])
@@ -307,7 +334,7 @@ def _table7(rows, metadata):
                          and row.get("source_commit") == UNIFORM_COMMIT
                          and row.get("implementation_kind") == "recovered"
                          and row.get("operation_coverage") == "complete_fft_candidate")
-        timing_ratio = ((selected_partial or known_uniform) and estimated_baseline
+        timing_ratio = ((selected_partial or known_uniform or selected_reconstruction) and estimated_baseline
                         and status == "collected_unvalidated"
                         and row.get("accuracy_status") == "unchecked"
                         and row.get("utilization_status") == "calculated_unvalidated"
@@ -320,9 +347,12 @@ def _table7(rows, metadata):
                    if (baseline_ok or estimated_baseline) and collected and (not unvalidated or timing_ratio)
                    and measured_time is not None and measured_time > 0
                    and speedup_value is not None and speedup_value > 0 else MISSING)
-        displayed.append([label + ("†" if unvalidated else ""), timing, utilization, speedup])
+        displayed.append([label + ("‡" if selected_reconstruction else "")
+                          + ("†" if unvalidated else ""), timing, utilization, speedup])
         timing_status = ("timing_only_partial_fft" if selected_partial else "timing_only_unvalidated") \
             if unvalidated else "measured"
+        if selected_reconstruction:
+            timing_status = "timing_only_reconstructed" if unvalidated else "measured_reconstructed"
         for column, value in enumerate((row.get("median_time_ms"), row.get("utilization_pct"), speedup_value), 1):
             comparison_status = timing_status
             if column == 3 and estimated_baseline:
@@ -337,7 +367,9 @@ def _table7(rows, metadata):
         notes.append("The original radix-16 baseline is unavailable; speedups relative to that baseline remain unreported.")
     if unchecked:
         notes.append("† Timing-only measurement: FFT numerical correctness was not checked.")
-    if selected_sources:
+    if "radix4_compute" in selected_sources:
+        notes.append("‡ Newly reconstructed complete-FFT candidate: each radix-4 stage loads/stores shared memory instead of permuting register fragments. Source and binary hashes identify this implementation; the original paper source and its 0.0120 ms result have not been recovered.")
+    if "register_branch" in selected_sources:
         notes.append("The selected reduced-communication kernel omits MMA B-fragment initialization and includes a shared-memory round trip each repeat; its FFT outputs are undefined.")
     if unchecked_ratio_shown:
         notes.append("Displayed ratios on † rows compare unit-kernel timings with the estimated baseline; they do not represent correctness-validated complete-FFT speedups.")

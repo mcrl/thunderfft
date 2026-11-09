@@ -2,11 +2,12 @@
 
 Measures N=64 TF32 unit-kernel compute time per batch (`(t_2R - t_R) / R`,
 median over trials) and Tensor Core utilization against the A100 peak of
-156 TFLOPS for kernels taken from historical ThunderFFT commits (paper p. 10),
+156 TFLOPS for historical kernels and a new stage-wise shared-memory reconstruction (paper p. 10),
 on an A100.
 
 | Variant | Source commit | Kernel | Mode |
 |---|---|---|---|
+| `shared_stage_radix4` | new reconstruction; source SHA-256 | stage-wise shared-memory radix-4 FFT; no register-fragment permutation | validated or timing-only |
 | `register_branch` | `51e346c` | register FFT with lane-dependent branches; complete FFT | validated or timing-only |
 | `register_uniform` | `5e37821` | register FFT with remapped fragments; complete FFT | validated or timing-only |
 | `historical_e4aa1b0` | `e4aa1b0` | shared-memory round trip; MMA operand setup omitted (partial) | timing-only |
@@ -28,7 +29,7 @@ path rather than a complete FFT. The table retains this qualification.
 With the estimated tcFFT baseline available, the identified `e4aa1b0` and
 `5e37821` rows also show their timing ratios. These retain the `†` unchecked
 marker and are not correctness-validated FFT speedups.
-Explicit validated mode (`THUNDERFFT_TABLE7_TIMING_ONLY=0`) checks the two
+Explicit validated mode (`THUNDERFFT_TABLE7_TIMING_ONLY=0`) checks the three
 complete candidates at R=1 against an FP64 DFT; it cannot supply the selected
 partial-kernel row.
 
@@ -52,18 +53,38 @@ Tensor Core peaks are 156 TFLOPS for TF32 and 312 TFLOPS for FP16. Utilization
 comes from the measured Table 6 time, not a fixed 70% assumption. This reuses
 collected evidence without GPU work and labels the row as estimated rather
 than measured. Without compatible Table 6 tcFFT evidence, the first row stays
-blank. The second row, `radix4_compute` (stage-wise shared-memory exchange),
-still has no recovered source and remains blank.
+blank.
+
+The second paper role, `radix4_compute`, explicitly selects the new
+`shared_stage_radix4` reconstruction. It retains the three radix-4 stages and
+Tensor Core work of the register implementation, exchanging values through
+shared-memory loads/stores at every stage instead of register-fragment
+permutation. The 48 MMA instructions per warp (16 FFTs) account for 6,144
+Tensor Core FLOPs per FFT. Its measured time is not forced to the paper's
+0.0120 ms. The original source is still unrecovered: metadata keeps
+`implementation_kind=reconstructed`, `paper_identity=unconfirmed`, and the
+source/binary SHA-256 values, with no invented historical commit. A `‡` note
+identifies it in the comparison table. Existing bundles without this exact
+source remain readable but leave its selected row blank; they never substitute
+another native variant. Numerical validation is recorded per run; timing-only
+runs retain their unchecked status even after a separate validation succeeds.
+
+The [A100 validation and measurement bundle](reference/a100-shared-stage-20261110/README.md)
+records **22.8055 µs** in validated mode (**22.7942 µs** in default timing-only
+mode), versus the paper's 12.0 µs. R=1 Gaussian/tone checks passed with maximum
+per-transform relative L2 error 0.001514; memory and race checks reported no
+errors. The selected implementation uses one 9,344 B shared buffer and explicit
+warp synchronization before overwriting each butterfly and between stages.
 
 ## Run
 
 Run locally on an A100 80GB PCIe GPU.
 
 ```bash
-./run.sh table7                    # smoke: all four available kernels, timing-only
-./run.sh table7 --profile paper    # paper: all four available kernels, timing-only
+./run.sh table7                    # smoke: all five available kernels, timing-only
+./run.sh table7 --profile paper    # paper: all five available kernels, timing-only
 
-# Optional numerical checks for the two complete-FFT candidates
+# Optional numerical checks for the three complete-FFT candidates
 THUNDERFFT_TABLE7_TIMING_ONLY=0 ./run.sh table7 --profile paper
 ```
 
@@ -91,7 +112,7 @@ THUNDERFFT_TABLE7_VARIANTS=historical_e4aa1b0 THUNDERFFT_TABLE7_TIMING_ONLY=1 \
 
 | Environment variable | Values | Default (smoke / paper) |
 |---|---|---|
-| `THUNDERFFT_TABLE7_VARIANTS` | comma-separated subset of `register_branch`, `register_uniform`, `historical_e4aa1b0`, `historical_652808b` | all four; `register_branch,register_uniform` when `TIMING_ONLY=0` |
+| `THUNDERFFT_TABLE7_VARIANTS` | comma-separated subset of `register_branch`, `register_uniform`, `shared_stage_radix4`, `historical_e4aa1b0`, `historical_652808b` | all five; `register_branch,register_uniform,shared_stage_radix4` when `TIMING_ONLY=0` |
 | `THUNDERFFT_TABLE7_TIMING_ONLY` | `0` or `1` | `1` |
 | `THUNDERFFT_TABLE7_TRIALS` | 1..100 | `2` / `3` |
 | `THUNDERFFT_TABLE7_BATCH` | positive multiple of 16 (paper requires `65536`) | `1024` / `65536` |
@@ -121,3 +142,9 @@ this estimate as a coverage limitation in both fast and full modes.
 `kernel_comparison.csv` and `data.csv` retain native measurement IDs. Selecting
 `historical_e4aa1b0` for the `register_branch` paper role changes presentation
 only; it does not rename a kernel or rewrite any archived measurement.
+
+The same explicit selection applies to `shared_stage_radix4` for the
+`radix4_compute` role. Only newly collected, matching source evidence fills that
+row; original raw CSV identities, timing protocol, and accuracy status remain
+intact. `full_paper_comparison` remains false because reconstruction does not
+establish the original paper experiment's identity.

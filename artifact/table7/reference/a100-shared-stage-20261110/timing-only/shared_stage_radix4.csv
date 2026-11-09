@@ -1,0 +1,4 @@
+variant,N,batch,precision,trial,inside_repeats,t_R_us,t_2R_us,compute_us,relative_l2,max_transform_relative_l2,nonfinite_outputs,output_guard_changed,passed
+shared_stage_radix4,64,65536,tf32,0,1000,22855.6804657,45644.7982788,22.7891178131,nan,nan,-1,-1,0
+shared_stage_radix4,64,65536,tf32,1,1000,22848.5126495,45642.7536011,22.7942409515,nan,nan,-1,-1,0
+shared_stage_radix4,64,65536,tf32,2,1000,22842.3671722,45651.966095,22.8095989227,nan,nan,-1,-1,0

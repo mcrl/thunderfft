@@ -24,8 +24,10 @@ class UtilizationChecks(unittest.TestCase):
         a = utilization.calculate("register_branch", 65536, 7.9, "NVIDIA A100 80GB PCIe")
         b = utilization.calculate("register_uniform", 65536, 7.9, "NVIDIA A100 80GB PCIe")
         c = utilization.calculate("reconstructed_radix4_compute", 65536, 7.9, "NVIDIA A100 80GB PCIe")
+        d = utilization.calculate("shared_stage_radix4", 65536, 7.9, "NVIDIA A100 80GB PCIe")
         self.assertEqual(a, b)
         self.assertEqual(a, c)
+        self.assertEqual(a, d)
         self.assertAlmostEqual(a["utilization_pct"], 32.672280428432326)
 
     def test_mixed_radix16_uses_issued_mma_count_not_fractional_stage_model(self):

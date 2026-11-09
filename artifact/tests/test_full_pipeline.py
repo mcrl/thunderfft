@@ -510,6 +510,43 @@ class PipelineTests(unittest.TestCase):
         states[0]["missing"].append({"item": "register_uniform.time"})
         self.assertFalse(pipeline.assembly_result(states, output, entries, "paper", ROOT)["outputs_complete"])
 
+    def test_selected_shared_stage_requires_new_measurement_despite_missing_original(self):
+        output = self.directory / "assembled"
+        task = output / "table7"
+        task.mkdir(parents=True)
+        (task / "data.csv").write_text("fixture\n")
+        entries = [{"id": "table7", "required_outputs": {"paper": ["data.csv"]}}]
+        missing = [{"item": "radix16.timing", "source_variant": "radix16"},
+                   {"item": "radix4_compute.timing", "source_variant": "shared_stage_radix4"},
+                   {"item": "radix4_compute.utilization", "source_variant": "shared_stage_radix4"}]
+        states = [{"evaluation": "table7", "status": "partial", "missing": missing}]
+        result = pipeline.assembly_result(states, output, entries, "paper", ROOT)
+        self.assertFalse(result["outputs_complete"])
+        self.assertEqual([item["item"] for item in result["coverage_limits"]], ["radix16.timing"])
+        self.assertEqual([item["item"] for item in result["unresolved"]],
+                         ["radix4_compute.timing", "radix4_compute.utilization"])
+        # Once both measurements exist, the genuinely unavailable original
+        # baseline remains an explicit coverage limit rather than a failure.
+        states[0]["missing"] = missing[:1]
+        self.assertTrue(pipeline.assembly_result(states, output, entries, "paper", ROOT)["outputs_complete"])
+
+    def test_table7_legacy_manifest_without_source_mapping_retains_missing_original_limit(self):
+        output = self.directory / "assembled"
+        task = output / "table7"
+        task.mkdir(parents=True)
+        (task / "data.csv").write_text("fixture\n")
+        root = self.directory / "legacy-root"
+        manifest_path = root / "artifact/table7/variants.json"
+        manifest_path.parent.mkdir(parents=True)
+        manifest_path.write_text(json.dumps({"variants": [
+            {"id": "radix4_compute", "status": "missing"}]}))
+        entries = [{"id": "table7", "required_outputs": {"paper": ["data.csv"]}}]
+        states = [{"evaluation": "table7", "status": "partial",
+                   "missing": [{"item": "radix4_compute.timing"}]}]
+        result = pipeline.assembly_result(states, output, entries, "paper", root)
+        self.assertTrue(result["outputs_complete"])
+        self.assertEqual([item["item"] for item in result["coverage_limits"]], ["radix4_compute.timing"])
+
     def test_failed_or_unknown_assembly_status_cannot_pass_with_existing_files(self):
         output = self.directory / "assembled"
         task = output / "table3"

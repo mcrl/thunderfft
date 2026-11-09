@@ -224,13 +224,19 @@ pipeline, matching the paper; captions identify the measured GPU.
 Table 5 uses the updated four implementations per size. Table 7's first row is
 an estimate from validated Table 6 tcFFT timings, assuming retained utilization:
 N64 TF32 time = 0.375 × N256 FP16 time (A100, batch 65536). It is marked as
-estimated; without compatible tcFFT evidence it stays blank. The second
-historical stage remains unfilled.
+estimated; without compatible tcFFT evidence it stays blank. The second row
+measures `shared_stage_radix4`, a new radix-4 reconstruction that exchanges
+values through shared-memory loads/stores at every stage without register-fragment
+permutation. It is marked `‡`, with source/binary hashes retained and the original
+paper-stage identity unconfirmed. Its time is measured anew, not filled from the
+paper's 0.0120 ms reference.
 The `+ reducing communication` row selects the `e4aa1b0` timing-only kernel
 (approximately 0.0079 ms on A100); its omitted operand initialization is noted
-in the table. Table 7 defaults to collecting all four available kernels in
-timing-only mode. Set `THUNDERFFT_TABLE7_TIMING_ONLY=0` for the separate
-complete-FFT validation path, which does not fill that selected partial row.
+in the table. Table 7 defaults to collecting all five available kernels in
+timing-only mode, marked `†`. Set `THUNDERFFT_TABLE7_TIMING_ONLY=0` to validate
+the three complete-FFT candidates at R=1; that mode does not fill the selected
+partial-kernel row. Missing measurements for the selected radix-4 reconstruction
+fail the complete pipeline instead of being accepted as a missing original stage.
 
 Cloud stages require the evaluator account's Vast.ai credentials and incur
 charges. The combined conservative cost of all concurrent rentals, including
@@ -273,9 +279,10 @@ arithmetic means cover the measured sizes only: cuDNN uses `mean(12)`, while
 the other libraries use `mean(26)` on the paper grid. Figure 4's `summary.csv`
 holds per-filter means over trials and leaves skipped cuDNN cells empty. Use
 `--full` for all 26 cuDNN sizes. Table 7 records its estimated radix-16 baseline
-and the unavailable radix-4 stage as coverage limitations. The baseline uses
-tcFFT's measured utilization rather than a fixed percentage; its metadata
-retains the assumption, formula and source evidence.
+as a coverage limitation. The baseline uses tcFFT's measured utilization rather
+than a fixed percentage; its metadata retains the assumption, formula and source
+evidence. The reconstructed radix-4 row is measured and marked `‡`; the exact
+original paper-stage identity remains unconfirmed.
 
 ## Run selected evaluations locally
 
@@ -394,8 +401,9 @@ and paper-reference hashes; source CSVs and measurement notes are preserved.
 
 `run.sh` reports the stage results and assembly coverage. A complete workflow
 requires the selected measurements and their expected output files. Intentional
-fast-mode cuDNN omissions, the estimated Table 7 baseline and its unavailable
-historical stage remain explicit in the coverage report.
+fast-mode cuDNN omissions and the estimated Table 7 baseline remain explicit
+in the coverage report. Table 7 also labels the reconstruction and the partial
+kernel's unchecked FFT scope in its table and metadata.
 Named evaluation runs return 0 when every selected evaluation completed,
 1 on a failure, 2 when something is pending or blocked, and 130 when interrupted.
 

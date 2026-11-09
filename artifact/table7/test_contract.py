@@ -49,6 +49,27 @@ class VariantSelectionContract(unittest.TestCase):
         self.assertEqual([entry["id"] for entry in selected],
                          ["register_branch", "register_uniform"])
 
+    def test_candidate_implementation_is_selectable_without_claiming_recovery(self):
+        manifest = json.loads((HERE / "variants.json").read_text())
+        candidate, = manifest["candidate_implementations"]
+        self.assertEqual(candidate["id"], "shared_stage_radix4")
+        self.assertEqual(candidate["implementation_kind"], "reconstructed")
+        self.assertEqual(candidate["paper_identity"], "unconfirmed")
+        self.assertNotIn("source_commit", candidate)
+        self.assertEqual(candidate["operation_coverage"], "complete_fft_candidate")
+        self.assertEqual(candidate["source_dependencies"], ["ablation/kernels/historical_uniform_5e37821.cuh"])
+        for timing_only in (False, True):
+            self.assertEqual(measure.select_variants(candidate["id"], manifest, timing_only), [candidate])
+        source = manifest["paper_row_sources"]["radix4_compute"]
+        self.assertEqual(source["source_variant"], candidate["id"])
+        self.assertEqual(source["selection_status"], "artifact_selected_reconstruction")
+        self.assertEqual(measure.variant_provenance(candidate)["source_commit"], "")
+
+    def test_candidate_ids_cannot_duplicate_historical_ids(self):
+        self.manifest["candidate_implementations"] = [{"id": "register_branch", "status": "available"}]
+        with self.assertRaisesRegex(ValueError, "unique"):
+            measure.manifest_entries(self.manifest)
+
     def test_requested_order_is_preserved(self):
         selected = measure.select_variants(
             "register_uniform,register_branch", self.manifest)
@@ -119,7 +140,7 @@ class VariantSelectionContract(unittest.TestCase):
             manifest = json.loads((HERE / "variants.json").read_text())
             self.assertEqual(coverage["source_available"],
                              [entry["id"] for entry in measure.manifest_entries(manifest) if entry["status"] == "available"])
-            self.assertEqual(coverage["requested"], "register_branch,register_uniform,historical_e4aa1b0,historical_652808b")
+            self.assertEqual(coverage["requested"], "register_branch,register_uniform,shared_stage_radix4,historical_e4aa1b0,historical_652808b")
             self.assertEqual(coverage["source_missing"], ["radix16", "radix4_compute"])
             self.assertFalse(coverage["full_paper_comparison"])
             self.assertFalse((Path(directory) / "data.csv").exists())

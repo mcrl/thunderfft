@@ -319,6 +319,65 @@ class PaperTableAccuracyTests(unittest.TestCase):
                      "unit-kernel timings", "complete-FFT speedup", "identities remain unconfirmed"):
             self.assertIn(text, notes)
 
+    def reconstructed_table7(self, timing_only=False):
+        baseline, _, _ = self.selected_table7()
+        selected = {"variant": "radix4_compute", "source_variant": "shared_stage_radix4",
+                    "source": "ablation/kernels/shared_stage_radix4.cuh", "source_commit": "",
+                    "source_sha256": "a" * 64, "binary_sha256": "b" * 64,
+                    "implementation_kind": "reconstructed", "paper_identity": "unconfirmed",
+                    "operation_coverage": "complete_fft_candidate", "tensor_flops_per_fft": 6144,
+                    "timing_status": "collected_unvalidated" if timing_only else "collected",
+                    "accuracy_status": "unchecked" if timing_only else "passed",
+                    "utilization_status": "calculated_unvalidated" if timing_only else "calculated",
+                    "utilization_pct": 21.5092513, "median_time_ms": .012,
+                    "speedup_vs_estimated_radix16": baseline["estimated_time_ms"] / .012}
+        metadata = {"full_paper_comparison": False, "paper_row_sources": {
+            "radix4_compute": {"source_variant": "shared_stage_radix4",
+                               "selection_status": "artifact_selected_reconstruction",
+                               "selection_basis": "New reconstruction with shared exchange each stage."}}}
+        return baseline, selected, metadata
+
+    def test_table7_reconstruction_keeps_identity_hashes_and_accuracy_qualifications(self):
+        for timing_only in (False, True):
+            with self.subTest(timing_only=timing_only):
+                baseline, selected, metadata = self.reconstructed_table7(timing_only)
+                self.write([baseline, selected], metadata)
+                layout = tables.build("table7", self.directory)
+                row = layout["panels"][0]["rows"][2]
+                self.assertEqual(row, ["radix-4 + reducing computation‡" + ("†" if timing_only else ""),
+                                       "0.0120", "22%", "0.68"])
+                notes = " ".join(layout["notes"])
+                self.assertIn("Newly reconstructed", notes)
+                self.assertIn("have not been recovered", notes)
+                self.assertNotIn("FFT outputs are undefined", notes)
+                comparison = self.comparisons("table7")[2, 1]
+                self.assertEqual(comparison["status"], "timing_only_reconstructed" if timing_only
+                                 else "measured_reconstructed")
+
+    def test_table7_reconstruction_rejects_false_identity_missing_hashes_or_wrong_accuracy(self):
+        changes = (("source_variant", "register_branch"), ("source", "unrelated.cuh"),
+                   ("source_commit", "51e346c"), ("source_sha256", ""), ("binary_sha256", "invalid"),
+                   ("implementation_kind", "recovered"), ("operation_coverage", "partial_fft"),
+                   ("paper_identity", "confirmed"), ("tensor_flops_per_fft", 12288),
+                   ("accuracy_status", "unchecked"), ("timing_status", "collected_unvalidated"))
+        for key, value in changes:
+            with self.subTest(key=key):
+                baseline, selected, metadata = self.reconstructed_table7()
+                selected[key] = value
+                self.write([baseline, selected], metadata)
+                with self.assertRaisesRegex(ValueError, "Table 7"):
+                    tables.build("table7", self.directory)
+
+    def test_table7_missing_reconstruction_cannot_use_supplemental_or_paper_timing(self):
+        baseline, selected, metadata = self.reconstructed_table7()
+        selected.update(timing_status="missing", accuracy_status="not_collected",
+                        source_sha256="", binary_sha256="", tensor_flops_per_fft="",
+                        median_time_ms="", utilization_pct="", speedup_vs_estimated_radix16="")
+        self.write([baseline, selected, {"variant": "shared_stage_radix4", "median_time_ms": .012,
+                                       "timing_status": "collected", "accuracy_status": "passed"}], metadata)
+        row = tables.build("table7", self.directory)["panels"][0]["rows"][2]
+        self.assertEqual(row, ["radix-4 + reducing computation‡", "—", "—", "—"])
+
     def test_table7_comparison_keeps_estimation_and_partial_fft_status(self):
         baseline, selected, metadata = self.selected_table7()
         self.write([baseline, selected], metadata)

@@ -1,0 +1,63 @@
+{
+  "evaluation": "table7",
+  "title": "64-point optimization ablation",
+  "profile": "paper",
+  "cufftdx_mode": "preset",
+  "cudnn_mode": "fast",
+  "table5_range_mode": "boundary",
+  "status": "completed",
+  "exit_code": 0,
+  "implementation": "ready_subset",
+  "owner": null,
+  "coverage": "N64 TF32 unit-kernel timings; radix4_compute selects the new shared_stage_radix4 reconstruction (marked \u2021), with stage-wise shared-memory loads/stores, source/binary hashes, and unconfirmed original paper identity. The reduced-communication row selects a partial kernel (about 0.0079 ms on A100), with omitted MMA operand setup and unchecked accuracy retained. All five available kernels run in default timing-only mode; explicit validation checks the three complete-FFT candidates at R=1. Radix16 is estimated from validated Table 6 tcFFT at retained utilization. Missing selected reconstruction measurements fail the complete pipeline; exact original paper-stage identities remain unconfirmed.",
+  "full_paper_comparison": false,
+  "scientific_validation": "not_assessed",
+  "command": [
+    "bash",
+    "/home/chaewon/ThunderFFT/artifact/table7/run.sh"
+  ],
+  "started_at": "2026-11-09T17:10:55.715923+00:00",
+  "result_dir": "/home/chaewon/ThunderFFT/result/table7/20261109T171055Z-259a97d1",
+  "required_outputs": [
+    "data.csv",
+    "table.csv",
+    "kernel_comparison.csv"
+  ],
+  "presentation": {
+    "schema_version": 1,
+    "evaluation": "table7",
+    "operation": "offline_paper_table_render",
+    "new_gpu_measurements": false,
+    "paper_layout_sha256": "02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9",
+    "source_csv_sha256": "2658e4416372228ab9d316e8dd7c78389d9235ad109a548d9dfb44006d075d21",
+    "inputs": {
+      "table.csv": "2658e4416372228ab9d316e8dd7c78389d9235ad109a548d9dfb44006d075d21",
+      "metadata.json": "4c886746ba493aadb7bbe52239d213701177370ed00c1b513cc22634c86c4b93"
+    },
+    "paper_reference_inputs": {
+      "paper_table_references.json": "48a29e9892a00b9321eb8f5aaa10a5dd8224df535dd631e521d9212637388d7c",
+      "table3/paper-table3-all-targets.csv": "75a393ba5bcf0e67632b894e37dbb56c27f1c22ad4494a2712e007c27d470cc4",
+      "paper_table_accuracy.py": "671f5eb5e7c25f0967ef16edab2c567c57d679bf9a2d9fa35fedf1a6febfc654"
+    },
+    "outputs": {
+      "table.pdf": "0cbd4123dc6732b1d8ae9d775e1e1bdc98cb31552243cbb240cff17248195ee9",
+      "table.png": "4a7e1da8c208679a4a7ee1056e445f746addbea3d34aea1f3d5f4eb63051156e",
+      "table.html": "127a473c9da4a0a37ff81d6ddec3b76bcc65f29816b860fcf4b777bf649775b7",
+      "comparison.md": "10c9bc2db300256ed5f96655848afbbf9a8cd5d4be9e97b0e395116213a6d116",
+      "paper-comparison.csv": "c65cc93978a2c5dcd2aa1c7c0ce027aee8a641455ab240b5b484c5016921cc8f"
+    },
+    "comparison_formula": "100 * (new - paper) / abs(paper); absolute value is relative error",
+    "notes": [
+      "Each original numeric column has three columns: Paper, New, and \u0394%, with a blank separator between groups. \u0394% = (New \u2212 Paper) / |Paper| \u00d7 100; its absolute value is the relative error.",
+      "Paper values are the rounded numbers printed in the supplied PDF. \u2014 means missing or not exactly comparable; model values and estimates retain their stated scope.",
+      "\u2014 denotes an unavailable measurement. Missing original stages are not replaced by retained paper numbers.",
+      "Recovered candidates are displayed under their proposed paper roles; exact original-stage identities remain unconfirmed.",
+      "The original radix-16 baseline is unavailable; speedups relative to that baseline remain unreported.",
+      "\u2020 Timing-only measurement: FFT numerical correctness was not checked.",
+      "Paper references are the printed values. Differences for * and \u2020 rows retain the same estimate and timing-only qualifications; they do not establish a validated FFT reproduction.",
+      "Additional native variants remain in kernel_comparison.csv; only the explicit paper-row source mapping selects a displayed stage."
+    ]
+  },
+  "finished_at": "2026-11-09T17:11:06.099912+00:00",
+  "elapsed_seconds": 10.383665
+}

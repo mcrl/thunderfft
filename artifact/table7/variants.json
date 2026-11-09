@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "scope": "N64 TF32 unit-kernel measurements: two complete-FFT candidates and two explicitly partial historical kernels; end-to-end FFT is outside timing scope, and exact paper-stage identities remain unconfirmed",
-  "gpu_validation": "selected_uniform_requires_local_a100_r1",
+  "scope": "N64 TF32 unit-kernel measurements: three complete-FFT candidates and two explicitly partial historical kernels; end-to-end FFT is outside timing scope, and exact paper-stage identities remain unconfirmed",
+  "gpu_validation": "available_candidates_passed_local_a100_r1",
   "variants": [
     {
       "id": "radix16",
@@ -48,7 +48,7 @@
       "source_commit": "5e37821a24e02e9986b61acda044bfdf2f99f563",
       "candidate_paper_role": "reduced branch divergence",
       "paper_identity": "unconfirmed",
-      "gpu_validation": "pending_local_a100_r1",
+      "gpu_validation": "passed_local_a100_r1",
       "timing_scope": "repeated_kernel_compute",
       "operation_coverage": "complete_fft_candidate",
       "known_source_issues": []
@@ -123,8 +123,10 @@
       "paper_identity": "unconfirmed"
     },
     "radix4_compute": {
-      "source_variant": "radix4_compute",
-      "selection_status": "unchanged_candidate",
+      "source_variant": "shared_stage_radix4",
+      "selection_status": "artifact_selected_reconstruction",
+      "selection_date": "2026-11-10",
+      "selection_basis": "New stage-wise shared-memory radix-4 implementation for the reduced-computation role; no claim that this recovers the original paper source or its 0.0120 ms timing.",
       "paper_identity": "unconfirmed"
     },
     "register_branch": {
@@ -139,5 +141,27 @@
       "selection_status": "unchanged_candidate",
       "paper_identity": "unconfirmed"
     }
-  }
+  },
+  "candidate_implementations": [
+    {
+      "id": "shared_stage_radix4",
+      "status": "available",
+      "implementation_kind": "reconstructed",
+      "title": "Reconstructed radix-4 FFT with shared-memory exchange at every stage",
+      "source": "ablation/kernels/shared_stage_radix4.cuh",
+      "namespace": "thff_table7_shared_stage",
+      "kernel": "fft_kernel_radix4_shared_stage_batch16",
+      "candidate_paper_role": "reduced computation",
+      "paper_identity": "unconfirmed",
+      "gpu_validation": "passed_local_a100_r1",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "complete_fft_candidate",
+      "known_source_issues": [],
+      "mma_flops_per_fft_slot": 6144,
+      "source_selection_basis": "New reconstruction using stage-wise shared-memory loads/stores and no register-stage permutation; identified by source SHA-256, not a recovered historical commit.",
+      "source_dependencies": [
+        "ablation/kernels/historical_uniform_5e37821.cuh"
+      ]
+    }
+  ]
 }

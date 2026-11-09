@@ -207,6 +207,20 @@ def assemble(parts: list[Path], output: Path, profile: str, table6=None) -> dict
                 if this_contract["source_sha256"].get(source) != expected_hash:
                     reason = (f"The recorded source hash does not match the current selected source {source}; "
                               "collect this candidate again before using its kernel comparison row")
+                else:
+                    for dependency in specification.get("source_dependencies", []):
+                        path = HERE / dependency
+                        recorded_hash = this_contract["source_sha256"].get(dependency)
+                        if not path.is_file():
+                            reason = f"The selected source dependency is unavailable: {dependency}"
+                        elif recorded_hash is None:
+                            reason = (f"The recorded source dependency hash is missing for {dependency}; "
+                                      "collect this candidate again before using its kernel comparison row")
+                        elif recorded_hash != hashlib.sha256(path.read_bytes()).hexdigest():
+                            reason = (f"The recorded source dependency hash does not match the current dependency {dependency}; "
+                                      "collect this candidate again before using its kernel comparison row")
+                        if reason:
+                            break
             if reason:
                 ignored_variants.append({"part": str(part.resolve()), "variant": variant,
                                          "reason": reason,

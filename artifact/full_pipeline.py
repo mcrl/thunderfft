@@ -245,9 +245,20 @@ def run_local(args, root, folder, stop_process, gpu_uuid=None, cancel_event=None
 def assembly_result(states, assembled, entries, profile, root, cudnn_mode=None, table5_range_mode=None):
     """Missing required cells fail; validated fast subsets remain explicit limits."""
     from artifact.figure5 import policy
+    from artifact.table7.measure import manifest_entries
     missing_files, unresolved, limits = [], [], []
-    variants = json.loads((root / "artifact/table7/variants.json").read_text())["variants"]
-    unavailable = {v["id"] for v in variants if v["status"] != "available"}
+    manifest = json.loads((root / "artifact/table7/variants.json").read_text())
+    variants = {variant["id"]: variant for variant in manifest_entries(manifest)}
+    selections = manifest.get("paper_row_sources", {})
+    unavailable = set()
+    for role in manifest["variants"]:
+        # A missing original is no longer an allowed coverage gap once an
+        # available source has explicitly been selected to supply its row.
+        source = selections.get(role["id"], {}).get("source_variant", role["id"])
+        if source not in variants:
+            raise ValueError(f"Unknown Table 7 paper-row source: {source}")
+        if variants[source]["status"] != "available":
+            unavailable.add(role["id"])
     by_id = {s["evaluation"]: s for s in states}
     for entry in entries:
         evaluation = entry["id"]

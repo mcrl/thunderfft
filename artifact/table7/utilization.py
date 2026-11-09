@@ -23,7 +23,7 @@ REFERENCE = {
 # In particular, the approximate paper model 32*N*log2(N)=12288 for radix-16
 # is not the actual instruction count of the mixed-radix N64 implementation.
 FLOPS_PER_MMA = 2 * 16 * 8 * 8
-MMA_PER_WARP = {"register_branch": 48, "register_uniform": 48,
+MMA_PER_WARP = {"register_branch": 48, "register_uniform": 48, "shared_stage_radix4": 48,
                 "historical_e4aa1b0": 48, "historical_652808b": 48,
                 "reconstructed_radix16": 80, "reconstructed_radix4_compute": 48}
 # The two historical partial kernels retain 48 issued MMA instructions per R.

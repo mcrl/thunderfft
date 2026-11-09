@@ -1,0 +1,9 @@
+{
+  "symbol": "_ZN24thff_table7_shared_stage38fft_kernel_radix4_shared_stage_batch16EP6float2PKS0_j",
+  "static_instruction_counts": {
+    "HMMA": 48,
+    "LDS": 352,
+    "STS": 360,
+    "WARPSYNC": 2
+  }
+}

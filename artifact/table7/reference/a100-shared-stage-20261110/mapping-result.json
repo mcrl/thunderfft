@@ -1,0 +1,11 @@
+{
+  "cases": 129,
+  "real_basis_cases": 64,
+  "imaginary_basis_cases": 64,
+  "random_cases": 1,
+  "max_absolute_error": 1.1546319456101628e-14,
+  "max_relative_l2": 6.012754733786446e-16,
+  "threshold_relative_l2": 1e-14,
+  "scope": "Independent FP64 index/coefficient model; no TF32 or GPU simulation",
+  "passed": true
+}

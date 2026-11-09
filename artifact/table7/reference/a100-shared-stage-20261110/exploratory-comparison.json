@@ -1,0 +1,32 @@
+[
+  {
+    "exploratory_native_id": "reconstructed_radix4_compute",
+    "median_compute_us": 25.6255989075,
+    "source": "exploratory two-candidate binary; shared_stage_radix4 is ping-pong, shared_stage_radix4_inplace is selected single-buffer",
+    "csv_sha256": "72e145ae62285fab6dd20c7f846cdc35eb45361906a016478ab4f458db74f6ca"
+  },
+  {
+    "exploratory_native_id": "shared_stage_radix4",
+    "median_compute_us": 22.812669754,
+    "source": "exploratory two-candidate binary; shared_stage_radix4 is ping-pong, shared_stage_radix4_inplace is selected single-buffer",
+    "csv_sha256": "1de0f4f00fe6534cdf8194717821e4448e71e1173bb3b8be3f9c7879cd4a623b"
+  },
+  {
+    "exploratory_native_id": "shared_stage_radix4_inplace",
+    "median_compute_us": 22.7993602753,
+    "source": "exploratory two-candidate binary; shared_stage_radix4 is ping-pong, shared_stage_radix4_inplace is selected single-buffer",
+    "csv_sha256": "ad4979fb16d4394eecef5743292605912ce66f40df10e567cfd0264535aadf40"
+  },
+  {
+    "exploratory_native_id": "register_branch",
+    "median_compute_us": 11.9398403168,
+    "source": "exploratory two-candidate binary; shared_stage_radix4 is ping-pong, shared_stage_radix4_inplace is selected single-buffer",
+    "csv_sha256": "aabee958db4bff551a63929b57ed22ca818866ff0fc25bf68db2d736d14fef58"
+  },
+  {
+    "exploratory_native_id": "register_uniform",
+    "median_compute_us": 3.66796827316,
+    "source": "exploratory two-candidate binary; shared_stage_radix4 is ping-pong, shared_stage_radix4_inplace is selected single-buffer",
+    "csv_sha256": "5dd8f05d3fc6ecf77052b0ee798afe6348846e55de283ad87e02b4a4c66e9629"
+  }
+]

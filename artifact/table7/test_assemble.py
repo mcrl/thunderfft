@@ -30,6 +30,7 @@ def future_recovered_variants():
     """Exercise full-table behavior with explicitly fictional recovered sources."""
     path = HERE / "variants.json"
     manifest = json.loads(path.read_text())
+    manifest["candidate_implementations"] = []
     uniform_source = next(entry["source"] for entry in manifest["variants"] if entry["id"] == "register_uniform")
     for entry in manifest["variants"]:
         if entry["status"] != "available":
@@ -67,8 +68,9 @@ def fixture_part(root, name, variant="register_uniform", phase="timing", time_us
     part = root / name
     part.mkdir()
     manifest = json.loads((HERE / "variants.json").read_text())
-    hashes = {entry["source"]: hashlib.sha256((HERE / entry["source"]).read_bytes()).hexdigest()
-              for entry in measure.manifest_entries(manifest) if entry["status"] == "available"}
+    hashes = {source: hashlib.sha256((HERE / source).read_bytes()).hexdigest()
+              for entry in measure.manifest_entries(manifest) if entry["status"] == "available"
+              for source in (entry["source"], *entry.get("source_dependencies", []))}
     hashes["measure.py"] = "a" * 64
     metadata = {"evaluation": "table7", "profile": "smoke", "phase": phase,
                 "status": "completed_timing_only" if timing_only else "completed_declared_subset",
@@ -124,6 +126,63 @@ class AssemblyChecks(unittest.TestCase):
             for key in ("median_time_ms", "utilization_pct", "radix16_speedup"):
                 self.assertEqual(row[key], "")
         self.assertFalse(result["full_paper_comparison"])
+
+    def test_reconstructed_shared_stage_maps_to_paper_role_with_unchanged_native_evidence(self):
+        for timing_only in (False, True):
+            with self.subTest(timing_only=timing_only):
+                part = fixture_part(self.root, f"shared-{timing_only}", "shared_stage_radix4",
+                                    timing_only=timing_only, time_us=12)
+                result = self.assemble([part])
+                row = self.table()["radix4_compute"]
+                self.assertEqual(row["source_variant"], "shared_stage_radix4")
+                self.assertEqual(row["implementation_kind"], "reconstructed")
+                self.assertEqual(row["source_commit"], "")
+                self.assertEqual(row["paper_identity"], "unconfirmed")
+                self.assertEqual(row["operation_coverage"], "complete_fft_candidate")
+                self.assertEqual(row["accuracy_status"], "unchecked" if timing_only else "passed")
+                self.assertEqual(float(row["median_time_ms"]), .012)
+                self.assertEqual(int(row["tensor_flops_per_fft"]), 6144)
+                self.assertEqual(row["source_sha256"], hashlib.sha256((HERE / row["source"]).read_bytes()).hexdigest())
+                self.assertEqual(row["binary_sha256"], "b" * 64)
+                self.assertFalse(result["full_paper_comparison"])
+                with (self.output / "kernel_comparison.csv").open() as stream:
+                    self.assertEqual([item["variant"] for item in csv.DictReader(stream)], ["shared_stage_radix4"])
+                self.assertNotIn("radix4_compute.timing", {item["item"] for item in result["missing"]})
+
+    def test_reconstructed_shared_stage_requires_matching_source_and_has_no_fallback(self):
+        part = fixture_part(self.root, "stale-shared", "shared_stage_radix4")
+        path = part / "metadata.json"
+        meta = json.loads(path.read_text())
+        meta["source_sha256"]["ablation/kernels/shared_stage_radix4.cuh"] = "f" * 64
+        path.write_text(json.dumps(meta))
+        result = self.assemble([part])
+        row = self.table()["radix4_compute"]
+        self.assertEqual(row["source_variant"], "shared_stage_radix4")
+        self.assertEqual(row["timing_status"], "missing")
+        self.assertEqual(row["median_time_ms"], "")
+        self.assertEqual(result["ignored_variants"][0]["variant"], "shared_stage_radix4")
+
+    def test_reconstructed_shared_stage_rejects_missing_or_stale_helper_hash(self):
+        dependency = "ablation/kernels/historical_uniform_5e37821.cuh"
+        for stale in (False, True):
+            with self.subTest(stale=stale):
+                part = fixture_part(self.root, f"dependency-{stale}", "shared_stage_radix4")
+                path = part / "metadata.json"
+                meta = json.loads(path.read_text())
+                if stale:
+                    meta["source_sha256"][dependency] = "f" * 64
+                else:
+                    del meta["source_sha256"][dependency]
+                path.write_text(json.dumps(meta))
+                result = self.assemble([part])
+                row = self.table()["radix4_compute"]
+                self.assertEqual(row["timing_status"], "missing")
+                self.assertEqual(row["median_time_ms"], "")
+                ignored, = result["ignored_variants"]
+                self.assertEqual(ignored["variant"], "shared_stage_radix4")
+                self.assertIn("source dependency hash", ignored["reason"])
+                self.assertIn(dependency, ignored["reason"])
+                self.assertIn("does not match" if stale else "missing", ignored["reason"])
 
     def test_separate_timing_parts_automatically_calculate_utilization(self):
         parts = [fixture_part(self.root, "branch", "historical_e4aa1b0", timing_only=True),
@@ -471,9 +530,9 @@ class CollectionChecks(unittest.TestCase):
         manifest = json.loads((HERE / "variants.json").read_text())
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(measure.requested_variants(manifest),
-                             "register_branch,register_uniform,historical_e4aa1b0,historical_652808b")
+                             "register_branch,register_uniform,shared_stage_radix4,historical_e4aa1b0,historical_652808b")
             os.environ["THUNDERFFT_TABLE7_TIMING_ONLY"] = "0"
-            self.assertEqual(measure.requested_variants(manifest), "register_branch,register_uniform")
+            self.assertEqual(measure.requested_variants(manifest), "register_branch,register_uniform,shared_stage_radix4")
             os.environ["THUNDERFFT_TABLE7_VARIANTS"] = "all"
             self.assertEqual(measure.requested_variants(manifest), "all")
 
@@ -552,7 +611,7 @@ class CollectionChecks(unittest.TestCase):
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stderr)
             coverage = json.loads((Path(directory) / "coverage.json").read_text())
-            self.assertEqual(coverage["requested"], "register_branch,register_uniform,historical_e4aa1b0,historical_652808b")
+            self.assertEqual(coverage["requested"], "register_branch,register_uniform,shared_stage_radix4,historical_e4aa1b0,historical_652808b")
             self.assertEqual(coverage["source_missing"], ["radix16", "radix4_compute"])
 
     def test_profiling_is_not_a_table_utilization_phase(self):

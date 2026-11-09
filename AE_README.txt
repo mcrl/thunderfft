@@ -110,8 +110,9 @@ Final outputs:
 - Expected exit status: 0.
 - Default Figures 4/5 show gaps and annotations for skipped cuDNN filters.
   Table 5 reports local boundary coverage. Table 7 estimates its first row
-  from Table 6 tcFFT while retaining utilization; the second historical stage
-  remains blank in either mode (see Section 4).
+  from Table 6 tcFFT while retaining utilization. Its second row measures a new
+  stage-wise shared-memory radix-4 reconstruction, marked ‡; the original
+  paper-stage identity remains unconfirmed (see Section 4).
 
 
 2.3 One-step generation: full version
@@ -319,7 +320,7 @@ Table 5: boundary recheck or full exponent scan
 | Table 4 | table.html: GPU columns; peak, ideal MMA and unit-kernel TFLOPS rows. |
 | Table 5 | table.html: four implementation columns per metric; alpha=1 error and finite range. |
 | Table 6 | table.html: library rows, time and speedup columns. |
-| Table 7 | table.html: stage rows, time/utilization/speedup; estimates and unchecked timings marked. |
+| Table 7 | table.html: stage rows, time/utilization/speedup; estimates, reconstruction (‡) and unchecked timings (†) marked. |
 | Figures 2-5 | figure.pdf and summary.csv: compare measured trends with the paper. |
 
 - Successful assembly retains the following explicit coverage limits:
@@ -338,7 +339,17 @@ Table 5: boundary recheck or full exponent scan
                  = N256 FP16 time * 0.375.
     It uses measured utilization, not a fixed 70%. No extra GPU work is needed.
     The estimate is labeled and recorded in metadata/coverage; without compatible
-    Table 6 tcFFT evidence it stays blank. The second historical stage stays blank.
+    Table 6 tcFFT evidence it stays blank.
+    The second row measures shared_stage_radix4, a new reconstruction using
+    shared-memory loads/stores at each radix-4 stage without register-fragment
+    permutation. It is marked ‡ and retains source/binary hashes; the original
+    paper source and its 0.0120 ms result have not been recovered.
+    Default collection measures all five available kernels in timing-only mode
+    (unchecked, marked †). THUNDERFFT_TABLE7_TIMING_ONLY=0 checks the three
+    complete-FFT candidates separately at R=1. The selected reduced-communication
+    kernel omits MMA operand initialization and requires timing-only mode; its
+    incomplete FFT scope remains stated in the table. A missing measurement for
+    the selected radix-4 reconstruction fails the complete pipeline.
 - The pipeline can report completed_with_coverage_limits with exit status 0.
 - Absolute timings depend on GPU clocks/load. Smoke timings are not paper results.
 

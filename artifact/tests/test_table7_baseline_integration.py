@@ -54,7 +54,8 @@ class Table7Integration(unittest.TestCase):
             self.assertEqual(metadata["assembly_schema"], "table6-validated-parts-v1")
             self.assertEqual(metadata["profile"], profile)
         (output / "data.csv").write_text("variant,time\n")
-        return {"status": "partial", "missing": [{"item": "radix4_compute.timing", "reason": "no source"}],
+        return {"status": "partial", "missing": [{"item": "radix4_compute.timing",
+                "source_variant": "shared_stage_radix4", "reason": "fixture did not collect the selected source"}],
                 "full_paper_comparison": False}
 
     def collect_tcfft(self):
@@ -113,9 +114,16 @@ class Table7Integration(unittest.TestCase):
 
 
 class Table7Coverage(unittest.TestCase):
-    def check(self, projection, *, full_paper_comparison=False):
-        state = {"evaluation": "table7", "status": "partial", "full_paper_comparison": full_paper_comparison,
-                 "missing": [{"item": "radix4_compute.timing", "reason": "source unavailable"}],
+    def check(self, projection, *, full_paper_comparison=False, missing_shared_stage=False):
+        # All available selected stages are collected by default. Only an
+        # unavailable projection leaves the unrecovered radix-16 row empty.
+        missing = ([] if projection.get("status") == "estimated" else [
+            {"item": "radix16.timing", "source_variant": "radix16", "reason": "source unavailable"}])
+        if missing_shared_stage:
+            missing.append({"item": "radix4_compute.timing", "source_variant": "shared_stage_radix4",
+                            "reason": "selected reconstruction has not been measured"})
+        state = {"evaluation": "table7", "status": "partial" if missing else "complete",
+                 "full_paper_comparison": full_paper_comparison, "missing": missing,
                  "baseline_projection": projection}
         return full_pipeline.assembly_result([state], Path("/no-files-required"),
             [{"id": "table7", "required_outputs": {"paper": []}}], "paper", ROOT)
@@ -144,6 +152,14 @@ class Table7Coverage(unittest.TestCase):
         self.assertTrue(any(item.get("status") == "unavailable" and
                             item["reason"] == "no compatible tcFFT evidence"
                             for item in result["coverage_limits"]))
+
+    def test_valid_baseline_estimate_does_not_hide_missing_selected_reconstruction(self):
+        projection = {"status": "estimated", "assumption": "retained tcFFT utilization",
+                      "formula": "time = tcFFT_time * 0.375"}
+        result = self.check(projection, missing_shared_stage=True)
+        self.assertFalse(result["outputs_complete"])
+        self.assertEqual([item["item"] for item in result["coverage_limits"]], ["radix16.projection"])
+        self.assertEqual([item["item"] for item in result["unresolved"]], ["radix4_compute.timing"])
 
 
 if __name__ == "__main__":

@@ -39,7 +39,8 @@ class MissingVariants(ValueError):
 
 
 def manifest_entries(manifest):
-    entries = manifest["variants"] + manifest.get("microbenchmarks", [])
+    entries = (manifest["variants"] + manifest.get("candidate_implementations", [])
+               + manifest.get("microbenchmarks", []))
     if len({entry["id"] for entry in entries}) != len(entries):
         raise ValueError("Manifest variant IDs must be unique")
     return entries
