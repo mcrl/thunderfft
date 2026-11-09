@@ -23,10 +23,17 @@ before running; this does not rent an instance or run local measurements.
 The plan includes startup, readiness waiting, execution, download, cleanup and
 billing-delay allowances across all concurrent rentals.
 
-If any acquisition or preparation fails, the whole workflow cleans up every
-acquired instance and no benchmarks start. There is no automatic startup retry
-for this parallel group. Individual `--backend vast` commands still use one
-GPU at a time, with up to two startup attempts by default.
+Temporary HTTP 429 responses wait and retry within the existing API timeout.
+If the provider explicitly reports that a selected offer is unavailable, the
+runner searches another host, up to three offers, within the original budget
+and startup deadline. Replacement plans also recheck the group's combined cost.
+Unknown creation outcomes are reconciled by the unique instance label before
+cleanup; they never trigger another create request.
+
+If acquisition or preparation still fails, the whole workflow cleans up every
+acquired instance and no benchmarks start. The parallel group does not restart
+a server that was already created. Individual `--backend vast` commands still
+use one GPU at a time, with up to two startup attempts by default.
 
 ## Credentials
 
@@ -150,7 +157,7 @@ per-instance evidence under:
 result/cloud/group-<session>/
   preflight.json plan.json source.json ready.json execution.json
   thunderfft-ae-<instance-session>/
-    plan.json request.json source.json state.json status.json billing.json
+    plan.json creation-attempts.json request.json source.json state.json status.json billing.json
     download/result/<evaluation>/<run_id>/
     download/result/cloud-worker/
 ```
@@ -161,7 +168,7 @@ audit directory. Standalone `--backend vast` invocations use:
 
 ```text
 result/cloud/thunderfft-ae-<session>/
-  plan.json request.json source.json state.json status.json billing.json
+  plan.json creation-attempts.json request.json source.json state.json status.json billing.json
   download/result/<evaluation>/<run_id>/     CSVs, logs, metadata
   download/result/cloud-worker/              setup and job logs
 ```
@@ -181,6 +188,12 @@ recovery applies to one instance at a time:
 
 Repeat for each group member whose cleanup remains unconfirmed. Recovery also
 refreshes billing evidence; deletion alone does not establish settled charges.
+
+HTTP errors identify the API method/route, status, and recognized provider
+reason/code, while omitting response bodies and credentials. An unclassified
+HTTP 400 stops the run with these diagnostics; it is not assumed to mean that
+the GPU was sold out. Rejected offers and replacement plans are retained in
+`creation-attempts.json`.
 
 ## Unavailable cloud GPUs
 

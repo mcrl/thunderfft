@@ -154,6 +154,71 @@ def remaining(deadline, maximum=30):
     return max(.1, min(left, maximum))
 
 
+def acquire_instance(client, config, gpu, state, folder, proposal, *,
+                     cancel_event=None, log=None, validate_plan=None, acquisition_deadline=None):
+    """Replace only definitively unavailable offers, within the original plan.
+
+    The same label, watchdog, startup deadline and budget cover every rejected
+    request. An ambiguous create is never retried or replaced here.
+    """
+    attempts = []
+    excluded = set(config["exclude_machine_ids"])
+    startup_deadline = state["created_at"] + config["startup_seconds"]
+    if acquisition_deadline is not None:
+        startup_deadline = min(startup_deadline, acquisition_deadline)
+
+    def checkpoint():
+        if cancel_event is not None and cancel_event.is_set():
+            raise InterruptedError("Cloud group acquisition cancelled")
+        remaining(startup_deadline)
+
+    for index in range(3):
+        checkpoint()
+        attempt = {"attempt": index + 1, "plan": dict(proposal),
+                   "started_at": time.time(), "status": "requesting"}
+        attempts.append(attempt)
+        write_json(folder / "creation-attempts.json", attempts)
+        state["create_attempted"] = True
+        write_json(folder / "state.json", state)
+        try:
+            state["instance_id"] = client.create_instance(proposal["offer"]["id"],
+                image=proposal["image"], disk_gb=config["disk_gb"], label=state["label"],
+                onstart=onstart_script(state["label"], state["deadline"]))
+        except CreateRejected as error:
+            # Only an acknowledged rejection permits another offer. Keep the
+            # watchdog armed but record that this request created no rental.
+            state["create_attempted"] = False
+            write_json(folder / "state.json", state)
+            attempt.update(status="rejected", error=str(error),
+                           http_status=error.code, reason=error.reason)
+            write_json(folder / "creation-attempts.json", attempts)
+            if not error.retryable_offer or index == 2:
+                raise
+            checkpoint()
+            excluded.add(proposal["offer"]["machine_id"])
+            retry_config = dict(config, exclude_machine_ids=sorted(excluded))
+            if log is not None:
+                log(f"[{gpu}] selected offer is no longer available; searching another host "
+                    f"within the same budget and startup deadline ({index + 2}/3)")
+            replacement = plan(client, retry_config, gpu)
+            checkpoint()
+            if validate_plan is not None:
+                validate_plan(replacement)
+            proposal.clear()
+            proposal.update(replacement)
+            write_json(folder / "plan.json", proposal)
+            continue
+        except BaseException as error:
+            attempt.update(status="outcome_unknown", error_type=type(error).__name__)
+            write_json(folder / "creation-attempts.json", attempts)
+            raise
+        # Save the ID before any other operation, including optional logging.
+        write_json(folder / "state.json", state)
+        attempt.update(status="created", instance_id=state["instance_id"])
+        write_json(folder / "creation-attempts.json", attempts)
+        return
+
+
 class StartupUnavailable(TimeoutError):
     """A rental never reached authenticated SSH; safe to retry after cleanup."""
 
@@ -475,16 +540,8 @@ def run_attempt(args, root, collection_module, jobs, dependencies, client, confi
         if any(str(row.get("label", "")).startswith("thunderfft-ae-") for row in client.instances()):
             raise ProviderError("An existing ThunderFFT rental needs cleanup before another execution")
         print(f"[{label}] {args.gpu}; all-in plan ${proposal['cost']['planned_total_usd']:.4f}; budget ${config['budget_usd']:.2f}", flush=True)
-        state["create_attempted"] = True
-        write_json(folder / "state.json", state)
-        try:
-            state["instance_id"] = client.create_instance(proposal["offer"]["id"], image=proposal["image"],
-                disk_gb=config["disk_gb"], label=label, onstart=onstart_script(label, state["deadline"]))
-        except CreateRejected:
-            state["create_attempted"] = False
-            write_json(folder / "state.json", state)
-            raise
-        write_json(folder / "state.json", state)
+        acquire_instance(client, config, args.gpu, state, folder, proposal,
+                         log=lambda message: print(message, flush=True))
         client.attach_ssh_key(state["instance_id"], public)
         startup_deadline = created + config["startup_seconds"]
         ssh = wait_ssh(client, state, config, folder, root, startup_deadline)

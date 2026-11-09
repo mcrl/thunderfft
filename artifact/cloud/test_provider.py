@@ -36,10 +36,18 @@ class ProviderTests(unittest.TestCase):
         self.key.chmod(0o600)
         self.requests = []
         self.responses = []
+        provider._RATE_GATES.clear()
+        self.clock = 1000.0
+        self.clock_patch = mock.patch.object(provider.time, "monotonic", side_effect=lambda: self.clock)
+        self.clock_patch.start()
+        self.addCleanup(self.clock_patch.stop)
         self.client = provider.VastClient(self.key, transport=self.transport)
-        self.sleep_patch = mock.patch.object(provider.time, "sleep")
+        self.sleep_patch = mock.patch.object(provider.time, "sleep", side_effect=self.advance_clock)
         self.mock_sleep = self.sleep_patch.start()
         self.addCleanup(self.sleep_patch.stop)
+
+    def advance_clock(self, seconds):
+        self.clock += seconds
 
     def tearDown(self):
         self.temp.cleanup()
@@ -155,12 +163,21 @@ class ProviderTests(unittest.TestCase):
             with self.subTest(status=status), self.assertRaises(provider.CreateRejected):
                 self.client.create_instance(12, image="nvidia/cuda:test", disk_gb=32, label="unique")
             self.assertEqual(len(self.requests), count + 1)
-        for status in [410, 429, 500, 502, 503, 504]:
+        for status in [410, 500, 502, 503, 504]:
             self.responses = [provider.HTTPStatusError(status)]
             count = len(self.requests)
             with self.subTest(status=status), self.assertRaises(provider.CreateOutcomeUnknown):
                 self.client.create_instance(12, image="nvidia/cuda:test", disk_gb=32, label="unique")
             self.assertEqual(len(self.requests), count + 1)
+
+        self.responses = [provider.HTTPStatusError(429)] * 4
+        count = len(self.requests)
+        with self.assertRaises(provider.CreateRejected) as caught:
+            self.client.create_instance(12, image="nvidia/cuda:test", disk_gb=32, label="unique")
+        self.assertEqual(caught.exception.code, 429)
+        self.assertFalse(caught.exception.retryable_offer)
+        self.assertLessEqual(len(self.requests), count + 4)
+        self.assertNotIn("disposable-test-token", str(caught.exception))
 
     def test_sanitized_errors_account_and_attach(self):
         self.responses = [RuntimeError("disposable-test-token")]
@@ -218,7 +235,8 @@ class ProviderTests(unittest.TestCase):
         with mock.patch.object(provider.time, "monotonic", return_value=100):
             self.client.instances()
             self.client.instances()
-        self.mock_sleep.assert_called_once_with(1.05)
+        self.mock_sleep.assert_called_once()
+        self.assertAlmostEqual(self.mock_sleep.call_args[0][0], 1.05)
 
     def test_billing_preflight_validates_access_without_returning_rows(self):
         self.responses = [{"results": [{"description": "private"}]}]

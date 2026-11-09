@@ -3,19 +3,24 @@
 API contracts: https://docs.vast.ai/api-reference/search/search-offers,
 instances/{create-instance,attach-ssh-key,destroy-instance}, accounts/show-user,
 and billing/show-charges (checked 2026-11-04). No credentials are sent to workers.
-The caller owns the independent watchdog, polling, and finally-cleanup. Requests,
-especially creation, are never automatically retried by this module.
+The caller owns the independent watchdog, polling, and finally-cleanup. Only
+definitive HTTP 429 rejections receive bounded retries. Ambiguous creation,
+transport failures and server errors are never automatically retried.
 """
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 from pathlib import Path
+import random
 import re
 import stat
+import threading
 import time
 from typing import Callable
+from email.utils import parsedate_to_datetime
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,6 +30,13 @@ API_ORIGIN = "https://console.vast.ai"
 DEFAULT_KEY_FILE = Path("~/cloud_key/thunderfft/vast_api_key")
 MAX_BUDGET_USD = 50.0
 GPU_NAMES = {"A100": "A100 PCIE", "H100": "H100 PCIE", "B200": "B200"}
+_HTTP_REASONS = frozenset({"invalid_args", "no_such_ask", "offer_unavailable",
+    "instance_unavailable", "search_quota_exceeded", "rate_limit", "too_many_requests",
+    "insufficient_credit", "insufficient_funds", "not_authorized",
+    "authentication_error", "permission_denied"})
+_UNAVAILABLE_REASONS = frozenset({"no_such_ask", "offer_unavailable", "instance_unavailable"})
+_RATE_GATES = {}
+_RATE_GATES_LOCK = threading.Lock()
 
 
 class ProviderError(RuntimeError):
@@ -35,14 +47,86 @@ class CreateOutcomeUnknown(ProviderError):
     """A create request may have succeeded: discover by its unique label, never retry."""
 
 
+class RequestNotSent(ProviderError):
+    """The local rate gate exhausted its timeout before dispatching a request."""
+
+
 class CreateRejected(ProviderError):
     """A definitive HTTP rejection prevented creation; no reconciliation is needed."""
+    def __init__(self, message, *, code=None, reason=None, retryable_offer=False):
+        self.code = code
+        self.reason = reason if reason in _HTTP_REASONS else None
+        self.retryable_offer = bool(retryable_offer)
+        super().__init__(message)
 
 
 class HTTPStatusError(ProviderError):
-    def __init__(self, code: int):
+    def __init__(self, code: int, *, reason=None, retry_after=None,
+                 provider_code=None, method=None, route=None):
         self.code = code
-        super().__init__(f"Vast.ai returned HTTP {code}; response body suppressed")
+        self.reason = reason if reason in _HTTP_REASONS else None
+        self.retry_after = _retry_after_seconds(retry_after)
+        self.provider_code = (provider_code if isinstance(provider_code, str)
+            and re.fullmatch(r"[1-5][0-9]{2}/[0-9]{1,8}", provider_code) else None)
+        self.method = method if method in {"GET", "POST", "PUT", "DELETE"} else None
+        self.route = (route if isinstance(route, str)
+            and re.fullmatch(r"/api/v[01]/[a-z_/{}]+", route) else None)
+        context = f" during {self.method} {self.route}" if self.method and self.route else ""
+        detail = f" ({self.reason})" if self.reason else ""
+        detail += f" [provider code {self.provider_code}]" if self.provider_code else ""
+        super().__init__(f"Vast.ai returned HTTP {code}{context}{detail}; response body suppressed")
+
+
+def _retry_after_seconds(value):
+    """Accept numeric/date Retry-After without retaining a provider header."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        seconds = float(value)
+    except (ValueError, TypeError):
+        try:
+            seconds = parsedate_to_datetime(str(value)).timestamp() - time.time()
+        except (ValueError, TypeError, OverflowError):
+            return None
+    if not math.isfinite(seconds) or seconds < 0:
+        return None
+    # A long server cooldown is not shortened into an early retry. Its bounded
+    # value will exceed the request's remaining timeout and stop retries.
+    return min(seconds, 86400.0)
+
+
+def _http_error(code, *, body=b"", headers=None):
+    """Classify known failures; never keep response text, headers or URLs."""
+    reason = "rate_limit" if code == 429 else None
+    provider_code, threshold = None, None
+    retry_after = _retry_after_seconds(headers.get("Retry-After")) if headers else None
+    try:
+        data = json.loads(body)
+    except (ValueError, TypeError, UnicodeError):
+        data = None
+    if isinstance(data, dict):
+        error = data.get("error")
+        if isinstance(error, str) and error in _HTTP_REASONS:
+            reason = error
+        for field in ("msg", "message", "detail"):
+            message = data.get(field)
+            if not isinstance(message, str):
+                continue
+            message = message[:8192]
+            match = re.search(r"\berror ([1-5][0-9]{2}/[0-9]{1,8}):", message)
+            if match:
+                provider_code = match[1]
+            lower = message.lower()
+            if ("no_such_ask" in lower or (any(word in lower for word in
+                    ("offer ", "ask ", "instance type")) and any(word in lower for word in
+                    ("no longer available", "not available", "already rented")))):
+                reason = "no_such_ask"
+            match = re.search(r"endpoint threshold=([0-9]+(?:\.[0-9]+)?)", message)
+            if code == 429 and match:
+                threshold = _retry_after_seconds(match[1])
+    waits = [value for value in (retry_after, threshold) if value is not None]
+    return HTTPStatusError(code, reason=reason, retry_after=max(waits) if waits else None,
+                           provider_code=provider_code)
 
 
 def read_secret_file(path: Path | str, *, repo_root: Path | str | None = None) -> str:
@@ -87,10 +171,14 @@ def _transport(method: str, url: str, headers: dict, payload: dict | None,
     try:
         with opener.open(request, timeout=timeout) as response:
             if response.status < 200 or response.status >= 300:
-                raise HTTPStatusError(response.status)
+                raise _http_error(response.status, body=response.read(8192), headers=response.headers)
             data = response.read(8 * 1024 * 1024 + 1)
     except urllib.error.HTTPError as error:
-        raise HTTPStatusError(error.code) from None
+        try:
+            body = error.read(8192)
+        except Exception:
+            body = b""
+        raise _http_error(error.code, body=body, headers=error.headers) from None
     if len(data) > 8 * 1024 * 1024:
         raise ProviderError("Vast.ai response exceeds the size limit")
     return json.loads(data)
@@ -192,7 +280,30 @@ class VastClient:
         self._key = read_secret_file(api_key_file, repo_root=repo_root)
         self._transport = transport or _transport
         self.timeout = _number(timeout, "API timeout", minimum=1)
-        self._last_instances_request = None
+        # Threads and separate clients in this process share endpoint spacing,
+        # including preflight -> execution client handoff. The key itself never
+        # appears in state files or logs. Independent processes still tolerate
+        # contention through bounded 429 backoff.
+        identity = hashlib.sha256(self._key.encode("ascii")).digest()
+        with _RATE_GATES_LOCK:
+            self._rate_gate = _RATE_GATES.setdefault(identity, (threading.Lock(), {}))
+
+    def _request_slot(self, method, route, deadline):
+        interval = 5.0 if method == "PUT" and route == "/api/v0/asks/{id}/" else 1.05
+        lock, slots = self._rate_gate
+        with lock:
+            now = time.monotonic()
+            wait = max(0.0, slots.get((method, route), now) - now)
+            if now + wait >= deadline:
+                raise RequestNotSent(f"Vast.ai API timeout waiting for {method} {route} rate limit")
+            slots[(method, route)] = now + wait + interval
+        if wait:
+            time.sleep(wait)
+
+    def _defer_request(self, method, route, delay):
+        lock, slots = self._rate_gate
+        with lock:
+            slots[(method, route)] = max(slots.get((method, route), 0), time.monotonic() + delay)
 
     def _request(self, method: str, path: str, payload: dict | None = None,
                  query: dict | None = None) -> dict:
@@ -203,15 +314,41 @@ class VastClient:
             url += "?" + urllib.parse.urlencode({
                 key: json.dumps(value, separators=(",", ":")) if isinstance(value, (dict, list, bool)) else value
                 for key, value in query.items()})
-        try:
-            data = self._transport(method, url, {"Authorization": "Bearer " + self._key,
-                "Content-Type": "application/json", "Accept": "application/json"}, payload, self.timeout)
-        except HTTPStatusError:
-            raise
-        except Exception:
-            # Transport exceptions and provider error bodies can contain URLs or
-            # headers. Never echo them or retain their chained traceback.
-            raise ProviderError("Vast.ai request failed; transport details suppressed") from None
+        route = re.sub(r"/[0-9]+(?=/|$)", "/{id}", path)
+        deadline = time.monotonic() + self.timeout
+        rejected = None
+        for attempt in range(4):
+            try:
+                self._request_slot(method, route, deadline)
+            except RequestNotSent:
+                if rejected is not None:
+                    raise rejected from None
+                raise
+            left = deadline - time.monotonic()
+            if left <= 0:
+                if rejected is not None:
+                    raise rejected from None
+                raise RequestNotSent(f"Vast.ai API timeout before {method} {route}")
+            try:
+                data = self._transport(method, url, {"Authorization": "Bearer " + self._key,
+                    "Content-Type": "application/json", "Accept": "application/json"}, payload, left)
+                break
+            except HTTPStatusError as error:
+                safe = HTTPStatusError(error.code, reason=error.reason,
+                    retry_after=error.retry_after, provider_code=error.provider_code,
+                    method=method, route=route)
+                if (error.code != 429 or error.reason == "search_quota_exceeded" or attempt == 3):
+                    raise safe from None
+                rejected = safe
+                delay = max(error.retry_after or 0.0, 1.25 * 2**attempt) + random.uniform(0, .25)
+                if delay + .05 >= deadline - time.monotonic():
+                    raise safe from None
+                self._defer_request(method, route, delay)
+            except Exception:
+                # Transport exceptions can contain URLs or headers. Never echo
+                # them or retry: a create may already have reached the provider.
+                raise ProviderError(
+                    f"Vast.ai request failed during {method} {route}; transport details suppressed") from None
         if not isinstance(data, dict):
             raise ProviderError("Invalid Vast.ai response structure")
         if data.get("success") is False or "error" in data:
@@ -255,14 +392,6 @@ class VastClient:
                  "order_by": [{"col": "id", "dir": "asc"}], "limit": 25}
         rows, seen_tokens, seen_ids = [], set(), set()
         for _ in range(100):
-            # Also space separate calls: cleanup lists immediately before and
-            # after DELETE. Without this, the second list may repeatedly hit
-            # v1's one-request/second limit even when deletion succeeded.
-            if self._last_instances_request is not None:
-                wait = 1.05 - (time.monotonic() - self._last_instances_request)
-                if wait > 0:
-                    time.sleep(wait)
-            self._last_instances_request = time.monotonic()
             data = self._request("GET", "/api/v1/instances/", query=query)
             batch = data.get("instances")
             if ("next_token" not in data or not isinstance(batch, list)
@@ -313,12 +442,19 @@ class VastClient:
                 raise ProviderError("Missing creation acknowledgement")
             return _id(data.get("new_contract"))
         except ProviderError as error:
-            if isinstance(error, HTTPStatusError) and error.code in {400, 401, 403, 404, 405, 422}:
-                raise CreateRejected(f"Vast.ai rejected creation with HTTP {error.code}; response body suppressed") from None
+            if isinstance(error, RequestNotSent):
+                raise CreateRejected(f"Vast.ai creation request was not sent: {error}") from None
+            if isinstance(error, HTTPStatusError):
+                unavailable = error.reason in _UNAVAILABLE_REASONS
+                if error.code in {400, 401, 403, 404, 405, 422, 429} or (error.code == 410 and unavailable):
+                    raise CreateRejected(f"Vast.ai rejected creation: {error}",
+                        code=error.code, reason=error.reason,
+                        retryable_offer=unavailable and error.code in {400, 404, 410}) from None
             # Even a malformed/failed acknowledgement must first be reconciled
             # against the unique label; the caller must never duplicate rental.
+            context = f" ({error})" if isinstance(error, HTTPStatusError) else ""
             raise CreateOutcomeUnknown(
-                "Create outcome requires reconciliation by unique label; do not retry creation") from None
+                "Create outcome requires reconciliation by unique label; do not retry creation" + context) from None
 
     def attach_ssh_key(self, instance_id: int, public_key: str) -> None:
         # Comments need not be disclosed to the provider.

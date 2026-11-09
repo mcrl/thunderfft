@@ -17,7 +17,7 @@ import uuid
 
 from . import coordinator as cloud
 from .config import ARCHS, required_dependencies
-from .provider import CreateRejected, ProviderError, VastClient
+from .provider import ProviderError, VastClient
 from .transport import build_source_bundle, validate_private_key
 from .watchdog import write_json
 
@@ -408,17 +408,19 @@ def run(args, registry, root, collection_module, select_tasks, parser, configs, 
                     member['state'] = state
                     write_json(member['folder'] / 'state.json', state)
                     member['watchdog'] = cloud.arm_watchdog(member['folder'], lock)
-                    state['create_attempted'] = True
-                    write_json(member['folder'] / 'state.json', state)
-                    try:
-                        state['instance_id'] = client.create_instance(member['proposal']['offer']['id'],
-                            image=member['proposal']['image'], disk_gb=config['disk_gb'], label=member['label'],
-                            onstart=cloud.onstart_script(member['label'], state['deadline']))
-                    except CreateRejected:
-                        state['create_attempted'] = False
-                        write_json(member['folder'] / 'state.json', state)
-                        raise
-                    write_json(member['folder'] / 'state.json', state)
+
+                    def validate_replacement(replacement):
+                        plans = [replacement if other is member else other['proposal'] for other in members]
+                        total = sum(item['cost']['planned_total_usd'] for item in plans)
+                        if total > min(budget, replacement['account_before']['balance_usd']):
+                            raise ProviderError('Replacement offer exceeds the shared budget or account balance')
+                        write_json(folder / 'plan.json', {'proposals': plans, 'planned_total_usd': total,
+                                   'budget_usd': budget, 'startup_retries': 0})
+
+                    cloud.acquire_instance(client, config, gpu, state, member['folder'], member['proposal'],
+                        cancel_event=cancel, log=emit, validate_plan=validate_replacement,
+                        acquisition_deadline=min(other['state']['created_at'] + other['config']['startup_seconds']
+                                                 for other in members if 'state' in other))
                     client.attach_ssh_key(state['instance_id'], member['public'])
                 deadline = min(member['state']['created_at'] + member['config']['startup_seconds'] for member in members)
                 phase, active_gpu = 'preparation', None
