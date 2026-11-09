@@ -229,6 +229,7 @@ class SSHTests(unittest.TestCase):
         local.write_bytes(b"payload")
         original = transport.subprocess.Popen
         for operation in (lambda: self.ssh.run(["fixture"], timeout=30),
+                          lambda: self.ssh.run(["fixture"], input="input\n" * 50000, timeout=30),
                           lambda: self.ssh.upload(local, "/remote/payload", timeout=30)):
             with self.subTest(operation=operation):
                 self.ssh.cancel_event = threading.Event()
@@ -267,8 +268,9 @@ class SSHTests(unittest.TestCase):
 
         with patch.object(self.ssh, "_command", return_value=[sys.executable, "-c", "import time;time.sleep(30)"]), \
                 patch.object(transport.subprocess, "Popen", side_effect=start), \
-                self.assertRaises(subprocess.TimeoutExpired):
+                self.assertRaises(subprocess.TimeoutExpired) as expired:
             self.ssh.run(["fixture"], timeout=.05)
+        self.assertEqual(expired.exception.timeout, .05)
         self.assertEqual(len(processes), 1)
         self.assertIsNotNone(processes[0].poll())
 

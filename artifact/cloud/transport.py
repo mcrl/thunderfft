@@ -20,6 +20,7 @@ import stat
 import subprocess
 import tarfile
 import tempfile
+import threading
 import time
 
 
@@ -321,22 +322,30 @@ class SSH:
         deadline = time.monotonic() + timeout
         with subprocess.Popen(command, stdin=subprocess.PIPE if input is not None else stdin,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-            pending_input = input
-            last_timeout = None
+            finished = threading.Event()
+
+            def cancel_process():
+                while not finished.wait(.1):
+                    if self.cancel_event.is_set():
+                        process.kill()
+                        return
+
+            # Python 3.9 cannot resume partially written stdin with
+            # communicate(input=None) after a timeout. Keep one communicate
+            # call responsible for I/O and interrupt it by killing on cancel.
+            watcher = threading.Thread(target=cancel_process, daemon=True)
+            watcher.start()
             try:
-                while True:
-                    self._check_cancelled()
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        raise subprocess.TimeoutExpired(command, timeout,
-                            output=last_timeout.output if last_timeout else None,
-                            stderr=last_timeout.stderr if last_timeout else None)
-                    try:
-                        stdout, stderr = process.communicate(input=pending_input, timeout=min(remaining, .1))
-                        break
-                    except subprocess.TimeoutExpired as error:
-                        last_timeout = error
-                        pending_input = None
+                self._check_cancelled()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                try:
+                    stdout, stderr = process.communicate(input=input, timeout=remaining)
+                except subprocess.TimeoutExpired as error:
+                    raise subprocess.TimeoutExpired(command, timeout, output=error.output,
+                                                    stderr=error.stderr) from error
+                self._check_cancelled()
                 result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
                 if check:
                     result.check_returncode()
@@ -346,6 +355,9 @@ class SSH:
                     process.kill()
                 process.communicate()
                 raise
+            finally:
+                finished.set()
+                watcher.join()
 
     def upload(self, local: Path, remote: str, *, timeout: float = 120) -> subprocess.CompletedProcess:
         local = Path(local)
