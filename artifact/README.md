@@ -3,6 +3,9 @@
 Evaluations for *xFFT: Accelerating FFT with Tensor Cores* (PPoPP'27). xFFT in
 the paper is ThunderFFT in this repository.
 
+Start with [AE_README.txt](../AE_README.txt) for the one-command workflow,
+default/full modes and estimated times; this page provides the detailed runner guide.
+
 | Evaluation | Paper | GPU | Complete workflow |
 | --- | --- | --- | --- |
 | [validation](validation/README.md) | correctness | any | A100 stage |

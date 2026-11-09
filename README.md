@@ -7,6 +7,9 @@ other work inside a CUDA kernel.
 This distribution includes the library, samples and the paper's evaluation
 scripts in `artifact/`.
 
+For artifact evaluation, start with [AE_README.txt](AE_README.txt): one-command
+table and figure generation, default/full modes, estimated times and individual runs.
+
 ## Quick start
 
 Use a CUDA toolkit, a C++17 host compiler and CMake 3.18 or newer. The documented
