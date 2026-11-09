@@ -24,8 +24,16 @@ keeps cuDNN filters up to 11 and all requested filters for cuFFT, cuFFTDx and
 ThunderFFT. The cutoff precedes the first observed 10x slowdown versus the
 fastest other library in the retained 2026-11-09 A100 sweep. Each library's
 selected filters run in one native process. The expected prepared-account
-time is about 3–5 minutes in fast mode (provisional estimate), versus
+time is about 2–4 minutes in fast mode, versus
 9–12 minutes with every cuDNN filter.
+
+On 2026-11-09, commit `a0f5755` completed fast paper mode on the A100 in
+162.1 seconds including incremental build/setup and plotting; measurement
+took 146.6 seconds. All 249 raw trial rows passed native correctness checks.
+A full-mode smoke run restored every smoke filter, including cuDNN f=53,
+and produced 12 rows. Offline collection assembly succeeded in both modes.
+The retained full-filter paper run at `6864641` took 552.0 seconds on the
+same GPU UUID; that earlier measurement was not rerun alongside fast mode.
 
 `--cudnn-mode full` restores all requested cuDNN filters and disables
 `THUNDERFFT_FIGURE5_SLOW_RATIO`. `--full` also selects Table 3's complete

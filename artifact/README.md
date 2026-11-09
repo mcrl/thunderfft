@@ -100,8 +100,8 @@ dependencies and local builds already available:
 | Table 6 | A100 | Under 1 minute | Under 1 minute |
 | Table 7 | A100 | Under 1 minute | Under 1 minute |
 | Figure 3 | A100 | Under 1 minute | Under 1 minute |
-| Figure 4 | A100 | 1–2 minutes (estimate) | 2–3 minutes |
-| Figure 5 | A100 | 3–5 minutes (estimate) | 9–12 minutes |
+| Figure 4 | A100 | 1–2 minutes | 2–3 minutes |
+| Figure 5 | A100 | 2–4 minutes | 9–12 minutes |
 | Tables 3 and 4, complete cloud stage | H100 PCIe | 8–12 minutes | 10–15 minutes |
 | Tables 3 and 4, complete cloud stage | B200 | 8–12 minutes | 10–15 minutes |
 | Final table assembly and Figure 2–5 PDFs | CPU | Under 1 minute | Under 1 minute |
@@ -110,9 +110,9 @@ dependencies and local builds already available:
 Cloud-stage estimates include startup, builds, measurements, result download
 and cleanup. Initial setup/local builds, GPU waiting and cloud retries can add
 time. Figure 2 reuses Table 3 measurements during final assembly.
-The fast Figure 4/5, H100/B200 preset-stage and default total times are
-estimates. The complete new `preset` + `fast` workflow has not been timed
-end to end on all three GPUs.
+The H100/B200 preset-stage and default total times remain estimates. The
+complete new `preset` + `fast` workflow has not been rerun end to end on all
+three GPUs.
 A100 Table 3 preset measurement took 4 minutes 56 seconds, plus 2 minutes
 9 seconds for build/setup, compared with the previous full search's
 8 minutes 41 seconds of measurement. See the Table 3 README for details.
@@ -123,6 +123,20 @@ on A100/H100/B200, including automatic assembly. At commit `317593c`, a
 separate A100 preset check passed all 56 Table 3 configurations and Table 2 /
 Figure 2 assembly, plus 494 CPU tests. These checks describe those revisions
 and modes; they do not establish an end-to-end measurement of the new default.
+
+On 2026-11-09, commit `a0f5755` passed 525 CPU tests and actual A100 fast
+paper runs of Figures 4/5. Figure 4 took 1 minute 28 seconds and Figure 5
+2 minutes 42 seconds, including incremental build/setup and plotting;
+their measurement phases took 74.2 and 146.6 seconds. All 192 / 249 raw
+trial rows passed the native correctness gates. Full-mode smoke runs
+produced 9 / 12 rows, including cuDNN filter 53 in both figures, and offline
+collection assembly succeeded for both modes.
+
+The combined fast figure time was 4 minutes 10 seconds, compared with
+11 minutes 18 seconds in the retained full-filter run (2 minutes 6 seconds /
+9 minutes 12 seconds), about 63% shorter. Both used the same A100 GPU UUID.
+The full-filter numbers come from the earlier run; full paper mode was not
+remeasured alongside the new fast runs.
 
 Table 3 runs before the evaluations that reuse it. The workflow creates a
 collection automatically; `--collection NAME` chooses its name. Final output
