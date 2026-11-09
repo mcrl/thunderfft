@@ -291,8 +291,7 @@ def assemble_sweep(parts, output, profile, spec):
     ordered = [rows[key] for key in sorted(rows)]
     output.mkdir(parents=True, exist_ok=True)
     MEASURE.TABLE3.write_csv(output / "data.csv", ordered, MEASURE.FIELDS)
-    summary = MEASURE.summarize(ordered)
-    MEASURE.TABLE3.write_csv(output / "summary.csv", summary, MEASURE.SUMMARY_FIELDS)
+    MEASURE.write_summary(output / "summary.csv", ordered, spec)
     metadata = {"schema_version": 1, "evaluation": spec["evaluation"], "profile": profile,
                 "status": state, "operation": spec["operation"], "assembled_from": sources,
                 "identity": identity, "implementation_signatures": signatures, "missing": missing,
@@ -300,14 +299,14 @@ def assemble_sweep(parts, output, profile, spec):
                 "full_paper_comparison": False, "coverage_complete": not missing and not policy_skipped,
                 "scope": "Validated rows are merged by library/filter/trial. Completeness does not establish original paper binary identity.",
                 "notes": spec.get("notes")}
-    if summary:
+    if ordered:
         try:
-            plot_rows = [row for row in summary if isinstance(row["filter"], int)]
+            plot_rows = PLOT.read_summary(output / "summary.csv")
             # Include expected cells as gaps so uncollected interior filters are not connected.
             for library in spec["libraries"]:
                 for size in filters:
-                    if not any(row["library"] == library and row["filter"] == size for row in plot_rows):
-                        plot_rows.append({"library": library, "filter": size, "median_time_ms": "nan"})
+                    if not any(row["library"] == library and int(row["filter"]) == size for row in plot_rows):
+                        plot_rows.append({"library": library, "filter": size, "time_ms": "nan"})
             PLOT.make_plot(plot_rows, output / "figure.pdf", spec["evaluation"], policy_skipped=policy_skipped)
             metadata["plot"] = "figure.pdf"
         except PLOT.Pending as error:

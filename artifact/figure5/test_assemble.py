@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Figure 5 uses the same validated split-collection contract as Figure 4."""
+import csv
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -27,6 +28,11 @@ class Assembly(unittest.TestCase):
             spec = ASSEMBLE.MEASURE.FIGURE5
             parts = [FIXTURE.part(root, lib, library=lib, filters=(3,33,53), spec=spec) for lib in spec["libraries"]]
             self.assertEqual(ASSEMBLE.assemble(parts, root / "out", "smoke")["status"], "complete")
+            with (root / "out/summary.csv").open() as stream:
+                rows = list(csv.reader(stream))
+            self.assertEqual(rows[0], ["filter", "cudnn", "cufft", "cufftdx", "thunderfft"])
+            self.assertEqual([row[0] for row in rows[1:]], ["3", "33", "53"])
+            self.assertTrue(all(cell for row in rows[1:] for cell in row))
 
     def test_fast_mode_skips_only_cudnn_tail_and_keeps_other_libraries(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(ASSEMBLE.SHARED.PLOT, "make_plot"):

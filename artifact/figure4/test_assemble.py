@@ -132,7 +132,7 @@ class Assembly(unittest.TestCase):
         self.assertEqual([item["item"] for item in state["policy_skipped"]], ["cuDNN:filter=53"])
         rows = ASSEMBLE.PLOT.make_plot.call_args.args[0]
         gap = next(row for row in rows if row["library"] == "cuDNN" and row["filter"] == 53)
-        self.assertTrue(math.isnan(float(gap["median_time_ms"])))
+        self.assertTrue(math.isnan(float(gap["time_ms"])))
         self.assertEqual(ASSEMBLE.PLOT.make_plot.call_args.kwargs["policy_skipped"], state["policy_skipped"])
         coverage = json.loads((self.root / "out/coverage.json").read_text())
         self.assertEqual(coverage["policy_skipped"], state["policy_skipped"])
@@ -289,7 +289,7 @@ class PlotPolicy(unittest.TestCase):
         def capture_text(figure, *args, **kwargs):
             captions.append(args[2])
             return original_text(figure, *args, **kwargs)
-        rows = [{"library": "cuDNN", "filter": size, "median_time_ms": elapsed}
+        rows = [{"library": "cuDNN", "filter": size, "time_ms": elapsed}
                 for size, elapsed in ((3, 1.0), (9, 2.0))]
         skips = ASSEMBLE.MEASURE.POLICY.skipped_cells("figure4", (3, 9, 53), ("cuDNN",), "fast")
         with tempfile.TemporaryDirectory() as temporary, \
