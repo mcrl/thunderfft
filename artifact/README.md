@@ -71,30 +71,35 @@ the complete candidate search. Both modes check correctness and collect fresh
 timings with the same paper settings; Table 2 and Figure 2 reuse those results.
 See [Table 3](table3/README.md) for preset provenance and compatibility checks.
 
-Approximate times for the full-candidate paper workflow (`--cufftdx-mode all`)
-on the prepared evaluation account, with dependencies and local builds already
-available:
+Approximate paper-workflow times on the prepared evaluation account, with
+dependencies and local builds already available:
 
-| Step, in execution order | GPU | Estimated time |
-| --- | --- | --- |
-| Validation | A100 | Under 1 minute |
-| Table 3 | A100 | 8–12 minutes |
-| Table 2 | A100 | Under 1 minute |
-| Table 4 | A100 | Under 1 minute |
-| Table 5 | A100 | 18–22 minutes |
-| Table 6 | A100 | Under 1 minute |
-| Table 7 | A100 | Under 1 minute |
-| Figure 3 | A100 | Under 1 minute |
-| Figure 4 | A100 | 2–3 minutes |
-| Figure 5 | A100 | 9–12 minutes |
-| Tables 3 and 4, complete cloud stage | H100 PCIe | 10–15 minutes |
-| Tables 3 and 4, complete cloud stage | B200 | 10–15 minutes |
-| Final table assembly and Figure 2–5 PDFs | CPU | Under 1 minute |
-| **Total** | | **About 60–80 minutes** |
+| Step, in execution order | GPU | Default `preset` | Full search `all` |
+| --- | --- | --- | --- |
+| Validation | A100 | Under 1 minute | Under 1 minute |
+| Table 3 | A100 | 4–6 minutes | 8–12 minutes |
+| Table 2 | A100 | Under 1 minute | Under 1 minute |
+| Table 4 | A100 | Under 1 minute | Under 1 minute |
+| Table 5 | A100 | 18–22 minutes | 18–22 minutes |
+| Table 6 | A100 | Under 1 minute | Under 1 minute |
+| Table 7 | A100 | Under 1 minute | Under 1 minute |
+| Figure 3 | A100 | Under 1 minute | Under 1 minute |
+| Figure 4 | A100 | 2–3 minutes | 2–3 minutes |
+| Figure 5 | A100 | 9–12 minutes | 9–12 minutes |
+| Tables 3 and 4, complete cloud stage | H100 PCIe | 8–12 minutes | 10–15 minutes |
+| Tables 3 and 4, complete cloud stage | B200 | 8–12 minutes | 10–15 minutes |
+| Final table assembly and Figure 2–5 PDFs | CPU | Under 1 minute | Under 1 minute |
+| **Total** |  | **About 55–75 minutes** | **About 60–80 minutes** |
 
 Cloud-stage estimates include startup, builds, measurements, result download
 and cleanup. Initial setup/local builds, GPU waiting and cloud retries can add
 time. Figure 2 reuses Table 3 measurements during final assembly.
+The H100/B200 preset-stage and total preset times are estimates based on the
+previous full search and fewer candidate measurements; the complete new
+preset workflow has not been timed end to end on all three GPUs.
+A100 Table 3 preset measurement took 4 minutes 56 seconds, plus 2 minutes
+9 seconds for build/setup, compared with the previous full search's
+8 minutes 41 seconds of measurement. See the Table 3 README for details.
 
 Table 3 runs before the evaluations that reuse it. The workflow creates a
 collection automatically; `--collection NAME` chooses its name. Final output

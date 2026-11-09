@@ -43,6 +43,22 @@ For a cuFFTDx-only preset run on a host with multiple GPUs, set
 `CUDA_VISIBLE_DEVICES` to the selected GPU's UUID so CUDA and inventory
 ordinal differences cannot select the wrong preset.
 
+Measured on the evaluation A100 80GB PCIe on 2026-11-09, with paper settings
+unchanged (batch 65536, R=1000, three trials):
+
+| Work | Previous full search (`6864641`) | Preset run (`317593c`) |
+| --- | --- | --- |
+| cuFFTDx candidates measured | 80 | 28 |
+| cuFFTDx command time, including checks and warmups | 407.6 s | 183.7 s |
+| Table 3 measurement, excluding build | 520.8 s | 296.4 s |
+
+The preset measurement was 43% shorter. Its build and runner setup took an
+additional 128.7 s (425.1 s total). All 56 ThunderFFT/cuFFTDx configurations
+passed, as did Table 2 and Figure 2 generation and offline assembly. The
+`all` option was also checked on a small eight-candidate configuration.
+H100/B200 presets were verified against the retained full-search evidence;
+the new preset execution path was not rerun on rented H100/B200 servers.
+
 ## Collect per GPU and assemble
 
 Collect each GPU column in one command, each GPU as a different part of the
