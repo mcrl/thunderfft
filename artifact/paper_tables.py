@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Render Tables 2–7 in the supplied paper's layout, without GPU work.
+"""Render assembled Tables 2–7 in the supplied paper's layout, without GPU work.
 
 Usage: python3 -m artifact.paper_tables ASSEMBLED_DIRECTORY [MORE_DIRECTORIES ...]
-An individual assembled/tableN or result/table3/RUN_ID directory is also accepted.
-CSVs are never edited.
+An individual assembled/tableN directory is also accepted. CSVs are never edited.
 """
 
 import argparse
@@ -16,7 +15,7 @@ import tempfile
 
 
 TABLES = tuple(f"table{n}" for n in range(2, 8))
-OUTPUTS = ("table.pdf", "table.png", "table.html", "table.md")
+OUTPUTS = ("table.pdf", "table.png", "table.html")
 PAPER_SHA256 = "b1e34fdfc407292093756bbabf57b0dae51b12c8fb88789123c2f3fccc100d50"
 
 
@@ -134,17 +133,6 @@ def _write_html(document, path):
     path.write_text("\n".join(parts), encoding="utf-8")
 
 
-def _write_markdown(document, path):
-    """Make the default text preview point to the same paper-shaped table."""
-    number = document["number"]
-    lines = [f"# Table {number}", "", document["caption"], "",
-             "[Open HTML](table.html) · [Download PDF](table.pdf) · [Detailed CSV](table.csv)", "",
-             f"[![Table {number}: measured results in the paper layout](table.png)](table.html)", ""]
-    for note in document.get("notes", []):
-        lines.extend([note, ""])
-    path.write_text("\n".join(lines), encoding="utf-8")
-
-
 def _write_images(document, directory):
     try:
         import matplotlib
@@ -259,7 +247,6 @@ def render(evaluation, directory):
         staging = Path(temporary)
         _write_images(document, staging)
         _write_html(document, staging / "table.html")
-        _write_markdown(document, staging / "table.md")
         state = {"schema_version": 1, "evaluation": evaluation, "operation": "offline_paper_table_render",
                  "new_gpu_measurements": False, "paper_layout_sha256": PAPER_SHA256,
                  "source_csv_sha256": digest(source),
@@ -280,18 +267,14 @@ def main():
     for directory in args.directories:
         if directory.name in TABLES:
             targets = [(directory.name, directory)]
-        elif (directory / "table.csv").is_file() and (directory / "metadata.json").is_file():
-            metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
-            evaluation = metadata.get("evaluation") if isinstance(metadata, dict) else None
-            targets = [(evaluation, directory)] if evaluation in TABLES else []
         else:
             targets = [(evaluation, directory / evaluation) for evaluation in TABLES
                        if (directory / evaluation / "table.csv").is_file()]
         if not targets:
-            parser.error(f"no recognized table CSVs in {directory}")
+            parser.error(f"no assembled table CSVs in {directory}")
         for evaluation, target in targets:
             render(evaluation, target)
-            print(f"{evaluation}: {target / 'table.html'} (PDF: {target / 'table.pdf'})")
+            print(f"{evaluation}: {target / 'table.pdf'}")
 
 
 if __name__ == "__main__":

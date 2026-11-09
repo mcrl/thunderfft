@@ -165,16 +165,15 @@ class RunnerChecks(unittest.TestCase):
         self.assertEqual([e["id"] for e in runner.select_tasks(["model"], entries, parser)], ["model"])
         self.assertEqual([e["id"] for e in runner.select_tasks([], entries, parser)], ["data", "model"])
 
-    def run_adapter(self, script, required=("data.csv",), mode=None, convolution_mode=None, range_mode=None,
-                    evaluation="test"):
+    def run_adapter(self, script, required=("data.csv",), mode=None, convolution_mode=None, range_mode=None):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            task = root / "artifact" / evaluation
+            task = root / "artifact" / "test"
             task.mkdir(parents=True)
             (task / "run.sh").write_text(script)
             output = root / "result"
             output.mkdir()
-            entry = {"id": evaluation, "title": "Test", "implementation": "ready_subset",
+            entry = {"id": "test", "title": "Test", "implementation": "ready_subset",
                      "coverage": "explicit subset", "full_paper_comparison": False,
                      "required_outputs": {"smoke": list(required)}}
             args = SimpleNamespace(profile="smoke", build_dir=root / "build", device=0,
@@ -190,20 +189,6 @@ class RunnerChecks(unittest.TestCase):
         self.assertEqual(state["status"], "completed")
         self.assertFalse(state["full_paper_comparison"])
         self.assertEqual(state["coverage"], "explicit subset")
-
-    def test_standalone_table3_renders_and_retains_measurements_on_render_failure(self):
-        script = 'printf "key,value\\na,1\\n" > "$THUNDERFFT_RESULT_DIR/data.csv"\n'
-        with patch("artifact.paper_tables.render", return_value={"new_gpu_measurements": False}) as render:
-            state = self.run_adapter(script, evaluation="table3")
-        self.assertEqual(state["status"], "completed")
-        self.assertFalse(state["presentation"]["new_gpu_measurements"])
-        self.assertEqual(render.call_args.args[0], "table3")
-        with patch("artifact.paper_tables.render", side_effect=ValueError("invalid timing")):
-            state = self.run_adapter(script, evaluation="table3")
-        self.assertEqual(state["status"], "failed")
-        self.assertEqual(state["exit_code"], 0)
-        self.assertEqual(state["runner_exit_code"], 65)
-        self.assertIn("measurement retained, table rendering failed: invalid timing", state["detail"])
 
     def test_adapter_receives_effective_mode_without_changing_parent_environment(self):
         with patch.dict(os.environ, {runner.CUFFTDX_MODE_ENV: "all"}):

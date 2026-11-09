@@ -1,8 +1,6 @@
 """Exercise real offline exports, their evidence, and text fit at output DPI."""
 import csv
-from contextlib import redirect_stdout
 import hashlib
-import io
 import json
 from pathlib import Path
 import sys
@@ -55,9 +53,6 @@ class PaperTableRendererTests(unittest.TestCase):
             self.assertIn("155.59", html)
             self.assertIn("—", html)
             self.assertTrue(any("Hardware peaks are published" in text for text in checked))
-            markdown = (directory / "table.md").read_text()
-            self.assertIn("](table.png)](table.html)", markdown)
-            self.assertIn("[Download PDF](table.pdf)", markdown)
 
     def test_failed_export_does_not_replace_prior_presentation(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -75,18 +70,6 @@ class PaperTableRendererTests(unittest.TestCase):
         self.assertEqual(paper_tables._html_text(r"$1.23\times 10^{-4}$"), "1.23× 10<sup>-4</sup>")
         self.assertEqual(paper_tables._html_text(r"$N\log_2 N$"), "Nlog<sub>2</sub> N")
         self.assertEqual(paper_tables._html_text("<script>&"), "&lt;script&gt;&amp;")
-
-    def test_cli_recognizes_standalone_run_from_metadata(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary) / "20261110-run"
-            directory.mkdir()
-            (directory / "table.csv").write_text("gpu,N,precision,placement,library\n")
-            (directory / "metadata.json").write_text(json.dumps({"evaluation": "table3"}))
-            with patch.object(sys, "argv", ["paper_tables", str(directory)]), \
-                    patch.object(paper_tables, "render") as render, redirect_stdout(io.StringIO()) as output:
-                paper_tables.main()
-            render.assert_called_once_with("table3", directory)
-            self.assertIn(str(directory / "table.html"), output.getvalue())
 
 
 if __name__ == "__main__":

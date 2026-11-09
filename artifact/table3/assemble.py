@@ -17,9 +17,9 @@ GPUS = ("A100", "H100", "B200")
 DATA_FIELDS = (*MEASURE.FIELDS, "source_part", "source_data_sha256", "source_raw_sha256")
 TABLE_FIELDS = ("gpu", "N", "precision", "placement", "library", "status", "batch",
                 "inside_repeats", "trials", "median_time_us", "min_time_us", "max_time_us",
-                "median_e2e_out_of_place_us", "max_rel_l2", "passed", "paper_target_us",
+                "median_e2e_out_of_place_us", "max_rel_l2", "passed", "paper_thunderfft_target_us",
                 "relative_delta_from_paper", "cufftdx_comparison", "source_part", "candidate",
-                "ffts_per_block", "elements_per_thread", "threads_per_block",
+                "ffts_per_block", "elements_per_thread", "threads_per_block", "paper_target_us",
                 "cufftdx_candidates")
 SUMMARY_FIELDS = ("gpu", "N", "precision", "placement", "library", "candidate", "batch",
                   "inside_repeats", "trials", "median_time_us", "min_time_us", "max_time_us",
@@ -356,6 +356,7 @@ def assemble(parts, output, profile):
                             summary = summaries[key]
                             matched = (gpu, "cuFFTDx", n, MEASURE.MATCHED_PRECISION.get(precision), placement)
                             base.update(summary, status="collected", source_part=relative_source(output, configurations[key]),
+                                        paper_thunderfft_target_us=summary["paper_target_us"] if library == "ThunderFFT" else "",
                                         cufftdx_comparison=("measured" if matched in summaries else "not_measured")
                                         if library == "ThunderFFT" else "baseline")
                         else:
