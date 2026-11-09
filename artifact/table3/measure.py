@@ -6,6 +6,7 @@ import argparse
 import csv
 from datetime import datetime, timezone
 import hashlib
+import importlib.util
 import io
 import json
 import math
@@ -38,6 +39,13 @@ FIELDS = ("gpu", "N", "batch", "placement", "library", "precision", "trial",
           "candidate", "ffts_per_block", "elements_per_thread", "threads_per_block")
 SPEEDUP_FIELDS = ("gpu", "placement", "thunderfft_precision", "cufftdx_precision", "N",
                   "thunderfft_median_us", "cufftdx_median_us", "cufftdx_candidate", "speedup", "paper_speedup")
+
+_PRESET_SPEC = importlib.util.spec_from_file_location("table3_cufftdx_presets", Path(__file__).with_name("cufftdx_presets.py"))
+PRESETS = importlib.util.module_from_spec(_PRESET_SPEC)
+_PRESET_SPEC.loader.exec_module(PRESETS)
+cufftdx_contract = PRESETS.contract
+validate_preset_rows = PRESETS.validate_rows
+preset_descriptor = PRESETS.descriptor
 
 
 def now():
@@ -79,7 +87,7 @@ def source_hashes():
               ROOT / "sample/bench/util/helper.h", ROOT / "artifact/common.sh",
               ROOT / "artifact/table5/select_device.py"]
     paths += list(Path(__file__).parent.glob("*.py"))
-    paths += [Path(__file__).with_name("run.sh")]
+    paths += [Path(__file__).with_name("run.sh"), PRESETS.MANIFEST_PATH]
     return {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
             for path in sorted(set(paths)) if path.is_file()}
 
@@ -311,6 +319,24 @@ def selected_libraries(cufftdx_available):
     return selection_env("THUNDERFFT_TABLE3_LIBRARIES", available)
 
 
+def preset_preflight(metadata, *, native_device=False):
+    if native_device:
+        PRESETS.validate_device(metadata)
+        device = {key: metadata[key] for key in ("gpu", "gpu_name", "gpu_uuid", "compute_capability")}
+    else:
+        device = PRESETS.select_device(metadata["gpu_inventory_before"], metadata["effective_CUDA_VISIBLE_DEVICES"])
+    descriptor = preset_descriptor(device["gpu"])
+    PRESETS.validate_source(metadata)
+    commands = metadata.get("build_configuration", {}).get("compile_commands", [])
+    targets = {int(value) for entry in commands
+               for value in re.findall(r"(?:-D)?THFF_CUFFTDX_SM=(\d+)", entry.get("command", ""))}
+    if targets != {descriptor["build"]["cufftdx_target_sm"]}:
+        raise ValueError("cuFFTDx preset requires a recorded build for the selected GPU SM; use --cufftdx-mode all")
+    metadata.update(device)
+    metadata["cufftdx"]["preset"] = descriptor
+    return device["gpu"], device["gpu_name"], device["compute_capability"], device["gpu_uuid"]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
@@ -319,7 +345,12 @@ def main():
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--profile", choices=("smoke", "paper"), required=True)
+    parser.add_argument("--cufftdx-mode", choices=("preset", "all"),
+                        default=os.environ.get("THUNDERFFT_TABLE3_CUFFTDX_MODE", "preset"),
+                        help="remeasure one recorded winner per configuration (default), or time every compiled candidate")
     args = parser.parse_args()
+    if args.cufftdx_mode not in ("preset", "all"):
+        parser.error("THUNDERFFT_TABLE3_CUFFTDX_MODE must be preset or all")
     args.output.mkdir(parents=True, exist_ok=True)
     raw = args.output / "raw"
     raw.mkdir(exist_ok=True)
@@ -333,7 +364,6 @@ def main():
                 "trials": positive_env("THUNDERFFT_TABLE3_TRIALS", 2 if args.profile == "smoke" else 3),
                 "timeout_seconds_per_configuration": positive_env("THUNDERFFT_TABLE3_TIMEOUT", 120)}
     if cufftdx:
-        # One cuFFTDx invocation times every candidate of its configuration.
         settings["cufftdx_timeout_seconds_per_configuration"] = positive_env("THUNDERFFT_TABLE3_CUFFTDX_TIMEOUT", 1800)
     multiple = CUFFTDX_BATCH_MULTIPLE if cufftdx else 16
     if settings["batch"] % multiple:
@@ -368,10 +398,15 @@ def main():
                              "selected_cufftdx_configurations": selected_count if cufftdx else 0,
                              "cufftdx_configurations": 0, "cufftdx_candidates": 0,
                              "other_gpus": "not measured by this run"},
-                "cufftdx": ({"candidates": "cuFFTDx default Block configuration plus every tuned candidate in "
+                "cufftdx": ({"mode": args.cufftdx_mode,
+                             "candidates": ("one fixed candidate per configuration from cufftdx_presets.json"
+                                           if args.cufftdx_mode == "preset" else
+                                           "cuFFTDx default Block configuration plus every tuned candidate in "
                                            "sample/bench/baseline/cufftdx_bench.h for the build SM "
-                                           "(block FFTs, and thread FFTs for N=64 register)",
-                             "selection": "smallest median differential latency per GPU/N/precision/placement",
+                                           "(block FFTs, and thread FFTs for N=64 register)"),
+                             "selection": ("fixed prior all-sweep winner; remeasured without a new candidate search"
+                                           if args.cufftdx_mode == "preset" else
+                                           "smallest median differential latency per GPU/N/precision/placement"),
                              "pairing": MATCHED_PRECISION, "speedup": "cuFFTDx_time / ThunderFFT_time",
                              "geometric_mean": "over the measured sizes per GPU/placement/precision pair"}
                             if cufftdx else "not measured"),
@@ -396,10 +431,17 @@ def main():
     identity = None
     atomic_json(args.output / "metadata.json", metadata)
     try:
+        if cufftdx and args.cufftdx_mode == "preset" and "ThunderFFT" not in libraries:
+            identity = preset_preflight(metadata)
+            atomic_json(args.output / "metadata.json", metadata)
         for library, n, precision, placement in jobs:
             dx = library == "cuFFTDx"
+            if dx and args.cufftdx_mode == "preset" and "preset" not in metadata["cufftdx"]:
+                identity = preset_preflight(metadata, native_device=True)
+            preset = PRESETS.cell(metadata["gpu"], n, precision, placement) if dx and args.cufftdx_mode == "preset" else None
             label = f"n{n}-{precision}-{placement}" + ("-cufftdx" if dx else "")
             command = [str(binaries[library]), *(["--library", "cufftdx"] if dx else []),
+                       *(["--candidate", preset["candidate"]] if preset else []),
                        str(n), precision, placement,
                        str(settings["repeats"]), str(settings["trials"]), str(settings["batch"])]
             timeout = settings["cufftdx_timeout_seconds_per_configuration" if dx
@@ -409,6 +451,9 @@ def main():
                       "timeout_seconds": timeout,
                       "stdout": str(csv_path.relative_to(args.output)), "stderr": str(log_path.relative_to(args.output)),
                       "started_at": now()}
+            if preset:
+                record["cufftdx_preset"] = {"candidate": preset["candidate"], "geometry": preset["geometry"],
+                                           "manifest_sha256": metadata["cufftdx"]["preset"]["manifest_sha256"]}
             metadata["commands"].append(record)
             atomic_json(args.output / "metadata.json", metadata)
             with (args.output / "commands.txt").open("a") as stream:
@@ -434,6 +479,8 @@ def main():
             identity = this_identity
             metadata.update(gpu=gpu, gpu_name=name, compute_capability=compute, gpu_uuid=native_uuid,
                             paper_target_gpu_recognized=gpu in ("A100", "H100", "B200"))
+            if not dx and cufftdx and args.cufftdx_mode == "preset" and "preset" not in metadata["cufftdx"]:
+                identity = preset_preflight(metadata, native_device=True)
             if dx:
                 native = native_identity(log)
                 if not native:
@@ -445,6 +492,8 @@ def main():
             rows = parse_raw(csv_path.read_text(), n=n, precision=precision, placement=placement,
                              batch=settings["batch"], repeats=settings["repeats"], trials=settings["trials"],
                              gpu=gpu, raw_csv=str(csv_path.relative_to(args.output)), library=library)
+            if dx:
+                validate_preset_rows(rows, metadata, n, precision, placement)
             output_rows += rows
             write_csv(args.output / "data.csv", output_rows, FIELDS)
             table, _, _ = summarize(output_rows, args.profile)

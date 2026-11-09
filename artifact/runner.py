@@ -26,6 +26,7 @@ if str(ROOT) not in sys.path:
 from artifact.cloud import coordinator as cloud
 from artifact import full_pipeline
 from artifact.cloud import transport as cloud_transport
+from artifact.cloud.config import CUFFTDX_MODE_ENV, CUFFTDX_MODES, cufftdx_mode
 
 # Also works when CPU tests load this file by path rather than as a module.
 _spec = importlib.util.spec_from_file_location("artifact_collection", Path(__file__).with_name("collection.py"))
@@ -132,9 +133,10 @@ def stop_process(process):
 
 
 def execute(entry, output, args, dependency_results=None):
+    mode = cufftdx_mode(getattr(args, "cufftdx_mode", None))
     command = ["bash", str(ROOT / "artifact" / entry["id"] / "run.sh")]
     state = {"evaluation": entry["id"], "title": entry["title"],
-             "profile": args.profile, "status": "running", "exit_code": None,
+             "profile": args.profile, "cufftdx_mode": mode, "status": "running", "exit_code": None,
              "implementation": entry["implementation"], "owner": entry.get("owner"),
              "coverage": entry.get("coverage", "See the task README"),
              "full_paper_comparison": entry.get("full_paper_comparison", False),
@@ -152,6 +154,7 @@ def execute(entry, output, args, dependency_results=None):
                         "THUNDERFFT_RUN_ID": args.run_id,
                         "THUNDERFFT_RESULTS_ROOT": str(args.result_dir),
                         "THUNDERFFT_DEPENDENCY_RESULTS": json.dumps(dependency_results or {})})
+    environment[CUFFTDX_MODE_ENV] = mode
     if getattr(args, "collection", None):
         environment["THUNDERFFT_COLLECTION"] = args.collection
     started = time.monotonic()
@@ -208,6 +211,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="show plan without creating results or querying GPUs")
     parser.add_argument("--profile", choices=["smoke", "paper"], default=None,
                         help="default: paper for the complete pipeline; otherwise collection profile or smoke")
+    parser.add_argument("--cufftdx-mode", choices=CUFFTDX_MODES, default=None,
+                        help="Table 3 cuFFTDx configuration selection: preset (default) or all; overrides environment/config")
     parser.add_argument("--result-dir", type=Path, default=ROOT / "result")
     parser.add_argument("--build-dir", type=Path, default=ROOT / "build_artifact")
     parser.add_argument("--device", type=nonnegative, default=0,
@@ -285,6 +290,10 @@ def main():
         except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as error:
             print(f"Cloud error: {error}", file=sys.stderr)
             return 1
+    try:
+        args.cufftdx_mode = cufftdx_mode(args.cufftdx_mode)
+    except ValueError as error:
+        parser.error(str(error))
     if args.list or args.dry_run:
         for entry in entries:
             dependencies = ",".join(entry.get("depends_on", [])
@@ -297,6 +306,7 @@ def main():
                 print(f"Profile: {args.profile}; offline import/assembly; no GPU queries or execution")
             else:
                 print(f"Profile: {args.profile}; device: {args.device}; sequential execution")
+                print(f"Table 3 cuFFTDx mode: {args.cufftdx_mode}")
             if collection_dir:
                 print(f"Collection: {collection_dir}")
                 if args.assemble and (collection_dir / "assembled/manifest.json").is_file():
@@ -349,7 +359,8 @@ def main():
     batch_dir = args.result_dir / "runs" / run_id
     batch_dir.mkdir(parents=True, exist_ok=False)
     metadata = {"schema_version": 1, "run_id": run_id, "started_at": now(),
-                "profile": args.profile, "evaluations": [e["id"] for e in entries],
+                "profile": args.profile, "cufftdx_mode": args.cufftdx_mode,
+                "evaluations": [e["id"] for e in entries],
                 "selection": args.evaluations or ["available"],
                 "collection": args.collection, "part": args.part or run_id,
                 "coverage": {e["id"]: e.get("coverage", "See the task README") for e in entries},
@@ -367,6 +378,7 @@ def main():
                     if key.startswith(("THUNDERFFT_TABLE3_", "THUNDERFFT_TABLE5_", "THUNDERFFT_TABLE7_")) or key in
                     ("CUDA_VISIBLE_DEVICES", "CUDACXX", "NVCC", "CUDAToolkit_ROOT", "MATHDX_ROOT", "THUNDERFFT_ARCHS")},
                 "paper": registry["paper"], "scientific_validation": "not_assessed"}
+    metadata["configuration"][CUFFTDX_MODE_ENV] = args.cufftdx_mode
     cloud_source = ROOT / ".thunderfft-cloud-source.json"
     if cloud_source.is_file():
         # A source archive carries original revision + actual per-file hashes;

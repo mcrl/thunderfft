@@ -119,6 +119,7 @@ def assemble(parts, output, profile):
                       "inside_repeats": row["inside_repeats"], "trials": row["trials"],
                       "candidates_compared": row["cufftdx_candidates"],
                       "trial_time_us": sorted(item["time_us"] for item in native_rows)}
+        provenance.update(MODEL.selection_provenance(json.loads((source / "metadata.json").read_text())))
         canonical = {key: str(measured.get(key, "")) for key in MODEL.FIELDS}
         if any(existing != canonical for existing in model_rows):
             raise ValueError("Table 2 measured model part disagrees with validated Table 3 source")

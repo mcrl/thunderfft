@@ -53,6 +53,7 @@ tests.
 ```bash
 ./run.sh                               # complete paper-profile workflow
 # Equivalent: ./run.sh all
+./run.sh --cufftdx-mode all             # complete workflow, including cuFFTDx candidate search
 ```
 
 The launcher loads `~/.thunderfft_env` when present. With no evaluation names,
@@ -64,8 +65,15 @@ or with `all`, it uses the paper profile and runs these stages in order:
 3. Rent a B200 for Tables 3 and 4, download its results and destroy it.
 4. Assemble the collected measurements into the final tables and figures.
 
-Approximate times for the default paper workflow on the prepared evaluation
-account, with dependencies and local builds already available:
+Table 3 defaults to `--cufftdx-mode preset`: remeasure the saved best cuFFTDx
+parameters for each A100/H100/B200 configuration. `--cufftdx-mode all` repeats
+the complete candidate search. Both modes check correctness and collect fresh
+timings with the same paper settings; Table 2 and Figure 2 reuse those results.
+See [Table 3](table3/README.md) for preset provenance and compatibility checks.
+
+Approximate times for the full-candidate paper workflow (`--cufftdx-mode all`)
+on the prepared evaluation account, with dependencies and local builds already
+available:
 
 | Step, in execution order | GPU | Estimated time |
 | --- | --- | --- |

@@ -153,13 +153,20 @@ def run_jobs(root, request, output, deadline):
             process = None
             try:
                 remaining = time_left(deadline, request["execution_seconds"])
+                job_environment = dict(environment, **job["environment"])
+                mode_key = "THUNDERFFT_TABLE3_CUFFTDX_MODE"
+                mode = job.get("cufftdx_mode", job["environment"].get(mode_key, "preset"))
+                if mode not in ("preset", "all") or job["environment"].get(mode_key, mode) != mode:
+                    raise ValueError("job cuFFTDx mode must consistently specify preset or all")
+                job_environment[mode_key] = mode
+                state["cufftdx_mode"] = mode
                 command = ["bash", str(root / "run.sh"), *job["evaluations"], "--backend", "local", "--profile", request["profile"],
+                           "--cufftdx-mode", mode,
                            "--device", "0", "--jobs", str(request["build_jobs"]),
                            "--result-dir", str(root / "result"), "--build-dir", str(root / "build_artifact"),
                            "--timeout", str(request["task_timeout"])]
                 if request["collection"]:
                     command += ["--collection", request["collection"], "--part", job["part"]]
-                job_environment = dict(environment, **job["environment"])
                 # Defense in depth if a request file was edited after controller validation.
                 if safe_environment(job_environment) != job_environment:
                     raise ValueError("job overrides must not contain credential variables")

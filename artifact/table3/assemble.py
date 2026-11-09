@@ -153,7 +153,11 @@ def load_part(part, profile):
             raise ValueError(f"{part}: native measurement lacks one successful command record")
         command = command[0]
         argv = command.get("argv", [])
-        expected_argv = (["--library", "cufftdx"] if library == "cuFFTDx" else []) + [
+        selection = MEASURE.cufftdx_contract(metadata) if library == "cuFFTDx" else None
+        candidate = (MEASURE.validate_preset_rows(stored, metadata, n, precision, placement)
+                     if library == "cuFFTDx" else None)
+        expected_argv = (["--library", "cufftdx"] if library == "cuFFTDx" else []) + (
+            ["--candidate", candidate] if candidate is not None else []) + [
             str(n), precision, placement, str(identity["repeats"]), str(identity["trials"]), str(identity["batch"])]
         if len(argv) != len(expected_argv) + 1 or argv[1:] != expected_argv:
             raise ValueError(f"{part}: native argv disagrees with its measurement settings")
@@ -180,6 +184,7 @@ def load_part(part, profile):
             if len(capability) != 2 or native["cufftdx_target_sm"] != int(capability[0]) * 100 + int(capability[1]) * 10:
                 raise ValueError(f"{part}: cuFFTDx target SM disagrees with its measured device")
             library_identity["cufftdx_build"] = native
+            library_identity["selection"] = selection
         if library in libraries and libraries[library] != library_identity:
             raise ValueError(f"{part}: library build identity changes across configurations")
         libraries[library] = library_identity
@@ -235,6 +240,7 @@ def collect_parts(parts, profile):
         raise ValueError("unsupported Table 3 profile")
     rows, sources, identities, configurations = [], [], {}, {}
     common_source = None
+    common_cufftdx_selection = None
     unused = []
     for part in sorted({Path(part).resolve() for part in parts}):
         if not (part / "data.csv").is_file():
@@ -255,6 +261,11 @@ def collect_parts(parts, profile):
         if differing:
             raise ValueError(f"incompatible {gpu} parts ({', '.join(differing)}); use separate collections")
         for library, build in identity["libraries"].items():
+            if library == "cuFFTDx":
+                selection = build["selection"]
+                if common_cufftdx_selection is not None and selection != common_cufftdx_selection:
+                    raise ValueError("incompatible cuFFTDx selection modes or presets; use separate collections")
+                common_cufftdx_selection = selection
             existing = previous["libraries"].get(library)
             if existing is not None and existing != build:
                 raise ValueError(f"incompatible {gpu} {library} binary/build identity; use separate collections")
@@ -309,7 +320,7 @@ def read_assembled(directory, profile):
             if sha256(evidence_file(path, relative)) != digest:
                 raise ValueError("Table 3 source evidence changed after assembly")
         paths.append(path)
-    rows, _, _, _, _ = collect_parts(paths, profile)
+    rows, _, identities, _, _ = collect_parts(paths, profile)
     actual = strict_csv(directory / "data.csv", DATA_FIELDS)
     actual = [{**row, "source_part": str(resolve_source(directory, row["source_part"]))} for row in actual]
     if actual != [{key: str(row[key]) for key in DATA_FIELDS} for row in rows]:
@@ -317,7 +328,15 @@ def read_assembled(directory, profile):
     expected = coverage_result(rows, profile)
     if metadata.get("coverage") != expected["coverage"] or metadata["status"] != expected["status"]:
         raise ValueError("assembled Table 3 coverage/status disagrees with its data")
+    selection = selection_by_gpu(identities)
+    if ("cufftdx_selection" in metadata or any(value["mode"] == "preset" for value in selection.values())) and metadata.get("cufftdx_selection") != selection:
+        raise ValueError("assembled Table 3 cuFFTDx selection disagrees with its evidence")
     return rows, metadata
+
+
+def selection_by_gpu(identities):
+    return {gpu: identity["libraries"]["cuFFTDx"]["selection"]
+            for gpu, identity in identities.items() if "cuFFTDx" in identity["libraries"]}
 
 
 def assemble(parts, output, profile):
@@ -355,7 +374,10 @@ def assemble(parts, output, profile):
                 "unused_parts": [{**source, "path": relative_source(output, source["path"])} for source in unused],
                 "source_path_base": "assembly_directory",
                 "compatibility_by_gpu": identities,
-                "candidate_selection": "smallest median compute_us; ties retain native candidate order",
+                "cufftdx_selection": selection_by_gpu(identities),
+                "candidate_selection": ("remeasure the saved GPU-specific candidate; no candidate search"
+                    if any(value["mode"] == "preset" for value in selection_by_gpu(identities).values())
+                    else "smallest median compute_us; ties retain native candidate order"),
                 "precision_pairing": MEASURE.MATCHED_PRECISION,
                 "operation": "offline assembly of previously collected evidence; no new measurements",
                 "outputs": {name: sha256(output / name) for name in

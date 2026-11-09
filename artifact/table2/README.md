@@ -2,8 +2,11 @@
 
 The FP16 A100 model on paper p. 3. Four rows (ideal CUDA Core FFT and Tensor
 Core radix-4/8/16) are calculated from `assumptions.json` and need no GPU. The
-measured cuFFTDx row comes from a Table 3 result: the fastest cuFFTDx
-candidate for A100, FP16, register input, N=64.
+measured cuFFTDx row comes from the Table 3 measurement for A100, FP16,
+register input, N=64. Table 3's default `preset` mode remeasures a fixed
+candidate selected from an earlier validated sweep. With `--cufftdx-mode all`,
+the row uses the smallest median time among candidates measured in that run.
+Both modes report fresh timing trials and retain the candidate identity.
 
 ## Run
 
@@ -12,7 +15,8 @@ PCIe GPU (or on a rented A100 with `--backend vast`).
 
 ```sh
 ./run.sh table2                          # calculated rows only; no GPU
-./run.sh table3 table2 --profile paper   # on an A100: also the measured cuFFTDx row
+./run.sh table3 table2 --profile paper   # on an A100: remeasure the cuFFTDx preset
+./run.sh table3 table2 --profile paper --cufftdx-mode all  # run the candidate sweep
 
 # Without a local A100
 ./run.sh table3 table2 --backend vast --gpu A100 --profile paper
@@ -43,6 +47,6 @@ Written to `result/table2/<run_id>/` (with `--assemble`:
 
 - `data.csv`, `table.csv`: the Table 2 rows (identical files)
 - `table.md`: readable table
-- `metadata.json`: assumptions, formulas, Table 3 source and paper comparison
+- `metadata.json`: assumptions, formulas, Table 3 source, preset/all selection mode, preset hash when used, and paper comparison
 - `source/table3/`: copy of the Table 3 files used for the measured row
 - `status.json`, plus `run.log` for a run (not for `--assemble`)

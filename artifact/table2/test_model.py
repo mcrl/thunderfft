@@ -17,6 +17,9 @@ HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("table2_model", HERE / "model.py")
 MODEL = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODEL)
+FIXTURE_SPEC = importlib.util.spec_from_file_location("table2_model_table3_fixture", HERE.parent / "table3/test_assemble.py")
+FIXTURE = importlib.util.module_from_spec(FIXTURE_SPEC)
+FIXTURE_SPEC.loader.exec_module(FIXTURE)
 
 
 class ModelTests(unittest.TestCase):
@@ -165,6 +168,37 @@ class MeasuredRowTests(unittest.TestCase):
         self.assertTrue(metadata["full_paper_comparison"])
         self.assertEqual(metadata["excluded"], [])
         self.assertEqual(metadata["measured_source"]["candidates_compared"], 2)
+        self.assertEqual(metadata["measured_source"]["cufftdx_mode"], "all")
+        self.assertIn("smallest median", metadata["measured_source"]["cufftdx_selection_rule"])
+
+    def test_preset_source_preserves_mode_hash_and_current_measurement(self):
+        source = FIXTURE.make_preset_part(self.root / "preset")
+        FIXTURE.MEASURE.atomic_json(source / "status.json", {
+            "evaluation": "table3", "profile": "smoke", "status": "completed", "exit_code": 0})
+        result, output = self.run_model(source, "smoke")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        metadata = json.loads((output / "metadata.json").read_text())
+        measured = metadata["measured_source"]
+        self.assertEqual(measured["cufftdx_mode"], "preset")
+        self.assertEqual(measured["cufftdx_preset_sha256"],
+                         MODEL.MEASURE.preset_descriptor("A100")["manifest_sha256"])
+        self.assertEqual(measured["candidates_compared"], 1)
+        self.assertEqual(measured["trial_time_us"], [2.0, 4.0])
+        self.assertIn("fixed preset candidate remeasured", (output / "table.md").read_text())
+        self.assertEqual(metadata["assumptions"], self.config)
+
+    def test_preset_rejects_a_different_measured_candidate(self):
+        source = FIXTURE.make_preset_part(self.root / "preset")
+        FIXTURE.MEASURE.atomic_json(source / "status.json", {
+            "evaluation": "table3", "profile": "smoke", "status": "completed", "exit_code": 0})
+        path = source / "data.csv"
+        with path.open(newline="") as stream:
+            reader = csv.DictReader(stream)
+            fields, rows = reader.fieldnames, list(reader)
+        for row in rows:
+            row["candidate"] = "unconfigured_candidate"
+        FIXTURE.MEASURE.write_csv(path, rows, fields)
+        self.assertEqual(self.run_model(source, "smoke")[0].returncode, 65)
 
     def test_source_without_cufftdx_keeps_calculated_rows(self):
         source = self.root / "t3"

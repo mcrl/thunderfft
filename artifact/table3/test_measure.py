@@ -166,7 +166,8 @@ class LibrarySelectionTests(unittest.TestCase):
                                        "library=cufftdx cuFFTDx=10501 target_SM=800\n")
                 return SimpleNamespace(returncode=0)
             env = {"THUNDERFFT_TABLE3_LIBRARIES": "cuFFTDx", "THUNDERFFT_TABLE3_N_LIST": "64",
-                   "THUNDERFFT_TABLE3_PRECISIONS": "fp16", "THUNDERFFT_TABLE3_PLACEMENTS": "register"}
+                   "THUNDERFFT_TABLE3_PRECISIONS": "fp16", "THUNDERFFT_TABLE3_PLACEMENTS": "register",
+                   "THUNDERFFT_TABLE3_CUFFTDX_MODE": "all"}
             with patch.dict("os.environ", env, clear=True), patch("sys.argv", argv), \
                     patch.object(measure, "capture", return_value={}), \
                     patch.object(measure, "source_hashes", return_value={"source.cu": "a" * 64}), \

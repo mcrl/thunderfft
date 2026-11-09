@@ -14,6 +14,7 @@ Vast.ai (`--backend vast`).
 # Local GPU
 ./run.sh table3                    # smoke: batch 1024, R=256, 2 trials
 ./run.sh table3 --profile paper    # paper: batch 65536, R=1000, 3 trials
+./run.sh table3 --profile paper --cufftdx-mode all  # search every compiled candidate
 
 # H100 or B200 on Vast.ai (add --cloud-plan to check offer and cost without renting)
 ./run.sh table3 --backend vast --gpu H100
@@ -23,6 +24,24 @@ Vast.ai (`--backend vast`).
 
 cuFFTDx is measured when the build has MathDX, which `artifact/setup.sh` and
 the Vast.ai worker both provide.
+
+The default `--cufftdx-mode preset` remeasures one saved candidate per
+GPU/size/precision/placement. The 84 entries in `cufftdx_presets.json` were
+selected by the smallest median latency in the validated A100, H100 PCIe and
+B200 paper-profile sweep on 2026-11-09 (source `6864641`). Their candidate
+labels, launch geometry, cuFFTDx version, source evidence hashes and original
+selection settings are retained in that file. The saved choices also apply
+to smoke runs, but were selected at the paper batch and repeat settings.
+
+Use `--cufftdx-mode all` to measure every compiled candidate again and select
+the smallest median on the current machine. Both modes retain the same
+correctness checks, timing method, batch, repeats and trial counts. Preset
+mode saves candidate measurement time; it does not reduce CUDA compilation
+or reuse old timing values. An unsupported GPU or incompatible cuFFTDx build
+fails explicitly; use `all` to collect new measurements on that setup.
+For a cuFFTDx-only preset run on a host with multiple GPUs, set
+`CUDA_VISIBLE_DEVICES` to the selected GPU's UUID so CUDA and inventory
+ordinal differences cannot select the wrong preset.
 
 ## Collect per GPU and assemble
 
@@ -49,6 +68,7 @@ while the table is partial.
 | `THUNDERFFT_TABLE3_PRECISIONS` | `fp16`, `tf32` (`tf32` selects cuFFTDx FP32) | both |
 | `THUNDERFFT_TABLE3_PLACEMENTS` | `register`, `shared` | both |
 | `THUNDERFFT_TABLE3_LIBRARIES` | `ThunderFFT`, `cuFFTDx` | both if the build has MathDX, else `ThunderFFT` |
+| `THUNDERFFT_TABLE3_CUFFTDX_MODE` | `preset`, `all`; explicit `--cufftdx-mode` takes precedence | `preset` |
 | `THUNDERFFT_TABLE3_BATCH` | positive multiple of 16 (512 with cuFFTDx); paper requires 65536 | 1024 / 65536 |
 | `THUNDERFFT_TABLE3_REPEATS` | FFT repeats R per kernel; paper requires 1000 | 256 / 1000 |
 | `THUNDERFFT_TABLE3_TRIALS` | positive integer | 2 / 3 |
@@ -56,16 +76,18 @@ while the table is partial.
 | `THUNDERFFT_TABLE3_CUFFTDX_TIMEOUT` | seconds per cuFFTDx executable call | 1800 |
 
 These variables are forwarded to Vast.ai when exported in the shell.
+Use a separate collection for each mode. Assembly validates the preset hash,
+selected native candidate and launch geometry, and rejects mixing modes.
 
 ## Output
 
 Written to `result/table3/<run_id>/`:
 
-- `data.csv`: every validated timing trial (ThunderFFT and every cuFFTDx candidate)
+- `data.csv`: every validated timing trial (ThunderFFT and the measured cuFFTDx candidates)
 - `table.csv`: median/min/max latency per configuration; paper targets on paper-profile runs
 - `cufftdx_candidates.csv`: every cuFFTDx candidate, selected one marked (cuFFTDx runs only)
 - `speedup.csv`: cuFFTDx/ThunderFFT speedups and geometric means (cuFFTDx runs only)
-- `metadata.json`: settings, coverage, GPU and software versions, hashes
+- `metadata.json`: settings, selection mode/preset provenance, coverage, GPU and software versions, hashes
 - `raw/*.csv`, `raw/*.log`: native output of each executable call
 - `commands.txt`, `configure.log`, `build.log`: exact commands and build logs
 - `status.json`, `run.log`: runner status and full task log

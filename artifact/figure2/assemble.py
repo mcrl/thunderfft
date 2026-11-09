@@ -39,6 +39,9 @@ def read_assembled(directory, profile):
     provenance = {"source_result_dir": str(directory), "source_run": directory.name,
                   "source_data_sha256": PLOT.sha256(directory / "data.csv"),
                   "source_metadata_sha256": PLOT.sha256(directory / "metadata.json")}
+    contract = (metadata.get("cufftdx_selection", {}).get("A100", {"mode": "all"})
+                if selected else {"mode": "not_measured"})
+    provenance.update(PLOT.selection_provenance(contract))
     return rows, groups, provenance, selected
 
 
@@ -92,7 +95,9 @@ def assemble(parts, output, profile):
                 "source_path_base": "assembly_directory",
                 "operation": "offline plot assembly; no new GPU measurement",
                 "cufftdx_selection": {f"N{n}-{precision}": candidate for (n, precision), candidate in sorted(selected.items())},
-                "cufftdx_selection_rule": "smallest median compute_us; ties retain native candidate order",
+                "cufftdx_mode": provenance.get("cufftdx_mode", "not_measured"),
+                "cufftdx_preset_sha256": provenance.get("cufftdx_preset_sha256"),
+                "cufftdx_selection_rule": PLOT.selection_rule(provenance.get("cufftdx_mode", "not_measured")),
                 "pairing": PLOT.MATCHED,
                 "series_colors": {f"{library} {precision}": PLOT.COLORS[(library, precision)]
                                   for library, precision in PLOT.SERIES},

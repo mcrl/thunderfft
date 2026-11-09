@@ -50,6 +50,24 @@ class ConfigurationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.load({"mathdx": "yes"})
 
+    def test_cufftdx_mode_defaults_validates_and_respects_explicit_selection(self):
+        key = config.CUFFTDX_MODE_ENV
+        self.assertEqual(config.cufftdx_mode(environment={}), "preset")
+        for mode in ("preset", "all"):
+            self.assertEqual(self.load({"environment": {key: mode}})["environment"][key], mode)
+        self.assertEqual(config.cufftdx_mode("preset", {key: "all"}), "preset")
+        for mode in ("", "auto", "ALL", "all,preset", True):
+            with self.subTest(mode=mode), self.assertRaises(ValueError):
+                self.load({"environment": {key: mode}})
+
+    def test_offline_mode_preview_uses_config_without_loading_credentials_or_budget(self):
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {config.CUFFTDX_MODE_ENV: "preset"}):
+            path = Path(folder) / "config.json"
+            path.write_text(json.dumps({"budget_usd": 50, "environment": {config.CUFFTDX_MODE_ENV: "all"},
+                                        "api_key_file": "/not/a/readable/key"}))
+            self.assertEqual(config.preview_cufftdx_mode(path), "all")
+            self.assertEqual(config.preview_cufftdx_mode(path, "preset"), "preset")
+
     def test_startup_attempts_and_machine_exclusions_are_bounded(self):
         for overrides in ({"max_startup_attempts": 0}, {"max_startup_attempts": 4},
                           {"max_startup_attempts": 1.5}, {"max_startup_attempts": True},

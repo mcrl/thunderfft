@@ -3,8 +3,8 @@
 
 The calculated rows (ideal CUDA Core FFT, Tensor Core radix-4/8/16) come from
 assumptions.json only. The measured cuFFTDx row is derived from a completed
-Table 3 run (the runner dependency, or --source-dir): the fastest validated
-cuFFTDx candidate for the configuration in assumptions.json
+Table 3 run (the runner dependency, or --source-dir): the measured preset or
+the fastest measured cuFFTDx candidate for the configuration in assumptions.json
 ["measured_reference"]. Its relative time is t_measured / t_ideal with
 t_ideal = 5 N log2 N batch / CUDA-Core peak, and utilization is the inverse.
 Without a Table 3 source that measured cuFFTDx, the measured row is omitted
@@ -13,6 +13,7 @@ and the outputs say so.
 import argparse
 import csv
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -23,6 +24,9 @@ import sys
 
 
 HERE = Path(__file__).resolve().parent
+_SPEC = importlib.util.spec_from_file_location("table2_source_measure", HERE.parent / "table3/measure.py")
+MEASURE = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(MEASURE)
 FIELDS = ("gpu", "precision", "origin", "engine", "design", "mma_shape", "peak_tflops",
           "arithmetic_coefficient", "shared_bytes_per_mma", "mma_issue_cycles",
           "required_shared_bytes_per_cycle", "utilization_ceiling", "relative_time",
@@ -37,6 +41,17 @@ class Pending(Exception):
 
 def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def selection_provenance(metadata):
+    contract = MEASURE.cufftdx_contract(metadata)
+    result = {"cufftdx_mode": contract["mode"],
+              "cufftdx_selection_rule": ("fixed preset candidate remeasured in this run; no candidate search"
+                if contract["mode"] == "preset" else
+                "smallest median compute_us among measured Table 3 candidates; ties retain source order")}
+    if contract["mode"] == "preset":
+        result["cufftdx_preset_sha256"] = contract["preset_sha256"]
+    return result
 
 
 def calculate(config):
@@ -165,11 +180,16 @@ def read_measurement(directory, config, profile):
                   "source_status_sha256": sha256(status_path), "inside_repeats": repeat,
                   "trials": len(candidates[best]), "candidates_compared": len(candidates),
                   "trial_time_us": sorted(candidates[best].values())}
+    source_metadata = {}
     if (directory / "metadata.json").is_file():
         provenance["source_metadata_sha256"] = sha256(directory / "metadata.json")
         source_metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
         provenance["cufftdx_build"] = source_metadata.get("cufftdx_build")
         provenance["gpu_name"] = source_metadata.get("gpu_name")
+    provenance.update(selection_provenance(source_metadata))
+    if provenance["cufftdx_mode"] == "preset":
+        MEASURE.validate_preset_rows(matches, source_metadata, n=reference["N"],
+                                    precision=reference["precision"], placement=reference["placement"])
     return time_us, batch, best, provenance
 
 
@@ -236,6 +256,7 @@ def write_outputs(output, config, inputs, rows, measured, provenance, profile, p
                       f"{measured['ideal_time_us']:.3f} us (Table 3 run {provenance['source_run']}).",
                   f"Paper: relative time {reference['paper_relative_time']}, "
                   f"utilization {100 * reference['paper_utilization']:.1f}%."]
+        lines.append("cuFFTDx selection: " + provenance["cufftdx_selection_rule"] + ".")
         if measured["batch"] != reference["batch"]:
             lines.append(f"Warning: batch {measured['batch']:,} is not the paper's {reference['batch']:,}; "
                          "a small batch does not fill the GPU, so this row is not comparable to the paper.")

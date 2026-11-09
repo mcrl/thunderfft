@@ -46,6 +46,30 @@ class AssemblyTests(unittest.TestCase):
         self.assertEqual(float(measured["measured_time_us"]), 1.5)
         self.assertAlmostEqual(float(measured["utilization_ceiling"]),
                                1 / float(measured["relative_time"]))
+        metadata = json.loads((output / "metadata.json").read_text())
+        self.assertEqual(metadata["measured_source"]["cufftdx_mode"], "all")
+
+    def test_preset_mode_survives_raw_assembled_and_imported_derivations(self):
+        part = FIXTURE.make_preset_part(self.root / "preset")
+        table3 = self.root / "assembled/table3"
+        FIXTURE.ASSEMBLE.assemble([part], table3, "smoke")
+        digest = FIXTURE.MEASURE.preset_descriptor("A100")["manifest_sha256"]
+        for label, source in (("raw", part), ("assembled", table3)):
+            with self.subTest(source=label):
+                output = self.root / label / "table2"
+                result = ASSEMBLE.assemble([source], output, "smoke")
+                self.assertEqual(result["status"], "complete")
+                metadata = json.loads((output / "metadata.json").read_text())
+                self.assertEqual(metadata["measured_source"]["cufftdx_mode"], "preset")
+                self.assertEqual(metadata["measured_source"]["cufftdx_preset_sha256"], digest)
+                self.assertEqual(metadata["measured_source"]["candidates_compared"], 1)
+        imported = self.root / "imported/table2"
+        shutil.copytree(self.root / "assembled/table2", imported)
+        shutil.rmtree(part)
+        shutil.rmtree(self.root / "assembled")
+        output = self.root / "reassembled"
+        self.assertEqual(ASSEMBLE.assemble([imported], output, "smoke")["status"], "complete")
+        self.assertEqual(json.loads((output / "metadata.json").read_text())["measured_source"]["cufftdx_mode"], "preset")
 
     def test_calculated_then_measured_parts_join_and_reassemble(self):
         model, dx = self.root / "model", FIXTURE.make_part(self.root / "dx", libraries=("cuFFTDx",))

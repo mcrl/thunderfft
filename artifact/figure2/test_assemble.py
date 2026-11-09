@@ -70,6 +70,27 @@ class PartialFigureTests(unittest.TestCase):
             summary = list(csv.DictReader(stream))
         matched = next(row for row in summary if row["library"] == "ThunderFFT" and row["N"] == "64" and row["precision"] == "FP16")
         self.assertEqual(float(matched["speedup_vs_cufftdx"]), 1)
+        metadata = json.loads((output / "metadata.json").read_text())
+        self.assertEqual(metadata["cufftdx_mode"], "all")
+
+    def test_preset_assembly_keeps_source_contract_and_measured_values(self):
+        part = FIXTURE.make_preset_part(self.root / "preset")
+        source, output = self.root / "assembled/table3", self.root / "assembled/figure2"
+        FIXTURE.ASSEMBLE.assemble([part], source, "smoke")
+        result = ASSEMBLE.assemble([source], output, "smoke")
+        self.assertEqual(result["collected_configurations"], 1)
+        metadata = json.loads((output / "metadata.json").read_text())
+        self.assertEqual(metadata["cufftdx_mode"], "preset")
+        self.assertEqual(metadata["source"]["cufftdx_mode"], "preset")
+        self.assertEqual(metadata["cufftdx_preset_sha256"],
+                         FIXTURE.MEASURE.preset_descriptor("A100")["manifest_sha256"])
+        self.assertIn("fixed preset candidates remeasured", metadata["cufftdx_selection_rule"])
+        with (output / "summary.csv").open() as stream:
+            rows = list(csv.DictReader(stream))
+        measured = [row for row in rows if row["status"] == "collected"]
+        self.assertEqual(len(measured), 1)
+        self.assertEqual(float(measured[0]["median_us"]), 3.0)
+        self.assertTrue((output / "figure.pdf").read_bytes().startswith(b"%PDF"))
 
     def test_full_a100_register_matrix_completes_figure(self):
         configs = [(n, precision, "register") for n in FIXTURE.MEASURE.SIZES for precision in FIXTURE.MEASURE.PRECISIONS]

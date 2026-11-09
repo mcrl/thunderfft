@@ -16,7 +16,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from artifact import collection, full_pipeline as pipeline, runner
-from artifact.cloud.config import DEFAULTS
+from artifact.cloud.config import CUFFTDX_MODE_ENV, DEFAULTS
 
 
 class PipelineTests(unittest.TestCase):
@@ -29,7 +29,8 @@ class PipelineTests(unittest.TestCase):
             cloud_config=None, a100_backend="auto", local_wait_seconds=0, device=0,
             cloud_stage_seconds=1200, a100_stage_seconds=3600,
             result_dir=self.directory / "result", build_dir=self.directory / "build",
-            collection=None, jobs=2, timeout=0, backend="all", gpu="A100", cloud_allow_dirty=False)
+            collection=None, jobs=2, timeout=0, backend="all", gpu="A100", cloud_allow_dirty=False,
+            cufftdx_mode=None)
         self.config = copy.deepcopy(DEFAULTS)
         self.config["budget_usd"] = 10.0
         self.entries = [{"id": name, "required_outputs": {"paper": ["data.csv"]}}
@@ -37,6 +38,7 @@ class PipelineTests(unittest.TestCase):
         self.registry = {"evaluations": self.entries}
         self.parser = argparse.ArgumentParser()
         self.calls, self.allocated, self.cloud_parts = [], [], []
+        self.stage_modes = []
         self.stage_codes = {}
         self.stage_costs = {"A100": .75, "H100": 1.25, "B200": 2.0}
         self.plan_costs = {"A100": 1.0, "H100": 2.0, "B200": 3.0}
@@ -56,11 +58,15 @@ class PipelineTests(unittest.TestCase):
 
     def fake_local(self, *args, **kwargs):
         self.calls.append("A100")
+        self.stage_modes.append(("A100", args[0].cufftdx_mode))
         return self.stage_codes.get("A100", 0)
 
     def fake_cloud(self, args, entries, *unused):
         self.calls.append(args.gpu)
-        self.allocated.append((args.gpu, json.loads(args.cloud_config.read_text())["budget_usd"]))
+        configured = json.loads(args.cloud_config.read_text())
+        self.allocated.append((args.gpu, configured["budget_usd"]))
+        self.stage_modes.append((args.gpu, args.cufftdx_mode))
+        self.assertEqual(configured["environment"][CUFFTDX_MODE_ENV], args.cufftdx_mode)
         self.cloud_parts.append((args.gpu, args.part, [entry["id"] for entry in entries]))
         code = self.stage_codes.get(args.gpu, 0)
         if not self.no_evidence:
@@ -127,6 +133,22 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.cloud_parts[0], ("A100", "a100", ["table3", "table4"]))
         self.assertEqual(self.summary()["reserved_total_usd"], 4.0)
 
+    def test_configured_all_mode_reaches_local_and_cloud_stages_and_metadata(self):
+        self.config["environment"][CUFFTDX_MODE_ENV] = "all"
+        with self.patches():
+            self.assertEqual(self.execute(), 0)
+        self.assertEqual(self.stage_modes, [(gpu, "all") for gpu in ("A100", "H100", "B200")])
+        self.assertEqual(self.summary()["cufftdx_mode"], "all")
+        self.assertEqual(self.summary()["preflight"]["cufftdx_mode"], "all")
+
+    def test_explicit_mode_overrides_config_for_every_stage(self):
+        self.args.cufftdx_mode = "preset"
+        self.config["environment"][CUFFTDX_MODE_ENV] = "all"
+        with self.patches():
+            self.assertEqual(self.execute(), 0)
+        self.assertEqual(self.stage_modes, [(gpu, "preset") for gpu in ("A100", "H100", "B200")])
+        self.assertEqual(self.config["environment"][CUFFTDX_MODE_ENV], "all")
+
     def test_total_preflight_budget_failure_creates_no_results_or_stages(self):
         self.config["budget_usd"] = 4
         with self.patches(), self.assertRaisesRegex(ValueError, "shared"):
@@ -192,6 +214,20 @@ class PipelineTests(unittest.TestCase):
                 mock.patch.object(pipeline, "VastClient", side_effect=AssertionError("provider queried")), \
                 redirect_stdout(io.StringIO()):
             self.assertEqual(self.execute(), 0)
+        self.assertFalse(self.args.result_dir.exists())
+
+    def test_dry_run_reports_configured_mode_without_policy_or_credential_access(self):
+        self.args.dry_run = True
+        self.args.cloud_config = self.directory / "preview.json"
+        self.args.cloud_config.write_text(json.dumps({"budget_usd": 50,
+            "api_key_file": "/unreadable/key", "environment": {CUFFTDX_MODE_ENV: "all"}}))
+        output = io.StringIO()
+        with mock.patch.object(pipeline, "load_config", side_effect=AssertionError("full config read")), \
+                mock.patch.object(pipeline, "VastClient", side_effect=AssertionError("provider queried")), \
+                mock.patch.object(pipeline, "inventory", side_effect=AssertionError("GPU queried")), \
+                redirect_stdout(output):
+            self.assertEqual(self.execute(), 0)
+        self.assertIn("cuFFTDx mode: all (A100/H100/B200)", output.getvalue())
         self.assertFalse(self.args.result_dir.exists())
 
     def test_historical_table7_absence_is_explicit_but_missing_measurements_fail(self):
@@ -267,17 +303,19 @@ class LocalInventoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             folder = Path(temporary)
             args = SimpleNamespace(profile="paper", collection="test", result_dir=folder / "result",
-                build_dir=folder / "build", device=1, jobs=2, timeout=0)
+                build_dir=folder / "build", device=1, jobs=2, timeout=0, cufftdx_mode="preset")
             process = mock.Mock(returncode=0)
             process.poll.return_value = 0
-            with mock.patch.dict(os.environ, {"CUDA_VISIBLE_DEVICES": "1,0"}), mock.patch.object(
+            with mock.patch.dict(os.environ, {"CUDA_VISIBLE_DEVICES": "1,0", CUFFTDX_MODE_ENV: "all"}), mock.patch.object(
                     pipeline.subprocess, "Popen", return_value=process) as launch:
                 self.assertEqual(pipeline.run_local(args, ROOT, folder, mock.Mock(), gpu_uuid="GPU-a100"), 0)
                 self.assertEqual(os.environ["CUDA_VISIBLE_DEVICES"], "1,0")
             command = launch.call_args.args[0]
             self.assertEqual(command[command.index("--device") + 1], "0")
             self.assertEqual(command[command.index("--backend") + 1], "local")
+            self.assertEqual(command[command.index("--cufftdx-mode") + 1], "preset")
             self.assertEqual(launch.call_args.kwargs["env"]["CUDA_VISIBLE_DEVICES"], "GPU-a100")
+            self.assertEqual(launch.call_args.kwargs["env"][CUFFTDX_MODE_ENV], "preset")
 
     def test_local_child_requires_a_previously_checked_uuid(self):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.object(pipeline.subprocess, "Popen") as launch:

@@ -13,7 +13,8 @@ import time
 import uuid
 
 from artifact.cloud import coordinator as cloud
-from artifact.cloud.config import load_config
+from artifact.cloud.config import (CUFFTDX_MODE_ENV, cufftdx_mode, inherited_environment,
+                                   load_config, preview_cufftdx_mode)
 from artifact.cloud.provider import VastClient
 from artifact.cloud.transport import validate_private_key
 
@@ -127,14 +128,17 @@ def preflight(config, a100_backend, args, root):
                          f"${min(config['budget_usd'], balance):.4f} budget/balance; no rentals created")
     return {"planned_at": timestamp(), "a100_backend": a100_backend, "proposals": proposals,
             "planned_total_usd": total, "budget_usd": config["budget_usd"],
+            "cufftdx_mode": cufftdx_mode(getattr(args, "cufftdx_mode", None), inherited_environment(config)),
             "provider_enforced_cap": False}
 
 
 def run_local(args, root, folder, stop_process, gpu_uuid=None):
     if not gpu_uuid:
         raise ValueError("Local execution requires the selected GPU UUID")
+    mode = cufftdx_mode(getattr(args, "cufftdx_mode", None))
     command = [sys.executable, str(root / "artifact/runner.py"), "all", "--backend", "local",
                "--profile", args.profile, "--collection", args.collection, "--part", "a100",
+               "--cufftdx-mode", mode,
                "--result-dir", str(args.result_dir), "--build-dir", str(args.build_dir),
                "--device", "0", "--jobs", str(args.jobs), "--timeout", str(args.timeout)]
     process = None
@@ -142,7 +146,8 @@ def run_local(args, root, folder, stop_process, gpu_uuid=None):
         try:
             process = subprocess.Popen(command, cwd=root, stdout=log, stderr=subprocess.STDOUT,
                                        start_new_session=True,
-                                       env=dict(os.environ, CUDA_VISIBLE_DEVICES=gpu_uuid))
+                                       env=dict(os.environ, CUDA_VISIBLE_DEVICES=gpu_uuid,
+                                                **{CUFFTDX_MODE_ENV: mode}))
             while process.poll() is None:
                 print(f"[A100] local experiments running; log: {folder / 'a100.log'}", flush=True)
                 try:
@@ -193,13 +198,18 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
     entries = select_tasks(["all"], registry["evaluations"], parser)
     args.profile = args.profile or "paper"
     if args.dry_run:
+        mode = preview_cufftdx_mode(args.cloud_config, getattr(args, "cufftdx_mode", None))
         print(f"Complete pipeline; profile: {args.profile}; A100: {args.a100_backend}")
+        print(f"Table 3 cuFFTDx mode: {mode} (A100/H100/B200)")
         print("A100: " + ", ".join(e["id"] for e in entries if e["id"] != "figure2"))
         print("H100 PCIe 80GB: table3, table4; B200: table3, table4")
         print("Then assemble all tables and figures automatically; Figure 2 reuses A100 Table 3.")
         print("Cloud budget is shared by all GPUs and startup retries. No GPU/API queries or files created.")
         return 0
     config = load_config(args.cloud_config)
+    args.cufftdx_mode = cufftdx_mode(getattr(args, "cufftdx_mode", None), inherited_environment(config))
+    config = copy.deepcopy(config)
+    config["environment"][CUFFTDX_MODE_ENV] = args.cufftdx_mode
     a100_backend, observed = choose_a100(args, wait=not args.cloud_plan)
     preview = preflight(config, a100_backend, args, root)
     if args.cloud_plan:
@@ -220,6 +230,7 @@ def run(args, registry, root, collection, select_tasks, parser, stop_process):
     folder.chmod(0o700)
     collection.initialize(destination, args.profile)
     state = {"run_id": run_id, "started_at": timestamp(), "status": "running", "profile": args.profile,
+             "cufftdx_mode": args.cufftdx_mode,
              "collection": args.collection, "assembled_dir": str(destination / "assembled"),
              "a100_backend": a100_backend, "a100_observation": observed, "preflight": preview,
              "budget_usd": config["budget_usd"], "reserved_total_usd": 0.0, "stages": [],

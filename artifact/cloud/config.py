@@ -36,9 +36,11 @@ CUDNN_ARCHIVES = {
 }
 TORCH_HEADERS_VERSION = "2.8.0"
 ARCHS = {"A100": "80", "H100": "90", "B200": "100"}
+CUFFTDX_MODE_ENV = "THUNDERFFT_TABLE3_CUFFTDX_MODE"
+CUFFTDX_MODES = ("preset", "all")
 ENVIRONMENT = {
     "THUNDERFFT_TABLE3_" + suffix for suffix in
-    ("BATCH", "N_LIST", "PLACEMENTS", "PRECISIONS", "REPEATS", "TIMEOUT", "CUFFTDX_TIMEOUT", "TRIALS", "LIBRARIES")
+    ("BATCH", "N_LIST", "PLACEMENTS", "PRECISIONS", "REPEATS", "TIMEOUT", "CUFFTDX_TIMEOUT", "CUFFTDX_MODE", "TRIALS", "LIBRARIES")
 } | {
     "THUNDERFFT_TABLE4_" + suffix for suffix in
     ("MODE", "ITERATIONS", "TRIALS", "WARMUPS", "WAVES", "TIMEOUT")
@@ -88,17 +90,40 @@ def measurement_environment(values):
         if not isinstance(value, str) or len(value) > 1024 or any(c in value for c in "\n\r\x00"):
             raise ValueError("measurement overrides must be short, single-line strings")
         result[key] = value
+    if CUFFTDX_MODE_ENV in result:
+        cufftdx_mode(environment=result)
     return result
 
 
-def load_config(path=None):
-    result = json.loads(json.dumps(DEFAULTS))
+def cufftdx_mode(explicit=None, environment=None):
+    """CLI overrides configured/inherited selection; an absent value uses preset."""
+    values = os.environ if environment is None else environment
+    value = explicit if explicit is not None else values.get(CUFFTDX_MODE_ENV, "preset")
+    if value not in CUFFTDX_MODES:
+        raise ValueError(f"{CUFFTDX_MODE_ENV} must be preset or all")
+    return value
+
+
+def supplied_config(path=None):
+    """Read non-secret settings only; suitable for an offline selection preview."""
     selected = Path(path).expanduser() if path else Path("~/cloud_key/thunderfft/config.json").expanduser()
     if selected.exists() or path:
         supplied = json.loads(selected.read_text())
         if not isinstance(supplied, dict) or set(supplied) - set(DEFAULTS):
             raise ValueError("unknown cloud configuration field")
-        result.update(supplied)
+        return supplied
+    return {}
+
+
+def preview_cufftdx_mode(path=None, explicit=None):
+    configured = measurement_environment(supplied_config(path).get("environment", {}))
+    environment = inherited_environment({"environment": configured})
+    return cufftdx_mode(explicit, environment)
+
+
+def load_config(path=None):
+    result = json.loads(json.dumps(DEFAULTS))
+    result.update(supplied_config(path))
     for field in ("api_key_file", "ssh_key_file", "ssh_public_key_file"):
         result[field] = str(Path(result[field]).expanduser().absolute())
     for field in ("budget_usd", "reserve_usd", "disk_gb", "startup_seconds", "execution_seconds",

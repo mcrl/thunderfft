@@ -118,6 +118,34 @@ class WorkerTests(unittest.TestCase):
         command = record["command"]
         self.assertIn("all", command)
         self.assertEqual(command[command.index("--backend") + 1], "local")
+        self.assertEqual(command[command.index("--cufftdx-mode") + 1], "preset")
+
+    def test_worker_passes_requested_mode_to_cli_environment_and_job_metadata(self):
+        key = "THUNDERFFT_TABLE3_CUFFTDX_MODE"
+        script = self.root / "run.sh"
+        script.write_text('#!/bin/bash\nset -eu\nmkdir -p result/fixture\n'
+                          'printf "%s" "$THUNDERFFT_TABLE3_CUFFTDX_MODE" > result/fixture/data.csv\n')
+        manifest = json.loads((self.root / ".thunderfft-cloud-source.json").read_text())
+        manifest["files"]["run.sh"]["sha256"] = hashlib.sha256(script.read_bytes()).hexdigest()
+        (self.root / ".thunderfft-cloud-source.json").write_text(json.dumps(manifest))
+        self.request["jobs"][0].update(cufftdx_mode="all", environment={key: "all"})
+        self.write_request()
+        with patch.dict(os.environ, {key: "preset"}):
+            self.assertEqual(self.run_fixture(), 0)
+            self.assertEqual(os.environ[key], "preset")
+        self.assertEqual((self.root / "result/fixture/data.csv").read_text(), "all")
+        command = json.loads((self.root / "result/cloud-worker/jobs.log").read_text().splitlines()[0])["command"]
+        self.assertEqual(command[command.index("--cufftdx-mode") + 1], "all")
+        self.assertEqual(json.loads((self.root / "result/cloud-worker/jobs.json").read_text())[0]["cufftdx_mode"], "all")
+
+    def test_worker_rejects_invalid_or_conflicting_mode_before_job_launch(self):
+        for mode, environment in (("invalid", {}), ("all", {"THUNDERFFT_TABLE3_CUFFTDX_MODE": "preset"})):
+            with self.subTest(mode=mode, environment=environment):
+                self.request["jobs"][0].update(cufftdx_mode=mode, environment=environment)
+                self.write_request()
+                with patch.object(worker.subprocess, "Popen") as launch:
+                    self.assertEqual(self.run_fixture(), 1)
+                launch.assert_not_called()
 
     def test_source_tampering_prevents_any_job_and_preserves_error(self):
         (self.root / "run.sh").write_text("changed\n")

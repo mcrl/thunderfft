@@ -14,6 +14,9 @@ HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("figure2_plot", HERE / "plot.py")
 PLOT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PLOT)
+FIXTURE_SPEC = importlib.util.spec_from_file_location("figure2_plot_table3_fixture", HERE.parent / "table3/test_assemble.py")
+FIXTURE = importlib.util.module_from_spec(FIXTURE_SPEC)
+FIXTURE_SPEC.loader.exec_module(FIXTURE)
 
 
 class FigureSourceTests(unittest.TestCase):
@@ -139,6 +142,48 @@ class CufftdxSeriesTests(FigureSourceTests):
         metadata = json.loads((output / "metadata.json").read_text())
         self.assertEqual(metadata["not_included"], [])
         self.assertEqual(metadata["cufftdx_selection"]["N64-FP32"], "block_f2_e16")
+        self.assertEqual(metadata["cufftdx_mode"], "all")
+        self.assertIn("smallest median", metadata["cufftdx_selection_rule"])
+
+    def use_presets(self):
+        fixture = FIXTURE.make_preset_part(self.root / "preset-metadata")
+        (self.source / "metadata.json").write_bytes((fixture / "metadata.json").read_bytes())
+        self.rows = [row for row in self.rows if row["library"] == "ThunderFFT"
+                     or row["candidate"] == "block_f2_e16"]
+        geometry = ("ffts_per_block", "elements_per_thread", "threads_per_block", "shared_bytes")
+        for row in self.rows:
+            row.update({key: "" for key in geometry})
+            if row["library"] == "cuFFTDx":
+                cell = PLOT.MEASURE.PRESETS.cell("A100", row["N"], row["precision"], "register")
+                row.update(candidate=cell["candidate"], **cell["geometry"])
+        self.write_source()
+
+    def test_full_register_preset_source_retains_mode_and_fresh_timings(self):
+        self.use_presets()
+        output = self.root / "preset-plot"
+        result = subprocess.run([sys.executable, str(HERE / "plot.py"), "--source-dir",
+                                 str(self.source), "--output-dir", str(output)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        metadata = json.loads((output / "metadata.json").read_text())
+        self.assertEqual(metadata["cufftdx_mode"], "preset")
+        self.assertEqual(metadata["cufftdx_preset_sha256"],
+                         PLOT.MEASURE.preset_descriptor("A100")["manifest_sha256"])
+        self.assertIn("fixed preset candidates remeasured", metadata["cufftdx_selection_rule"])
+        with (output / "data.csv").open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual(len(rows), 56)
+        self.assertEqual({row["cufftdx_mode"] for row in rows}, {"preset"})
+        with (output / "summary.csv").open(newline="") as stream:
+            summaries = list(csv.DictReader(stream))
+        tf32_64 = next(row for row in summaries if row["N"] == "64" and row["precision"] == "TF32")
+        self.assertAlmostEqual(float(tf32_64["speedup_vs_cufftdx"]), 2011.0 / 1050.0)
+
+    def test_preset_source_rejects_a_different_launch_geometry(self):
+        self.use_presets()
+        next(row for row in self.rows if row["library"] == "cuFFTDx")["threads_per_block"] = 999
+        self.write_source()
+        with self.assertRaisesRegex(ValueError, "geometry"):
+            PLOT.read_source(self.source, "smoke")
 
     def test_cufftdx_evidence_is_rejected(self):
         alterations = {

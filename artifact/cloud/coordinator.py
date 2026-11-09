@@ -12,6 +12,7 @@ import time
 import uuid
 
 from .config import (ARCHS, MATHDX_ARCHIVES, CUDNN_ARCHIVES, TORCH_HEADERS_VERSION,
+                     CUFFTDX_MODE_ENV, cufftdx_mode,
                      inherited_environment, load_config, measurement_environment, required_dependencies)
 from .provider import VastClient, ProviderError, CreateRejected, plan_cost
 from .transport import SSH, build_source_bundle, safe_extract_result, validate_private_key
@@ -31,9 +32,16 @@ def add_arguments(parser):
 
 def make_jobs(args, entries, registry, config, select_tasks, parser):
     environment = inherited_environment(config)
+
+    def job(evaluations, part, overrides=None):
+        effective = dict(environment, **measurement_environment({} if overrides is None else overrides))
+        mode = cufftdx_mode(getattr(args, "cufftdx_mode", None), effective)
+        effective[CUFFTDX_MODE_ENV] = mode
+        return {"evaluations": evaluations, "part": part, "environment": effective,
+                "cufftdx_mode": mode}
+
     if not args.cloud_batch:
-        return [{"evaluations": [e["id"] for e in entries], "part": args.part,
-                 "environment": environment}]
+        return [job([e["id"] for e in entries], args.part)]
     if args.evaluations or args.part:
         raise ValueError("--cloud-batch supplies evaluations and part names; omit positional evaluations and --part")
     supplied = json.loads(args.cloud_batch.read_text())
@@ -55,8 +63,7 @@ def make_jobs(args, entries, registry, config, select_tasks, parser):
         if label in labels:
             raise ValueError("batch part labels must be unique")
         labels.add(label)
-        jobs.append({"evaluations": [e["id"] for e in selected], "part": label,
-                     "environment": dict(environment, **measurement_environment(item.get("environment", {})))})
+        jobs.append(job([e["id"] for e in selected], label, item.get("environment", {})))
     return jobs
 
 
@@ -504,6 +511,7 @@ def run(args, entries, registry, root, collection_module, select_tasks, parser):
     proposal = plan(client, config, args.gpu)
     if args.cloud_plan:
         proposal["dependencies"] = dependencies
+        proposal["jobs"] = jobs
         print(json.dumps(proposal, indent=2))
         print("Read-only plan. No instance created; availability and prices will be checked again at execution.")
         return 0

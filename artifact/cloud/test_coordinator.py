@@ -8,6 +8,7 @@ from contextlib import ExitStack, redirect_stdout, redirect_stderr
 import copy
 import io
 import json
+import os
 import time
 from pathlib import Path
 import subprocess
@@ -189,6 +190,52 @@ class CoordinatorTests(unittest.TestCase):
         self.assertTrue(set(self.events) <= {"account", "offers", "billing_preflight"})
         self.assertEqual(self.client.create_count, 0)
         self.assertFalse(self.args.result_dir.exists())
+
+    def test_cufftdx_mode_resolves_config_batch_and_explicit_cli(self):
+        key = config.CUFFTDX_MODE_ENV
+        self.settings["environment"][key] = "all"
+        with mock.patch.dict(os.environ, {key: "preset"}):
+            jobs = coordinator.make_jobs(self.args, self.entries, self.registry, self.settings, self.selected, self.parser)
+        self.assertEqual(jobs[0]["cufftdx_mode"], "all")
+        self.assertEqual(jobs[0]["environment"][key], "all")
+        self.args.cloud_batch = self.root / "batch.json"
+        self.args.cloud_batch.write_text(json.dumps([
+            {"evaluations": ["table2"], "part": "preset", "environment": {key: "preset"}},
+            {"evaluations": ["table2"], "part": "all"}]))
+        jobs = coordinator.make_jobs(self.args, self.entries, self.registry, self.settings, self.selected, self.parser)
+        self.assertEqual([job["cufftdx_mode"] for job in jobs], ["preset", "all"])
+        self.args.cufftdx_mode = "preset"
+        jobs = coordinator.make_jobs(self.args, self.entries, self.registry, self.settings, self.selected, self.parser)
+        self.assertEqual([job["cufftdx_mode"] for job in jobs], ["preset", "preset"])
+        self.assertEqual([job["environment"][key] for job in jobs], ["preset", "preset"])
+
+    def test_invalid_batch_mode_fails_before_provider_access(self):
+        self.args.cloud_batch = self.root / "batch.json"
+        self.args.cloud_batch.write_text(json.dumps([{"evaluations": ["table2"], "part": "bad",
+            "environment": {config.CUFFTDX_MODE_ENV: "auto"}}]))
+        with self.patches(), mock.patch.object(coordinator, "VastClient", side_effect=AssertionError("provider queried")):
+            with self.assertRaisesRegex(ValueError, "preset or all"):
+                self.run_coordinator()
+        self.assertFalse(self.args.result_dir.exists())
+
+    def test_readonly_plan_includes_effective_mode_for_each_job(self):
+        self.args.cloud_plan = True
+        self.args.cufftdx_mode = "preset"
+        self.settings["environment"][config.CUFFTDX_MODE_ENV] = "all"
+        output = io.StringIO()
+        with self.patches(), redirect_stdout(output):
+            self.assertEqual(self.run_coordinator(), 0)
+        proposal, _ = json.JSONDecoder().raw_decode(output.getvalue())
+        self.assertEqual(proposal["jobs"][0]["cufftdx_mode"], "preset")
+        self.assertEqual(proposal["jobs"][0]["environment"][config.CUFFTDX_MODE_ENV], "preset")
+
+    def test_request_retains_resolved_mode_for_worker_and_retries(self):
+        self.args.cufftdx_mode = "all"
+        with self.patches():
+            self.assertEqual(self.run_coordinator(), 0)
+        request = json.loads((self.session() / "request.json").read_text())
+        self.assertEqual(request["jobs"][0]["cufftdx_mode"], "all")
+        self.assertEqual(request["jobs"][0]["environment"][config.CUFFTDX_MODE_ENV], "all")
 
     def test_watchdog_is_armed_before_create_and_cleanup_follows_fetch(self):
         with self.patches():

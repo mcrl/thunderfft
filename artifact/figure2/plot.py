@@ -5,6 +5,7 @@
 import argparse
 import csv
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -12,6 +13,10 @@ from pathlib import Path
 import statistics
 import sys
 
+
+_SPEC = importlib.util.spec_from_file_location("figure2_source_measure", Path(__file__).resolve().parents[1] / "table3/measure.py")
+MEASURE = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(MEASURE)
 
 SIZES = (64, 128, 256, 512, 1024, 2048, 4096)
 PRECISIONS = ("TF32", "FP16")
@@ -33,6 +38,25 @@ class Pending(Exception):
 
 def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def selection_rule(mode):
+    if mode == "preset":
+        return "fixed preset candidates remeasured in the source run; no candidate search"
+    if mode == "all":
+        return "smallest median compute_us among measured Table 3 candidates; ties retain source order"
+    if mode == "not_measured":
+        return "cuFFTDx was not measured"
+    raise ValueError("unsupported Table 3 cuFFTDx selection mode")
+
+
+def selection_provenance(contract):
+    mode = contract["mode"]
+    selection_rule(mode)
+    result = {"cufftdx_mode": mode}
+    if mode == "preset":
+        result["cufftdx_preset_sha256"] = contract["preset_sha256"]
+    return result
 
 
 def source_directory(explicit):
@@ -155,9 +179,18 @@ def read_source(directory, profile):
                   "source_file": str(data_path), "source_sha256": sha256(data_path),
                   "source_status_sha256": sha256(status_path)}
     metadata_path = directory / "metadata.json"
+    source_metadata = {}
     if metadata_path.is_file():
         provenance["source_metadata_file"] = str(metadata_path)
         provenance["source_metadata_sha256"] = sha256(metadata_path)
+        source_metadata = json.loads(metadata_path.read_text())
+    contract = MEASURE.cufftdx_contract(source_metadata) if dx else {"mode": "not_measured"}
+    provenance.update(selection_provenance(contract))
+    if contract["mode"] == "preset":
+        for size, precision in candidates:
+            source_rows = [row for row in dx if int(row["N"]) == size and row["precision"].upper() == precision]
+            MEASURE.validate_preset_rows(source_rows, source_metadata, n=size,
+                                        precision=precision.lower(), placement="register")
     return fields, rows, groups, provenance, selected
 
 
@@ -276,7 +309,9 @@ def main():
                     "cufftdx_selection": ({f"N{size}-{precision}": name
                                            for (size, precision), name in sorted(selected.items())}
                                           if with_cufftdx else None),
-                    "cufftdx_selection_rule": "smallest median compute time among Table 3 candidates",
+                    "cufftdx_mode": provenance["cufftdx_mode"],
+                    "cufftdx_preset_sha256": provenance.get("cufftdx_preset_sha256"),
+                    "cufftdx_selection_rule": selection_rule(provenance["cufftdx_mode"]),
                     "pairing": MATCHED, "speedup": "cuFFTDx median / ThunderFFT median",
                     "source": provenance, "raw_rows": len(rows), "configurations": len(groups),
                     "batch": batch, "inside_repeats": repeats,

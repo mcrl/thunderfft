@@ -5,6 +5,7 @@ from contextlib import redirect_stdout
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -53,6 +54,26 @@ class RunnerChecks(unittest.TestCase):
         self.assertIn("table3", output)
         self.assertNotIn("figure5", output)
 
+    def test_cufftdx_mode_local_plan_default_environment_and_cli_precedence(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIn("cuFFTDx mode: preset", self.dry_plan("table3"))
+        with patch.dict(os.environ, {runner.CUFFTDX_MODE_ENV: "all"}):
+            self.assertIn("cuFFTDx mode: all", self.dry_plan("table3"))
+            self.assertIn("cuFFTDx mode: preset", self.dry_plan("table3", "--cufftdx-mode", "preset"))
+
+    def test_cufftdx_mode_manifest_records_effective_cli_value(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = Path(temporary) / "result"
+            argv = ["run.sh", "table3", "--cufftdx-mode", "preset", "--result-dir", str(result)]
+            state = {"evaluation": "table3", "status": "completed", "exit_code": 0}
+            with patch("sys.argv", argv), patch.dict(os.environ, {runner.CUFFTDX_MODE_ENV: "all"}), \
+                    patch.object(runner, "capture", return_value={}), \
+                    patch.object(runner, "execute", return_value=state), redirect_stdout(io.StringIO()):
+                self.assertEqual(runner.main(), 0)
+            manifest = json.loads(next((result / "runs").glob("*/manifest.json")).read_text())
+            self.assertEqual(manifest["cufftdx_mode"], "preset")
+            self.assertEqual(manifest["configuration"][runner.CUFFTDX_MODE_ENV], "preset")
+
     def test_cloud_worker_expanded_full_task_list_does_not_start_nested_pipeline(self):
         registry = json.loads(runner.REGISTRY.read_text())
         # The coordinator expands 'all' before passing the named tasks to the
@@ -81,7 +102,7 @@ class RunnerChecks(unittest.TestCase):
         self.assertEqual([e["id"] for e in runner.select_tasks(["model"], entries, parser)], ["model"])
         self.assertEqual([e["id"] for e in runner.select_tasks([], entries, parser)], ["data", "model"])
 
-    def run_adapter(self, script, required=("data.csv",)):
+    def run_adapter(self, script, required=("data.csv",), mode=None):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             task = root / "artifact" / "test"
@@ -93,7 +114,7 @@ class RunnerChecks(unittest.TestCase):
                      "coverage": "explicit subset", "full_paper_comparison": False,
                      "required_outputs": {"smoke": list(required)}}
             args = SimpleNamespace(profile="smoke", build_dir=root / "build", device=0,
-                                   jobs=1, run_id="test-run", result_dir=output, timeout=2)
+                                   jobs=1, run_id="test-run", result_dir=output, timeout=2, cufftdx_mode=mode)
             with patch.object(runner, "ROOT", root):
                 state = runner.execute(entry, output, args)
             self.assertEqual(json.loads((output / "status.json").read_text()), state)
@@ -104,6 +125,13 @@ class RunnerChecks(unittest.TestCase):
         self.assertEqual(state["status"], "completed")
         self.assertFalse(state["full_paper_comparison"])
         self.assertEqual(state["coverage"], "explicit subset")
+
+    def test_adapter_receives_effective_mode_without_changing_parent_environment(self):
+        with patch.dict(os.environ, {runner.CUFFTDX_MODE_ENV: "all"}):
+            state = self.run_adapter('test "$THUNDERFFT_TABLE3_CUFFTDX_MODE" = preset || exit 9\n'
+                                     'printf "fixture\\n" > "$THUNDERFFT_RESULT_DIR/data.csv"\n', mode="preset")
+            self.assertEqual(os.environ[runner.CUFFTDX_MODE_ENV], "all")
+        self.assertEqual((state["status"], state["cufftdx_mode"]), ("completed", "preset"))
 
     def test_zero_exit_without_output_fails(self):
         self.assertEqual(self.run_adapter("exit 0\n")["status"], "failed")

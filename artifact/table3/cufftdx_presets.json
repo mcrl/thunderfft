@@ -1,0 +1,1774 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "source_commit": "6864641058f2f4abd0875ff20b0f912b04416343",
+    "pipeline_run": "20261109T031050Z-fc3a57ec",
+    "collection": "full-20261109T031050Z-fc3a57ec",
+    "measured_date": "2026-11-09",
+    "selection_rule": "Smallest median differential latency in each GPU/N/precision/placement cell of the retained complete all-candidate sweep; ties retain native candidate order.",
+    "scope": "Measured winners for the recorded hardware and software; not a claim of universal optimality. Preset runs remeasure these candidates without repeating the search.",
+    "measurement_settings": {
+      "batch": 65536,
+      "repeats": 1000,
+      "trials": 3
+    },
+    "candidate_source_sha256": {
+      "sample/bench/paper_fft.cu": "8bca2a0f3d54e75aa9ce9ad82aca47f376bf3df44cdcd8e67351f8ab6e3b4f53",
+      "sample/bench/baseline/cufftdx_bench.h": "4ba6a9cb375292b71e6441007ffc49dd6bcb33b63ee72640a5634133e43273b3"
+    }
+  },
+  "gpus": {
+    "A100": {
+      "gpu_name": "NVIDIA A100 80GB PCIe",
+      "compute_capability": "8.0",
+      "build": {
+        "cufftdx_version": 10501,
+        "cufftdx_target_sm": 800
+      },
+      "measurement_environment": {
+        "gpu_uuid": "GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6",
+        "memory_MiB": 81920,
+        "driver_version": "575.51.03",
+        "native_cuda_versions": "compiled_CUDART=12090 runtime=12080 driver=12090 cuFFT=11303 extra_R_warmups=3",
+        "run_id": "20261109T031050Z-05f09c3d"
+      },
+      "source_files_sha256": {
+        "metadata.json": "da5ba921649e0b51be0098826073938496b42ee226e7bd76146a3fad0ed0293d",
+        "table.csv": "4baa7e48a733d66ec2402832841efd667df96079fb30d68354e1d700c7329493",
+        "data.csv": "4354683d08ea3bd08f934e0e9a4765a69b6ad345064a8f5e7db00a807d6a3630",
+        "cufftdx_candidates.csv": "b92bfb205cfa524940ded35a3e263fb2926b14dc9637eff1f23860348b34d7c5",
+        "status.json": "837c0ba98b48236c161e1f798a57070d29a2a2818eb42acd26f9c78d92c4fba9"
+      },
+      "cells": [
+        {
+          "N": 64,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "thread_t32",
+          "geometry": {
+            "ffts_per_block": 64,
+            "elements_per_thread": 64,
+            "threads_per_block": 32,
+            "shared_bytes": 0
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "b283eb3a6c780899f695b560c0e1b5580135bd8a8298a88d4ffcdc0e045a0129",
+            "raw_log": "raw/n64-fp16-register-cufftdx.log",
+            "raw_log_sha256": "6c530912bc44a76374c9057863e2b263533339fd50bf6285380ee763eb2ea309",
+            "candidate_count": 8,
+            "selected_median_time_us": 2.88767982
+          }
+        },
+        {
+          "N": 64,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f32_e8",
+          "geometry": {
+            "ffts_per_block": 32,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "744ce3c440ac664e0f455a7bdfab84cdd3611dbe23a14048b3ca1a77f984d0ba",
+            "raw_log": "raw/n64-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "6dcf958db255f76bed6c98c109f6ba072fab4d31acf1fcd0e7212e15a64c5841",
+            "candidate_count": 3,
+            "selected_median_time_us": 9.16377544
+          }
+        },
+        {
+          "N": 64,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "thread_t64",
+          "geometry": {
+            "ffts_per_block": 64,
+            "elements_per_thread": 64,
+            "threads_per_block": 64,
+            "shared_bytes": 0
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "69431b36f140d8272fd26436c21052cb7ce81b01876d1bdf2e199685b750851e",
+            "raw_log": "raw/n64-fp32-register-cufftdx.log",
+            "raw_log_sha256": "b277cdd39647aa3c259ce449c6259eefdf011449a7a69fb38b72acac73215913",
+            "candidate_count": 7,
+            "selected_median_time_us": 8.13977528
+          }
+        },
+        {
+          "N": 64,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f16_e8",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "287de9df1c36638464cccd91b990c0d9ef725d5d5cf08dadfb6c5606294708c5",
+            "raw_log": "raw/n64-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "02cb482f59271f4fb9604b66714c993daf3445dfb4a82537f8a84dfe29bc2fc6",
+            "candidate_count": 2,
+            "selected_median_time_us": 18.7586536
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f32_e16",
+          "geometry": {
+            "ffts_per_block": 32,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "124da7b7b5c3d4d1cbed9443ec1dfae2527e32f0088490a04e3840b6496330f1",
+            "raw_log": "raw/n128-fp16-register-cufftdx.log",
+            "raw_log_sha256": "ef06ea7bc827da645048fc528cb50d763c6492ec8083642c6bee952be46ce911",
+            "candidate_count": 3,
+            "selected_median_time_us": 14.5541134
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f32_e16",
+          "geometry": {
+            "ffts_per_block": 32,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "bc2f1b483cdffd9fcf62a59136ee3c7c2d8b19a4fc4a141400e15f92ae6486d0",
+            "raw_log": "raw/n128-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "ff7c08fdf714a848779224cbe194701b249374b4d33a7440eca0c92f4b6a2018",
+            "candidate_count": 3,
+            "selected_median_time_us": 21.6647663
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f8_e8",
+          "geometry": {
+            "ffts_per_block": 8,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "c50e3e4e1d449d73ddd3dca712fa1d424d1cf7aa8a45896f8a414322d5f0aad1",
+            "raw_log": "raw/n128-fp32-register-cufftdx.log",
+            "raw_log_sha256": "6ea58f2bb813545a1ac339c348529b424f91099a938cb1aacd780f03ef4e682a",
+            "candidate_count": 2,
+            "selected_median_time_us": 30.5643501
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f8_e16",
+          "geometry": {
+            "ffts_per_block": 8,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "eba816ce84d9628a9a1bb75cb116db19d49a85fdc6830faa12c1ba3ab605539e",
+            "raw_log": "raw/n128-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "42f9fa7661fec06da620b3dbd05f7261267377e80c85da4647a295e64ae1b497",
+            "candidate_count": 2,
+            "selected_median_time_us": 45.4072304
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f16_e16",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "9626268fcd41fab38ec2a497cec2e89b539b7a7e7d7693e9358a17f50a7ed1b6",
+            "raw_log": "raw/n256-fp16-register-cufftdx.log",
+            "raw_log_sha256": "ae6410532fe1be531a0c931cb6de1ff918094e5c0793fb4c30c649bcb12b1b8f",
+            "candidate_count": 4,
+            "selected_median_time_us": 22.8904953
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f8_e16",
+          "geometry": {
+            "ffts_per_block": 8,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "053780a5c571d1c462bf97212ba281bc37fef990e83bb49a97ca3cc4855ecec3",
+            "raw_log": "raw/n256-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "d6178590c2019403c8fe4508b46c52077efabda637152d9e051b1ac5bbd219bb",
+            "candidate_count": 3,
+            "selected_median_time_us": 31.4060783
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f4_e16",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "398a9da93041b426b36d1f60e219cee8f1425446aaf655ef614070f13995b8c1",
+            "raw_log": "raw/n256-fp32-register-cufftdx.log",
+            "raw_log_sha256": "a3012b738d4c3fff3b985277cdb3703e069dc59343267ebc65360fcaa8d2029f",
+            "candidate_count": 3,
+            "selected_median_time_us": 52.7769623
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "84db5cc174b7c55632a00fb376f6ab6f02d102603ca9a5d9530c9acbba190ab0",
+            "raw_log": "raw/n256-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "103ca32c4327afb5d451037f1226cf4891b561611558040f71ac821eafb50ec3",
+            "candidate_count": 2,
+            "selected_median_time_us": 77.6222763
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "8f4f2128c00c8e6a333e3373efee8e8cfe2c75a950d36d3e3f99593c7a6e2d45",
+            "raw_log": "raw/n512-fp16-register-cufftdx.log",
+            "raw_log_sha256": "453ecd71d182ff4ec33a6b9cdf5c6dc5658e3909639902ea9d0d93a100ae7507",
+            "candidate_count": 4,
+            "selected_median_time_us": 59.2906227
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f4_e16",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "36263e6c381fd0484d6f78d8c0b452c9cbe8869f1c512d06d4e68ed40bfcab90",
+            "raw_log": "raw/n512-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "26829875a0ccb581e6ab2b31a87b9939a1b09ff9dfb651f7e61f444faf338e89",
+            "candidate_count": 3,
+            "selected_median_time_us": 78.129158
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f2_e8",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "22f4b91adb9364ff71667304ec36af130bc2c83084056d09ab29dd36bcc7e422",
+            "raw_log": "raw/n512-fp32-register-cufftdx.log",
+            "raw_log_sha256": "173985b72d63935b66526cdd61905cd377d713259434802fd8c0537c8ce00d00",
+            "candidate_count": 2,
+            "selected_median_time_us": 126.688263
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f2_e8",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "c70a12f1b50288cddc8c0643a2e8e5857d0565c728297f0d3472cb143324c764",
+            "raw_log": "raw/n512-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "173985b72d63935b66526cdd61905cd377d713259434802fd8c0537c8ce00d00",
+            "candidate_count": 2,
+            "selected_median_time_us": 155.97261
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f2_e16",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "1a75ff84da375f8f2bbb3d4cecaa345827b613e6b5a83c76e04fc083d60ee454",
+            "raw_log": "raw/n1024-fp16-register-cufftdx.log",
+            "raw_log_sha256": "c9690ca3e59c9304436acd5e9af476c51429aaa7121e11d831c750b55d1d4e1d",
+            "candidate_count": 3,
+            "selected_median_time_us": 130.77095
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f4_e16",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "3fcaea859d7b348eade540338d702ef31aeb6f319659636e36da4d12f8818568",
+            "raw_log": "raw/n1024-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "c9690ca3e59c9304436acd5e9af476c51429aaa7121e11d831c750b55d1d4e1d",
+            "candidate_count": 3,
+            "selected_median_time_us": 157.249527
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "3b8a0213e939b71b75c06338c5f3fe440b9e463f26d7fc0557746d0ac2364d8c",
+            "raw_log": "raw/n1024-fp32-register-cufftdx.log",
+            "raw_log_sha256": "a75e3eee7f6962ea4018713632bc382ee0fa69acea16a6b428dd0b6046cdc5c0",
+            "candidate_count": 3,
+            "selected_median_time_us": 290.483185
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 32,
+            "threads_per_block": 32,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "c63610f9ab74d8cd8cce09b0c4a670b9abf2086b5ae4dfd0768d1c4dd7fc8f41",
+            "raw_log": "raw/n1024-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "d1d8197ed2d1684c31d23fd87239a99909f80f9b8d51bbb3761b4f9503e1b379",
+            "candidate_count": 2,
+            "selected_median_time_us": 404.857849
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f2_e16",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "ec416d1e95f3b84f3c93fa0af7bdf4f2d33283fff453a622d7ece66a79a1a163",
+            "raw_log": "raw/n2048-fp16-register-cufftdx.log",
+            "raw_log_sha256": "09ef8cf6a2214a1480f4b1943a11dfcfe40f70b8b6809cda03611d1f5115c05f",
+            "candidate_count": 2,
+            "selected_median_time_us": 267.80365
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "32d03425243997af97b5c5a102f93bb14df91aa0dfb3d6a3b7280c25e069b9a7",
+            "raw_log": "raw/n2048-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "0f0c0788fdb23352e57f1058818674bfc6e515eb30758be729458e4ebaa86bde",
+            "candidate_count": 2,
+            "selected_median_time_us": 320.944153
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "479b8bfc84b3678e7b74bcc278289a7630ff7e5d1ea1a1fd855dc6305443c28a",
+            "raw_log": "raw/n2048-fp32-register-cufftdx.log",
+            "raw_log_sha256": "4655da69972aa3fd624737c55f9a33482fb6c9a75d067bbdfc5e0e89c33a1494",
+            "candidate_count": 2,
+            "selected_median_time_us": 630.822876
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "bf834ec94b874f967dd791998cce7c4a7dfce1b912a7afb0cd0fd38166141301",
+            "raw_log": "raw/n2048-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "81d089279e13b63262b78c363d0e25a1c363f5bd701478daad44e3567fb4dc2c",
+            "candidate_count": 2,
+            "selected_median_time_us": 702.214111
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f2_e16",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "5007806c4f2f63b24fc67d5740f44b08c9b0309b5c59c0e65c6491f50ad514e9",
+            "raw_log": "raw/n4096-fp16-register-cufftdx.log",
+            "raw_log_sha256": "4aaf97cf5eb73cb9fdd89dceb1e659f72d8325d1427263425248c1b505148b72",
+            "candidate_count": 2,
+            "selected_median_time_us": 612.737061
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "61fe26a7e3dbcb68637e721763e49c7d918cbf2a02b9cd55341e033faa0bdb49",
+            "raw_log": "raw/n4096-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "fdf7de292c3639960d01bfcd84330354a0e8e5b35e02d79936ce6964835a9c97",
+            "candidate_count": 2,
+            "selected_median_time_us": 714.203186
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "7d44b7f880501b99071efe48b0b4510dda566b050bd2c9124407cc13c418f37c",
+            "raw_log": "raw/n4096-fp32-register-cufftdx.log",
+            "raw_log_sha256": "2495d02c36bdeed1264dbf33e3b0134635429288263831ec4eb5774ce2764cc7",
+            "candidate_count": 2,
+            "selected_median_time_us": 1469.5343
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "bb37f4328982f6ad682c5d65569314765db3f83b8edb3b698519e8f4ec13d2eb",
+            "raw_log": "raw/n4096-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "b3113e12cdb13935699107ac1b73bda1c1cd2b5b5d15a06010ede23d7be11a7d",
+            "candidate_count": 2,
+            "selected_median_time_us": 1735.03589
+          }
+        }
+      ]
+    },
+    "H100": {
+      "gpu_name": "NVIDIA H100 PCIe",
+      "compute_capability": "9.0",
+      "build": {
+        "cufftdx_version": 10501,
+        "cufftdx_target_sm": 900
+      },
+      "measurement_environment": {
+        "gpu_uuid": "GPU-508ace01-a2b3-bec9-5fe1-855752e6b08c",
+        "memory_MiB": 81559,
+        "driver_version": "610.57.04",
+        "native_cuda_versions": "compiled_CUDART=13000 runtime=13000 driver=13030 cuFFT=12000 extra_R_warmups=3",
+        "run_id": "20261109T035119Z-b8d5ee0e"
+      },
+      "source_files_sha256": {
+        "metadata.json": "f79100f254e2681d6765003d521be3cf5030cd57439a9199700de95583deab19",
+        "table.csv": "5390ab9eb4fb3cd68b9dd87b4ea0bc838f871a54fda9cd1f9b3e5f53da169c34",
+        "data.csv": "c0166ab14c8797b209cc81ce9facc3db1265adc828c8c41be87bf0047b25bce0",
+        "cufftdx_candidates.csv": "52e7d5a30388869da87df07a2eadb4d5b41d20c8cf3717534142fd60a78d2342",
+        "status.json": "6106c8bfde6c924f1842a70d36ccf881f5ddeb181dd2b726ff58cb6e88d3997e"
+      },
+      "cells": [
+        {
+          "N": 64,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "thread_t32",
+          "geometry": {
+            "ffts_per_block": 64,
+            "elements_per_thread": 64,
+            "threads_per_block": 32,
+            "shared_bytes": 0
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "d75b672a039a85a1f2d0313c0cf68563af489b23a15a7c2b155e1cf9c53d2c89",
+            "raw_log": "raw/n64-fp16-register-cufftdx.log",
+            "raw_log_sha256": "3839fcc533d0cb5f37ff89e7541ac5bedbc57af0f8dd44fc8bcae015be51e3a7",
+            "candidate_count": 8,
+            "selected_median_time_us": 2.30287981
+          }
+        },
+        {
+          "N": 64,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f32_e8",
+          "geometry": {
+            "ffts_per_block": 32,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "4b2abe4d7b6b8a65f7fe0972f12c58ec7da8134a3afb1a7f8b86dc655f04167a",
+            "raw_log": "raw/n64-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "eb2ec6662a55a6e538b2568a518de997ee395e4d5b78a6495a85e145bf2e73b6",
+            "candidate_count": 3,
+            "selected_median_time_us": 6.99779177
+          }
+        },
+        {
+          "N": 64,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "thread_t128",
+          "geometry": {
+            "ffts_per_block": 128,
+            "elements_per_thread": 64,
+            "threads_per_block": 128,
+            "shared_bytes": 0
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "0e8396fd9e75bff87ed5d6afe7975ee5484c5caf298505d66251d9ac7a446cad",
+            "raw_log": "raw/n64-fp32-register-cufftdx.log",
+            "raw_log_sha256": "6ca3095f43d854699e2ce19c5fd25bdae0ee0e6c31a0430dad86b353c72c7e04",
+            "candidate_count": 8,
+            "selected_median_time_us": 3.41846418
+          }
+        },
+        {
+          "N": 64,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f32_e8",
+          "geometry": {
+            "ffts_per_block": 32,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "283a857f90d39cfbc90d4a9849ef68cb6439299bd6860b7ce698a08e952bc736",
+            "raw_log": "raw/n64-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "2b30c543aad5d99dababf152fe04c07020292b57fe0f663340ea40a9fcb5e27d",
+            "candidate_count": 3,
+            "selected_median_time_us": 14.0163851
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f32_e8",
+          "geometry": {
+            "ffts_per_block": 32,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "d316f16e071f6fb9a38230def759b843c3d20b6b167c47ba1323122dbb58b553",
+            "raw_log": "raw/n128-fp16-register-cufftdx.log",
+            "raw_log_sha256": "e86ac9965933c1fb1ff41b83a66770a200f971a6b7123d58cdecbcf98900481c",
+            "candidate_count": 3,
+            "selected_median_time_us": 11.0482235
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f32_e8",
+          "geometry": {
+            "ffts_per_block": 32,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "10accb2276d0fe213e290bd7f0cacf541571d2a7e5baeb57a61f36e784125509",
+            "raw_log": "raw/n128-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "2e589f20ce3d3d15793fd4f97e17184cd6f09bda7745ee9a24bbc172e3152a66",
+            "candidate_count": 3,
+            "selected_median_time_us": 13.9898252
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f16_e8",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "2d9fb47ba08265d20e6020254f97701071a598e38fdf135a1483bec257d97709",
+            "raw_log": "raw/n128-fp32-register-cufftdx.log",
+            "raw_log_sha256": "73ef4d8bb1e9ac1e8f9525489ce9f7f1ddea624cdfb10b1e16f7738052906b5d",
+            "candidate_count": 3,
+            "selected_median_time_us": 22.6615028
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f16_e8",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "9627a73e0b425f40bebd92643bd20f45e6fb2ff7913969587b658b48a2873f67",
+            "raw_log": "raw/n128-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "d431c97dc61289bf9117764221f7ce9821eabd569690fececd786975565d3ab4",
+            "candidate_count": 3,
+            "selected_median_time_us": 28.8881931
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f16_e16",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "24405823afcd39498902b38bb01462f29a7e95d06bcce9dcba41b5b8e58b8495",
+            "raw_log": "raw/n256-fp16-register-cufftdx.log",
+            "raw_log_sha256": "6372c4c1d2991ce1f1020c5db91235ca260619a71b1fe3b44eeff394e0d7504e",
+            "candidate_count": 3,
+            "selected_median_time_us": 17.3015995
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f16_e16",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "1d3c87aa2e60ca3f593bfb159a3def2080045450097bc38c31c8ac2f883f8d33",
+            "raw_log": "raw/n256-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "6372c4c1d2991ce1f1020c5db91235ca260619a71b1fe3b44eeff394e0d7504e",
+            "candidate_count": 3,
+            "selected_median_time_us": 25.0080948
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f8_e16",
+          "geometry": {
+            "ffts_per_block": 8,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "01e18a8a241c833298e31b8b664ddceeed4e2a84afa78c846a3b31bb7a5459e4",
+            "raw_log": "raw/n256-fp32-register-cufftdx.log",
+            "raw_log_sha256": "201b376c87da8a8e12a2b098b3954c95fec7c7448ab57a282b2263acba332859",
+            "candidate_count": 3,
+            "selected_median_time_us": 36.9584351
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f8_e16",
+          "geometry": {
+            "ffts_per_block": 8,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "591b8247aa97a1e483d242df3b31457892a873c471126e041eb0e86b7025c26e",
+            "raw_log": "raw/n256-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "6ac10ca5e420eeb96750c6e078109697b6d930f4d1a529649249130d748396c4",
+            "candidate_count": 3,
+            "selected_median_time_us": 49.9342766
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "93f3b3951a80351374f6eb87a9149797625c94127045445df497ff945574b396",
+            "raw_log": "raw/n512-fp16-register-cufftdx.log",
+            "raw_log_sha256": "a01254bf87abf42adcf38aeb2c76fa223c6968ba7100e4bd09fe05ff0fe908e1",
+            "candidate_count": 3,
+            "selected_median_time_us": 44.9363518
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "7ef32b6ff2fdb2db1102e674252fd8a3451aa4a0df5a791b951a31334157771d",
+            "raw_log": "raw/n512-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "a01254bf87abf42adcf38aeb2c76fa223c6968ba7100e4bd09fe05ff0fe908e1",
+            "candidate_count": 3,
+            "selected_median_time_us": 56.3382378
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "7368f4ac5f728c5b46fc8b0b781b9aedcce00a5b2580558a3b99095dca1235f0",
+            "raw_log": "raw/n512-fp32-register-cufftdx.log",
+            "raw_log_sha256": "2b1f720410d1fb98a9386f9fa479f7bcad2b25eb2b7da239b80ec4f40723e9df",
+            "candidate_count": 3,
+            "selected_median_time_us": 92.6937637
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "a7a575ae0aed6828a031f5ca479627cac89abff39f2239c88ad819d37311f90e",
+            "raw_log": "raw/n512-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "2b1f720410d1fb98a9386f9fa479f7bcad2b25eb2b7da239b80ec4f40723e9df",
+            "candidate_count": 3,
+            "selected_median_time_us": 115.521339
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f4_e16",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "760f923222a538ebbe463ad142e799fac578a8f7af78f2414ab4679252c5574d",
+            "raw_log": "raw/n1024-fp16-register-cufftdx.log",
+            "raw_log_sha256": "8332a3aee006a5726f4ec51d36197a170699ce7d4843921c4e1d623a179f39df",
+            "candidate_count": 3,
+            "selected_median_time_us": 96.9982376
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f4_e16",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "772e7ab1e15f2adfb152ae58a88fc7b4a7a2d88d14203a5309fb58c96cd6a38d",
+            "raw_log": "raw/n1024-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "8332a3aee006a5726f4ec51d36197a170699ce7d4843921c4e1d623a179f39df",
+            "candidate_count": 3,
+            "selected_median_time_us": 118.775009
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f2_e16",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "ff6c14a7e445fba4d10ee1ccf0e4d0f8a9da41ed2ec608afe1a6bb930d3958ba",
+            "raw_log": "raw/n1024-fp32-register-cufftdx.log",
+            "raw_log_sha256": "c67a2024289efc466e9feae57c6a352dd26d5a1bcaf70d4d4ea1df4c1b2b8308",
+            "candidate_count": 3,
+            "selected_median_time_us": 208.721222
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "322b8c9f8f90fa2e1de6b4d2685bef805c6b5a57db4c49ab502d6e72d4d5be33",
+            "raw_log": "raw/n1024-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "d485ad2a7b837a66801600ca8f668c10f4426c8a0b4c12220dc4cb8abe180a7b",
+            "candidate_count": 3,
+            "selected_median_time_us": 251.415039
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "33ec1569fed4039c8f80a69178873875e47c4187efb8ba3711687f087238cf4c",
+            "raw_log": "raw/n2048-fp16-register-cufftdx.log",
+            "raw_log_sha256": "12c68817bcddc36b7ee7c6f702f4dde4f5d6482a05e23f2d8060538f68122170",
+            "candidate_count": 2,
+            "selected_median_time_us": 199.614883
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "a592e175e89a94e4b614050f995cd161e8849458f369510f6010be8e471c5c64",
+            "raw_log": "raw/n2048-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "12c68817bcddc36b7ee7c6f702f4dde4f5d6482a05e23f2d8060538f68122170",
+            "candidate_count": 2,
+            "selected_median_time_us": 242.235764
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "16590c63e7409558e7641669bc121f20827e8d38112ffd29bff5abf05598cc86",
+            "raw_log": "raw/n2048-fp32-register-cufftdx.log",
+            "raw_log_sha256": "54256c3b6e9ed8ab998418b6e8e93babe2fd15f11b0152b3ddb56e46b9fa6d6e",
+            "candidate_count": 2,
+            "selected_median_time_us": 428.678314
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "6246a3ff5bb8f1eeaf18d2b357bcba7ca5420f216807994412365e3f9bf47215",
+            "raw_log": "raw/n2048-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "54256c3b6e9ed8ab998418b6e8e93babe2fd15f11b0152b3ddb56e46b9fa6d6e",
+            "candidate_count": 2,
+            "selected_median_time_us": 513.446167
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "7a40c708839ba83b1dfc4a331ae6ad88f0117fee58ceda9223b7c7df47e463c8",
+            "raw_log": "raw/n4096-fp16-register-cufftdx.log",
+            "raw_log_sha256": "21551e00b43cb8223c86cfb80fb8d40050835c9da1514c148976ebb991e07def",
+            "candidate_count": 2,
+            "selected_median_time_us": 457.308289
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f2_e16",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "124fea165a5b1da44c2dcbd91cd310c7ee9e7d3ec9df5395b4bb94a75aa475b3",
+            "raw_log": "raw/n4096-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "21551e00b43cb8223c86cfb80fb8d40050835c9da1514c148976ebb991e07def",
+            "candidate_count": 2,
+            "selected_median_time_us": 541.896851
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "b7635eeb5406f93d4afdac972840e1c4bb0f78d79bb4e49e3dacb9b2d5b8aa6a",
+            "raw_log": "raw/n4096-fp32-register-cufftdx.log",
+            "raw_log_sha256": "50f65116f1dbd91c29adb69bf39e203d68619ca28132b478f1fa2ed8d1cc6259",
+            "candidate_count": 2,
+            "selected_median_time_us": 953.089844
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "dd815bc9f183561147aa6bc88f849a059fdcc489c20c8c2518259fdfd3ed2592",
+            "raw_log": "raw/n4096-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "50f65116f1dbd91c29adb69bf39e203d68619ca28132b478f1fa2ed8d1cc6259",
+            "candidate_count": 2,
+            "selected_median_time_us": 1164.11462
+          }
+        }
+      ]
+    },
+    "B200": {
+      "gpu_name": "NVIDIA B200",
+      "compute_capability": "10.0",
+      "build": {
+        "cufftdx_version": 10501,
+        "cufftdx_target_sm": 1000
+      },
+      "measurement_environment": {
+        "gpu_uuid": "GPU-fcc28951-a7da-14c0-3ad7-8211987af6f3",
+        "memory_MiB": 183359,
+        "driver_version": "595.71.05",
+        "native_cuda_versions": "compiled_CUDART=13000 runtime=13000 driver=13020 cuFFT=12000 extra_R_warmups=3",
+        "run_id": "20261109T040518Z-29f88c4a"
+      },
+      "source_files_sha256": {
+        "metadata.json": "77d66b40c0e79041ee92bfea642f1dfc850a516e209e3d36da44f627141b477e",
+        "table.csv": "fe8d4260a87d8d184435ce53d35ec549630f68bec180d2f820ccdc7e61174387",
+        "data.csv": "7fb5029383bfc3fdde63c2e617fb285c24ec08ac1a30de7f2806931f0def44cf",
+        "cufftdx_candidates.csv": "0154311017ede1da50f5d1a23a56db48be594519b5e27d9d2c6488c55829bb5b",
+        "status.json": "f0a059fe7509eee484b4fb9217b22cac0b0ee2bbca3a3fc92f16d3609dcc490c"
+      },
+      "cells": [
+        {
+          "N": 64,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "thread_t256",
+          "geometry": {
+            "ffts_per_block": 512,
+            "elements_per_thread": 64,
+            "threads_per_block": 256,
+            "shared_bytes": 0
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "8886522b835f9773291472ab2632756d56b99197c44a9b23f4a1e586b0c1d624",
+            "raw_log": "raw/n64-fp16-register-cufftdx.log",
+            "raw_log_sha256": "82884e772a7dab8d16c0979f57a227c26ae60826521920fe9dd523f9771074dd",
+            "candidate_count": 8,
+            "selected_median_time_us": 2.36819172
+          }
+        },
+        {
+          "N": 64,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f32_e8",
+          "geometry": {
+            "ffts_per_block": 32,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "0a8e90086c09333887d34cea710919ffa787320ee1f63f4d76cc85456c449296",
+            "raw_log": "raw/n64-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "138661467cc60791203c84327f237d85cc56c3d3519e1058fb604cd67ba9d7be",
+            "candidate_count": 3,
+            "selected_median_time_us": 5.23750448
+          }
+        },
+        {
+          "N": 64,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "thread_t64",
+          "geometry": {
+            "ffts_per_block": 64,
+            "elements_per_thread": 64,
+            "threads_per_block": 64,
+            "shared_bytes": 0
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "6f0cac8d83808472e2cbb859e486441621a4832ce78d4ea4ed033adbfd3c2159",
+            "raw_log": "raw/n64-fp32-register-cufftdx.log",
+            "raw_log_sha256": "32bb01ba5d5bbbc9655e30f24d772592341b854b2b1ab5791ff121eb1785faa1",
+            "candidate_count": 8,
+            "selected_median_time_us": 2.41113615
+          }
+        },
+        {
+          "N": 64,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f32_e8",
+          "geometry": {
+            "ffts_per_block": 32,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n64-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "e6036ba97c092a5fb9216bd7d7029492f3bea997e161b2f7ff26bc4184674307",
+            "raw_log": "raw/n64-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "e05ef0d0f547a2d40523b6672c105f13528924a97bedbc5d6d0b2d84659a8ce4",
+            "candidate_count": 3,
+            "selected_median_time_us": 9.7583046
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f16_e8",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "256984fabd5e6c24410e2c2c0992c0c7fda3d6754ee9be1f6c766253865fa5dc",
+            "raw_log": "raw/n128-fp16-register-cufftdx.log",
+            "raw_log_sha256": "6a8caab2e3e2db1b71c6bdd8bb4cbd130989912733c61c44be9a2188c4ad173e",
+            "candidate_count": 3,
+            "selected_median_time_us": 7.88303995
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f16_e8",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "38b06bdff18ddeb51641523324192a6b748288057a876b551a68c42093337295",
+            "raw_log": "raw/n128-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "99c1cb9b299d19422552bccba87a996c79c6bff398881db71666c153599f26e5",
+            "candidate_count": 3,
+            "selected_median_time_us": 10.7185602
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f16_e8",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "649b6025bcfa652058130aec229f59abfa9ed1122569e85934305fe9741e94a8",
+            "raw_log": "raw/n128-fp32-register-cufftdx.log",
+            "raw_log_sha256": "34cee9d7d5d713dbd59b68690ac44dedf75144cc6bb8986ee0a8b68cb852875e",
+            "candidate_count": 3,
+            "selected_median_time_us": 15.7674246
+          }
+        },
+        {
+          "N": 128,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f16_e8",
+          "geometry": {
+            "ffts_per_block": 16,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n128-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "36fd85f757c63507939bb9617160cfee100d22da511628cb0ee9de57ff8b66b2",
+            "raw_log": "raw/n128-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "4d44597bf214686d101387fd03e29e0069d59282112eafa56ed3fefe42037e0e",
+            "candidate_count": 3,
+            "selected_median_time_us": 19.7566071
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f8_e16",
+          "geometry": {
+            "ffts_per_block": 8,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "19b74512b8643dabff4800546815d7079edbf359f9453f7b8ea71bba8324e0dc",
+            "raw_log": "raw/n256-fp16-register-cufftdx.log",
+            "raw_log_sha256": "b7766ce470192c345121a03c71ce35aa18cd24d9741dbf1c709c4c5410c2e144",
+            "candidate_count": 3,
+            "selected_median_time_us": 13.0424957
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f8_e16",
+          "geometry": {
+            "ffts_per_block": 8,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "477b5ec684f09f06bfde7628695157dc9e41545d1877e097c2604bd7340ebbf9",
+            "raw_log": "raw/n256-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "817a5f4381ad6078457b0fe20de2e58a35a5c981b7a3d9682b3426300dd24cda",
+            "candidate_count": 3,
+            "selected_median_time_us": 17.0004501
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f8_e16",
+          "geometry": {
+            "ffts_per_block": 8,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "1f3896645b9d732bfb5b244b955fe9b537d7803646ada21875ed356960091c2f",
+            "raw_log": "raw/n256-fp32-register-cufftdx.log",
+            "raw_log_sha256": "946ca695eb36e94ed812e794f6ff0b06e21cebce33326b0d3b85abdff4e83306",
+            "candidate_count": 3,
+            "selected_median_time_us": 26.3380775
+          }
+        },
+        {
+          "N": 256,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f8_e16",
+          "geometry": {
+            "ffts_per_block": 8,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n256-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "5fd8dd3811fb78ba181519d9f1d227a810de4a31a72cbcee0e968d4ebbee3ba5",
+            "raw_log": "raw/n256-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "2575ea8455c2706cca78f4bfdd641aabe45b9bf905e619b39f38c8c08f311da5",
+            "candidate_count": 3,
+            "selected_median_time_us": 33.6388474
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "991a3680e03733b90d383655d9686a4b18dcb9ae4a61e4eb30cd78b97a0728fa",
+            "raw_log": "raw/n512-fp16-register-cufftdx.log",
+            "raw_log_sha256": "e4a83341e9bae7fac186150060413ed678ee5080d8e2edef5e30c3c4cb04d367",
+            "candidate_count": 3,
+            "selected_median_time_us": 31.9133778
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 128,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "b6b687932fd89f8c0821364be9ffee45e5a45b7fa611867d05843ddeccaff60c",
+            "raw_log": "raw/n512-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "e4a83341e9bae7fac186150060413ed678ee5080d8e2edef5e30c3c4cb04d367",
+            "candidate_count": 3,
+            "selected_median_time_us": 42.4736366
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "3ccdcc8de3d4b10bd252d91412c2c6c2f09e53ba954016b63793e8bd7e0ca2dd",
+            "raw_log": "raw/n512-fp32-register-cufftdx.log",
+            "raw_log_sha256": "6e0622a7535623aa37831424c9208758b1ef5418b5b69155d25902ed0026b184",
+            "candidate_count": 3,
+            "selected_median_time_us": 63.6997108
+          }
+        },
+        {
+          "N": 512,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f4_e8",
+          "geometry": {
+            "ffts_per_block": 4,
+            "elements_per_thread": 8,
+            "threads_per_block": 256,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n512-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "3baad471ad818a6979cda0b3eddbf6861d943fefa5575483a421dda731a4764e",
+            "raw_log": "raw/n512-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "6e0622a7535623aa37831424c9208758b1ef5418b5b69155d25902ed0026b184",
+            "candidate_count": 3,
+            "selected_median_time_us": 79.0795593
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_f2_e16",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "219b4f59101067a5b9b9dc7dab92b4975ec8dbf334e6bb90c01eae5ffe4487fc",
+            "raw_log": "raw/n1024-fp16-register-cufftdx.log",
+            "raw_log_sha256": "13aa54ea1f02a4a00d22c97e21adc953449082f2bc297ea5143d99149815bbc0",
+            "candidate_count": 2,
+            "selected_median_time_us": 75.3291168
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_f2_e16",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "b125722a96635197a64631e609e422b7de689b7aeb40fa0944a28d48d979ced4",
+            "raw_log": "raw/n1024-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "13aa54ea1f02a4a00d22c97e21adc953449082f2bc297ea5143d99149815bbc0",
+            "candidate_count": 2,
+            "selected_median_time_us": 83.8285751
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 64,
+            "shared_bytes": 8192
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "23eeaec83115d7fb6e98a93bcb436b90f8c6e012e66b6367c37598bfea3fe491",
+            "raw_log": "raw/n1024-fp32-register-cufftdx.log",
+            "raw_log_sha256": "4c7b96025ab20302d55c4df99be58ca28f19784a26ca400dca1ab7e4d019c4c4",
+            "candidate_count": 3,
+            "selected_median_time_us": 140.704758
+          }
+        },
+        {
+          "N": 1024,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f2_e16",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n1024-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "61688f06e46c253fe7d4cedf25b61d9db7739a6dcff38b9affa2ab671f02f4d0",
+            "raw_log": "raw/n1024-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "4c7b96025ab20302d55c4df99be58ca28f19784a26ca400dca1ab7e4d019c4c4",
+            "candidate_count": 3,
+            "selected_median_time_us": 164.748322
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "6dbf57fcf7840e06ecd24d6d8efcca69eecb16ab4687d82da6fb06d30d119db4",
+            "raw_log": "raw/n2048-fp16-register-cufftdx.log",
+            "raw_log_sha256": "388881cd7bcae32502636d99c91085180023aadf29813c4c33685534f4acbad5",
+            "candidate_count": 2,
+            "selected_median_time_us": 163.844528
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "262cf23632becba3d2dabaf9054b70d6554215984b760042f7dbdd73dc05847f",
+            "raw_log": "raw/n2048-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "388881cd7bcae32502636d99c91085180023aadf29813c4c33685534f4acbad5",
+            "candidate_count": 2,
+            "selected_median_time_us": 175.691254
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "53c51ed3460d8e0aa126803289261c6d72a003178fde9a83a2ed5c8c803e86c3",
+            "raw_log": "raw/n2048-fp32-register-cufftdx.log",
+            "raw_log_sha256": "9cff888f322918708dd5ce9a416b0d43382739aea354e04ff6f84fc88108401f",
+            "candidate_count": 2,
+            "selected_median_time_us": 287.887115
+          }
+        },
+        {
+          "N": 2048,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 128,
+            "shared_bytes": 16384
+          },
+          "source": {
+            "raw_csv": "raw/n2048-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "8b28b2f09431d75e6d694acdc23ea8d16bbecfb39ab360fb69facb3314bf16f0",
+            "raw_log": "raw/n2048-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "9cff888f322918708dd5ce9a416b0d43382739aea354e04ff6f84fc88108401f",
+            "candidate_count": 2,
+            "selected_median_time_us": 333.226776
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp16",
+          "placement": "register",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp16-register-cufftdx.csv",
+            "raw_csv_sha256": "974c29d10e1b7ed6c143a56ffb047af95611e9ee0136de61dee37580c123c541",
+            "raw_log": "raw/n4096-fp16-register-cufftdx.log",
+            "raw_log_sha256": "02f7e62819400a2b806095f7d437e402571b27bcf94e522ce4fddb6f0ced096b",
+            "candidate_count": 2,
+            "selected_median_time_us": 375.147369
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp16",
+          "placement": "shared",
+          "candidate": "block_default",
+          "geometry": {
+            "ffts_per_block": 2,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp16-shared-cufftdx.csv",
+            "raw_csv_sha256": "df654d7b1e299784fc51a360a0e36d53b7b86c5044a557f17f962ba6fa6a8da6",
+            "raw_log": "raw/n4096-fp16-shared-cufftdx.log",
+            "raw_log_sha256": "02f7e62819400a2b806095f7d437e402571b27bcf94e522ce4fddb6f0ced096b",
+            "candidate_count": 2,
+            "selected_median_time_us": 406.898682
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp32",
+          "placement": "register",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp32-register-cufftdx.csv",
+            "raw_csv_sha256": "5c045c5ffc14cf8a7aef89bd50843ce51540b6cdf1c6f3d921cffbb161b290af",
+            "raw_log": "raw/n4096-fp32-register-cufftdx.log",
+            "raw_log_sha256": "8b33290bd6aeb17a71c8bd6fdfd032d2c6076cb759ae4a84c4bdeebd648377a0",
+            "candidate_count": 2,
+            "selected_median_time_us": 652.356506
+          }
+        },
+        {
+          "N": 4096,
+          "precision": "fp32",
+          "placement": "shared",
+          "candidate": "block_f1_e16",
+          "geometry": {
+            "ffts_per_block": 1,
+            "elements_per_thread": 16,
+            "threads_per_block": 256,
+            "shared_bytes": 32768
+          },
+          "source": {
+            "raw_csv": "raw/n4096-fp32-shared-cufftdx.csv",
+            "raw_csv_sha256": "785b1217dc9ea17bf8cc546b6f8f235bedfff73d4d2884a415f8e418e5122a9d",
+            "raw_log": "raw/n4096-fp32-shared-cufftdx.log",
+            "raw_log_sha256": "8b33290bd6aeb17a71c8bd6fdfd032d2c6076cb759ae4a84c4bdeebd648377a0",
+            "candidate_count": 2,
+            "selected_median_time_us": 701.755798
+          }
+        }
+      ]
+    }
+  }
+}

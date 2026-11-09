@@ -62,6 +62,43 @@ def make_part(path, configs=((64, "fp16", "register"),), gpu="A100", status="com
     return path
 
 
+def make_preset_part(path, n=64, gpu="A100", mode="preset"):
+    part = make_part(path, ((n, "fp16", "register"),), gpu=gpu, libraries=("cuFFTDx",))
+    manifest = json.loads(Path(__file__).with_name("cufftdx_presets.json").read_text())
+    saved = manifest["gpus"][gpu]
+    cell = next(r for r in saved["cells"] if (r["N"], r["precision"], r["placement"]) == (n, "fp16", "register"))
+    metadata = json.loads((part / "metadata.json").read_text())
+    descriptor = MEASURE.preset_descriptor(gpu)
+    uuid = saved["measurement_environment"]["gpu_uuid"]
+    name, compute = saved["gpu_name"], saved["compute_capability"]
+    metadata.update(gpu_name=name, compute_capability=compute, gpu_uuid=uuid,
+                    effective_CUDA_VISIBLE_DEVICES=uuid, cufftdx_build=saved["build"],
+                    cufftdx={"mode": mode}, source_sha256={
+                        **descriptor["provenance"]["candidate_source_sha256"],
+                        descriptor["manifest_path"]: descriptor["manifest_sha256"]},
+                    gpu_inventory_before={"exit_code": 0, "stdout":
+                        f"0, {uuid}, {name}, 575.1, {saved['measurement_environment']['memory_MiB']} MiB\n"})
+    if mode == "preset":
+        metadata["cufftdx"]["preset"] = descriptor
+    command = metadata["commands"][0]
+    if mode == "preset":
+        command["argv"][3:3] = ["--candidate", cell["candidate"]]
+    raw = ASSEMBLE.strict_csv(part / command["stdout"], MEASURE.CUFFTDX_RAW_FIELDS)[:2]
+    for row in raw:
+        row.update(candidate=cell["candidate"], **cell["geometry"])
+    MEASURE.write_csv(part / command["stdout"], raw, MEASURE.CUFFTDX_RAW_FIELDS)
+    (part / command["stderr"]).write_text(
+        "compiled_CUDART=12090 runtime=12080 driver=12090 cuFFT=11303 extra_R_warmups=3\n"
+        f"GPU={name} compute={compute} batch=1024 R=256 trials=2\nGPU_UUID={uuid}\n"
+        f"library=cufftdx cuFFTDx=10501 target_SM={saved['build']['cufftdx_target_sm']}\n")
+    rows = MEASURE.parse_raw((part / command["stdout"]).read_text(), n=n, precision="fp16",
+                             placement="register", batch=1024, repeats=256, trials=2,
+                             gpu=gpu, raw_csv=command["stdout"], library="cuFFTDx")
+    MEASURE.write_csv(part / "data.csv", rows, MEASURE.FIELDS)
+    MEASURE.atomic_json(part / "metadata.json", metadata)
+    return part
+
+
 class AssemblyTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -234,6 +271,59 @@ class AssemblyTests(unittest.TestCase):
             with self.subTest(value=value), patch.dict("os.environ", {"THUNDERFFT_TABLE3_N_LIST": value}):
                 with self.assertRaises(ValueError):
                     MEASURE.selection_env("THUNDERFFT_TABLE3_N_LIST", MEASURE.SIZES, int)
+
+    def test_presets_validate_and_assemble_across_all_gpu_families(self):
+        parts = [make_preset_part(self.root / gpu, gpu=gpu) for gpu in ASSEMBLE.GPUS]
+        output = self.root / "assembled"
+        result = ASSEMBLE.assemble(parts, output, "smoke")
+        self.assertEqual(result["collected_configurations"], 3)
+        rows, metadata = ASSEMBLE.read_assembled(output, "smoke")
+        self.assertEqual(len(rows), 6)
+        self.assertEqual(set(metadata["cufftdx_selection"]), set(ASSEMBLE.GPUS))
+        self.assertEqual({v["mode"] for v in metadata["cufftdx_selection"].values()}, {"preset"})
+        self.assertIn("no candidate search", metadata["candidate_selection"])
+
+    def test_preset_assembly_rejects_native_arguments_or_manifest_tampering(self):
+        part = make_preset_part(self.root / "part")
+        original = json.loads((part / "metadata.json").read_text())
+        for field in ("argv", "manifest"):
+            metadata = json.loads(json.dumps(original))
+            if field == "argv":
+                del metadata["commands"][0]["argv"][3:5]
+            else:
+                metadata["cufftdx"]["preset"]["manifest_sha256"] = "0" * 64
+            MEASURE.atomic_json(part / "metadata.json", metadata)
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "argv|manifest"):
+                ASSEMBLE.load_part(part, "smoke")
+
+    def test_preset_assembly_rejects_wrong_launch_geometry(self):
+        part = make_preset_part(self.root / "part")
+        rows = ASSEMBLE.strict_csv(part / "data.csv", MEASURE.FIELDS)
+        for row in rows:
+            row["threads_per_block"] = "128"
+        MEASURE.write_csv(part / "data.csv", rows, MEASURE.FIELDS)
+        with self.assertRaisesRegex(ValueError, "geometry"):
+            ASSEMBLE.load_part(part, "smoke")
+
+    def test_mixing_cufftdx_modes_is_rejected_even_across_gpu_families(self):
+        preset = make_preset_part(self.root / "a100")
+        sweep = make_preset_part(self.root / "h100", gpu="H100", mode="all")
+        with self.assertRaisesRegex(ValueError, "selection modes"):
+            ASSEMBLE.assemble([preset, sweep], self.root / "assembled", "smoke")
+
+    def test_assembled_preset_mode_cannot_be_relabelled_as_full_search(self):
+        part = make_preset_part(self.root / "part")
+        output = self.root / "assembled"
+        ASSEMBLE.assemble([part], output, "smoke")
+        metadata = json.loads((output / "metadata.json").read_text())
+        metadata["cufftdx_selection"]["A100"] = {"mode": "all"}
+        MEASURE.atomic_json(output / "metadata.json", metadata)
+        with self.assertRaisesRegex(ValueError, "selection disagrees"):
+            ASSEMBLE.read_assembled(output, "smoke")
+        del metadata["cufftdx_selection"]
+        MEASURE.atomic_json(output / "metadata.json", metadata)
+        with self.assertRaisesRegex(ValueError, "selection disagrees"):
+            ASSEMBLE.read_assembled(output, "smoke")
 
 
 if __name__ == "__main__":
