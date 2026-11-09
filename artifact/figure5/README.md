@@ -65,8 +65,9 @@ To keep parts and assemble them later without a GPU:
 A run writes to `result/figure5/<run_id>/`:
 
 - `data.csv`: per-trial time and relative L2 error for each library and filter size
-- `summary.csv`: median, minimum and maximum time per library/filter, plus arithmetic means over measured filter sizes
-- `figure.pdf`: runtime versus filter size, with the skipped cuDNN tail left as a gap and annotated
+- `summary.csv`: `filter,cudnn,cufft,cufftdx,thunderfft`, mean time (ms) over trials per filter size
+  (empty where a library was not measured, e.g. the skipped cuDNN tail)
+- `figure.pdf`: mean runtime versus filter size (linear time axis), with the skipped cuDNN tail left as a gap and annotated
 - `metadata.json`: settings, GPU, source and binary hashes, `policy_skipped` and any additional truncated sizes
 - `commands.txt` and `raw/`: native commands and their stdout/stderr
 - `configure.log`, `build.log`, `run.log`, `status.json`: build and runner logs
@@ -76,6 +77,5 @@ Assembly writes `data.csv`, `summary.csv`, `figure.pdf`, `metadata.json` and
 cells) to `result/collections/fig5/assembled/figure5/`. Fast paper mode omits
 21 cuDNN filter sizes; `coverage_complete` is false even when all selected
 measurements complete. Plots retain those positions as NaN gaps; raw CSVs
-contain measured rows only. cuDNN's paper-grid arithmetic mean is `mean(5)`;
-the three FFT libraries use `mean(26)`. These means cover different size sets.
-Full mode gives all four libraries `mean(26)`.
+contain measured rows only, and `summary.csv` leaves the skipped `cudnn` cells
+empty. Full mode fills every cell.

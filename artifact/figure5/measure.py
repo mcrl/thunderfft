@@ -33,6 +33,9 @@ FIGURE5 = {
     "precision": "fp32",
     "truncate": ("cuDNN",),
     "libraries": ("cuFFT", "cuFFTDx", "ThunderFFT", "cuDNN"),
+    # summary.csv: filter,cudnn,cufft,cufftdx,thunderfft with the mean time (ms) over trials.
+    "summary": "wide_mean",
+    "summary_columns": ("cuDNN", "cuFFT", "cuFFTDx", "ThunderFFT"),
     "notes": {"ThunderFFT": "64x64 tiles, 64-point TF32 Tensor Core C2C FFTs (ThunderFFT device API) with a zero "
                             "imaginary part, real input/output, cuFFT filter FFT timed",
               "cuFFTDx": "64x64 tiles, thread-level FP32 cuFFTDx 64-point C2C FFTs with a zero imaginary part, "

@@ -226,6 +226,27 @@ def summarize(rows):
     return summary
 
 
+def summarize_wide(rows, libraries):
+    """One row per filter with the mean time over trials of each library in its own
+    lower-case column (empty when that cell was not measured)."""
+    groups = {}
+    for row in rows:
+        groups.setdefault((int(row["filter"]), row["library"]), []).append(float(row["time_ms"]))
+    return [{"filter": size, **{library.lower(): f"{statistics.mean(groups[size, library]):.4f}"
+                                if (size, library) in groups else "" for library in libraries}}
+            for size in sorted({size for size, _ in groups})]
+
+
+def write_summary(path, rows, spec):
+    """Long median/min/max summary, or the wide per-filter mean table when the spec
+    sets summary="wide_mean" (Figure 5)."""
+    if spec.get("summary") == "wide_mean":
+        columns = spec["summary_columns"]
+        TABLE3.write_csv(path, summarize_wide(rows, columns), ("filter", *(c.lower() for c in columns)))
+    else:
+        TABLE3.write_csv(path, summarize(rows), SUMMARY_FIELDS)
+
+
 def diverged(rows, library, size, ratio):
     """True when `library` is more than `ratio` times slower than the fastest other
     library measured at this filter size (median over trials)."""
@@ -368,7 +389,7 @@ def collect(spec, runners, build_dir, output, profile, sources):
             backends, output, spec, identity[0], shape, filters, tuple(r[0] for r in runners))
         rows += backend_rows
         TABLE3.write_csv(output / "data.csv", rows, FIELDS)
-        TABLE3.write_csv(output / "summary.csv", summarize(rows), SUMMARY_FIELDS)
+        write_summary(output / "summary.csv", rows, spec)
         metadata["libraries"] = sorted({row["library"] for row in rows})
         measured_cells = {(row["library"], int(row["filter"])) for row in rows}
         metadata["coverage_complete"] = all((library, size) in measured_cells
