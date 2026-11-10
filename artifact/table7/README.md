@@ -8,34 +8,50 @@ on an A100.
 | Variant | Source commit | Kernel | Mode |
 |---|---|---|---|
 | `shared_stage_radix4` | new reconstruction; source SHA-256 | stage-wise shared-memory radix-4 FFT; no register-fragment permutation | validated or timing-only |
+| `register_branch_cached` | `51e346c` mapping + `652808b` permutation; source SHA-256 | complete register FFT; cached initialized coefficients; lane-dependent permutations | validated or timing-only |
 | `register_branch` | `51e346c` | register FFT with lane-dependent branches; complete FFT | validated or timing-only |
 | `register_uniform` | `5e37821` | register FFT with remapped fragments; complete FFT | validated or timing-only |
 | `historical_e4aa1b0` | `e4aa1b0` | shared-memory round trip; MMA operand setup omitted (partial) | timing-only |
 | `historical_652808b` | `652808b` | register path; MMA operand setup and stage permutation omitted (partial) | timing-only |
 
-The `+ reducing communication` row uses **`e4aa1b0`**
-(`historical_e4aa1b0`). Its A100 timing rounds to **0.0079 ms**, with about
-**33%** Tensor Core utilization. `variants.json` records this artifact selection
-in `paper_row_sources`; it does not establish the original paper experiment's
-exact identity. The native `register_branch` ID still identifies `51e346c` and
-remains available as a separate diagnostic. It never substitutes for a missing
-`e4aa1b0` measurement in the selected row.
+The `+ reducing communication` row selects **`register_branch_cached`**, a
+complete-FFT reconstruction using the valid `51e346c` data mapping and the
+three conditional-swap permutation from checkpoint `652808b`, preceding
+`403c6ae` (`reduce divergence`). It restores every stage permutation and MMA
+operand; the original checkpoint comments out both. This is a derived
+implementation, not an unmodified historical kernel. Its 28 distinct coefficient
+pairs are prepared once before repetition, matching `shared_stage_radix4`; the
+difference-based timing excludes that preparation for both rows. The `§` marker and source/binary hashes identify this
+new implementation; its original paper-stage identity remains unconfirmed.
 
-Timing-only mode is the default, so normal Table 7 collection includes the
-selected partial kernel. It skips numerical checks and marks rows
-`accuracy_status=unchecked`. `e4aa1b0` omits MMA B-fragment initialization and
-includes a shared-memory round trip; its reported time measures that instruction
-path rather than a complete FFT. The table retains this qualification.
-With the estimated tcFFT baseline available, the identified `e4aa1b0` and
-`5e37821` rows also show their timing ratios. These retain the `†` unchecked
-marker and are not correctness-validated FFT speedups.
-Explicit validated mode (`THUNDERFFT_TABLE7_TIMING_ONLY=0`) checks the three
-complete candidates at R=1 against an FP64 DFT; it cannot supply the selected
-partial-kernel row.
+The [native A100 comparison](reference/a100-register-cached-20261110/README.md)
+measures **9.3051 µs** for the derived three-condition cached candidate, versus
+**10.3741 µs** for the earlier switch-based cached candidate. Restoring the
+checkpoint with coefficient preparation inside repetition measures **11.4207 µs**.
+The shared candidate measures **10.9742 µs**, the original register branch
+**11.9388 µs**, and the uniform register candidate **3.6680 µs** (N=64,
+batch=65536, R=1000). These are repeated-computation timings, not full FFT calls.
+Separate R=1 Gaussian and tone checks pass with maximum per-transform relative
+L2 error **0.00151072429021**. The compiled derived kernel uses 194 registers,
+retains 48 HMMA instructions per repeat, and has no local-memory spills or
+shared/global loads/stores in the repeated interval. Its host W64 LUT follows
+the same construction as the shared and uniform candidates; the archived
+original branch's float-PI construction is preserved. The original checkpoint's
+approximately **3.48 µs** partial-kernel timing cannot be used as an FFT result.
 
-The [three-trial A100 confirmation](reference/a100-e4aa1b0-20261109/README.md)
-records a median of 0.0078878722 ms and 32.7225% utilization, with the original
-CSV, native log and source/binary hashes.
+Normal collection includes the four complete candidates. Timing-only remains
+the default and marks each run `accuracy_status=unchecked`.
+`THUNDERFFT_TABLE7_TIMING_ONLY=0` validates all four at R=1 against an FP64 DFT.
+The native `register_branch` ID retains the unmodified `51e346c` implementation
+as a separate diagnostic, with coefficient preparation in the repeated path.
+It never substitutes for missing `register_branch_cached` evidence.
+
+The old `e4aa1b0` and `652808b` partial kernels remain available only through
+explicit `THUNDERFFT_TABLE7_VARIANTS` selection with timing-only mode. Their
+operand initialization is incomplete; their timings are not complete FFT
+measurements and cannot populate the current reduced-communication row.
+[Archived e4aa1b0 evidence](reference/a100-e4aa1b0-20261109/README.md) is preserved
+unchanged with its original selection history and approximately 7.9 µs timing.
 
 The first paper row, `radix16`, is an **estimate**, calculated during paper
 assembly from validated Table 6 tcFFT measurements on A100 at batch 65536.
@@ -97,10 +113,10 @@ describe the older implementation, not the current default.
 Run locally on an A100 80GB PCIe GPU.
 
 ```bash
-./run.sh table7                    # smoke: all five available kernels, timing-only
-./run.sh table7 --profile paper    # paper: all five available kernels, timing-only
+./run.sh table7                    # smoke: four complete candidates, timing-only
+./run.sh table7 --profile paper    # paper: four complete candidates, timing-only
 
-# Optional numerical checks for the three complete-FFT candidates
+# Optional numerical checks for the four complete-FFT candidates
 THUNDERFFT_TABLE7_TIMING_ONLY=0 ./run.sh table7 --profile paper
 ```
 
@@ -116,11 +132,11 @@ does not launch a Table 6 measurement:
 
 Variants can also be split across parts with `THUNDERFFT_TABLE7_VARIANTS`
 (same build and settings in every part).
-To add only the selected 0.0079 ms kernel to an existing collection:
+To collect only the selected communication-reduction candidate:
 
 ```bash
-THUNDERFFT_TABLE7_VARIANTS=historical_e4aa1b0 THUNDERFFT_TABLE7_TIMING_ONLY=1 \
-  ./run.sh table7 --profile paper --collection t7 --part e4aa1b0
+THUNDERFFT_TABLE7_VARIANTS=register_branch_cached THUNDERFFT_TABLE7_TIMING_ONLY=0 \
+  ./run.sh table7 --profile paper --collection t7 --part register-cached
 ./run.sh table7 --assemble --collection t7 --profile paper
 ```
 
@@ -128,7 +144,7 @@ THUNDERFFT_TABLE7_VARIANTS=historical_e4aa1b0 THUNDERFFT_TABLE7_TIMING_ONLY=1 \
 
 | Environment variable | Values | Default (smoke / paper) |
 |---|---|---|
-| `THUNDERFFT_TABLE7_VARIANTS` | comma-separated subset of `register_branch`, `register_uniform`, `shared_stage_radix4`, `historical_e4aa1b0`, `historical_652808b` | all five; `register_branch,register_uniform,shared_stage_radix4` when `TIMING_ONLY=0` |
+| `THUNDERFFT_TABLE7_VARIANTS` | comma-separated subset of `register_branch`, `register_uniform`, `shared_stage_radix4`, `register_branch_cached`, `historical_e4aa1b0`, `historical_652808b` | `register_branch,register_uniform,shared_stage_radix4,register_branch_cached` |
 | `THUNDERFFT_TABLE7_TIMING_ONLY` | `0` or `1` | `1` |
 | `THUNDERFFT_TABLE7_TRIALS` | 1..100 | `2` / `3` |
 | `THUNDERFFT_TABLE7_BATCH` | positive multiple of 16 (paper requires `65536`) | `1024` / `65536` |
@@ -156,7 +172,7 @@ estimated row; its projected values have separate columns. The pipeline records
 this estimate as a coverage limitation in both fast and full modes.
 
 `kernel_comparison.csv` and `data.csv` retain native measurement IDs. Selecting
-`historical_e4aa1b0` for the `register_branch` paper role changes presentation
+`register_branch_cached` for the `register_branch` paper role changes presentation
 only; it does not rename a kernel or rewrite any archived measurement.
 
 The same explicit selection applies to `shared_stage_radix4` for the

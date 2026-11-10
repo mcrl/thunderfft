@@ -1,0 +1,32 @@
+{
+  "scope": "read-only git history inspection; scratch extraction and compile only; no GPU use",
+  "commits": {
+    "c800961": {
+      "date": "2025-09-12",
+      "message": "dump",
+      "register_radix4": "uninitialized B fragment and incorrect branch permutation for patterns 1/2; stage0 local is correct",
+      "shared_radix8": "generic header calls FP16 MMA only; not usable as a TF32 source"
+    },
+    "e4aa1b0": {
+      "date": "2025-09-14",
+      "message": "float implementation done",
+      "register_radix4": "identical executable tokens to c800961 after comments/whitespace removal",
+      "shared_radix8": "real TF32 implementation added here. B initialized; N64 source is structurally complete, GPU correctness not run by review agent",
+      "host_harness": "main initializes only first N values of N*batch allocation; validation checks first transform only; use modern full-batch harness"
+    },
+    "bbeffb2": {
+      "date": "2025-09-15",
+      "message": "dump",
+      "register_radix4": "missing B setup, scalar +16 rather than +32 second half offset, invalid 8-scalar permutation. Scratch restoration compiled; not historical unmodified source",
+      "shared_radix8": "N64 equivalent algorithm to e4aa1b0 with generalized N arguments; new MMA helper unused, tail loop empty N64",
+      "host_harness": "all N*batch inputs initialized, but historical validation still only first transform"
+    }
+  },
+  "equivalence_evidence": "register-function-equivalence.json",
+  "permutation_evidence": "permutation-mapping-proof.json",
+  "restored_bbe_benchmark": "bbeffb2-restored/benchmark",
+  "restored_bbe_provenance": "bbeffb2-restored/restoration.json",
+  "restored_bbe_adapter_command": "benchmark historical_652808b 65536 1000 3",
+  "restored_bbe_compile": "CUDA12.9 nvcc -O3 -std=c++17 -arch=sm_80 -lineinfo; succeeded, no GPU execution",
+  "table7_use": "None of these unmodified register kernels may be labeled validated complete FFT; restored source must be identified as restored. Shared radix8 is a different decomposition and is not a direct reducing-communication radix4 row replacement."
+}

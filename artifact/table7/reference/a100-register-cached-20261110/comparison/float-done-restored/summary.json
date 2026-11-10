@@ -1,0 +1,9 @@
+{
+  "candidate": "float-done-restored",
+  "exit_code": 0,
+  "median_us": 12.8645124435,
+  "validation_lines": [
+    "validation_input=bounded_complex_gaussian validation_batch=64 R=1 reference=cpu_fp64_dft relative_l2=0.0013189892921 max_transform_relative_l2=0.00145808246783 nonfinite_outputs=0 output_guard_changed=0 threshold=0.005 passed=1",
+    "validation_input=complex_tone validation_batch=64 R=1 reference=cpu_fp64_dft relative_l2=0.0011010903732 max_transform_relative_l2=0.00151072429021 nonfinite_outputs=0 output_guard_changed=0 threshold=0.005 passed=1"
+  ]
+}

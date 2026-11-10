@@ -235,12 +235,15 @@ latency. This scope is recorded in metadata and the table's `‡` note.
 Source/binary hashes identify the row; the original paper-stage identity remains
 unconfirmed. Its time is measured anew, not filled from the
 paper's 0.0120 ms reference.
-The `+ reducing communication` row selects the `e4aa1b0` timing-only kernel
-(approximately 0.0079 ms on A100); its omitted operand initialization is noted
-in the table. Table 7 defaults to collecting all five available kernels in
-timing-only mode, marked `†`. Set `THUNDERFFT_TABLE7_TIMING_ONLY=0` to validate
-the three complete-FFT candidates at R=1; that mode does not fill the selected
-partial-kernel row. Missing measurements for the selected radix-4 reconstruction
+The `+ reducing communication` row selects `register_branch_cached`, a complete
+register FFT using the `51e346c` data mapping and the three conditional swaps
+from pre-divergence checkpoint `652808b`. Every stage permutation and MMA
+operand is restored; 28 coefficient pairs are prepared before repetition matching the shared
+candidate. It is a derived reconstruction marked `§`, identified by source and
+binary hashes. Table 7 defaults to four complete candidates in timing-only mode,
+marked `†`; set `THUNDERFFT_TABLE7_TIMING_ONLY=0` for R=1 numerical validation.
+The partial historical kernels remain explicit diagnostic options and cannot
+fill current paper rows. Missing measurements for either selected reconstruction
 fail the complete pipeline instead of being accepted as a missing original stage.
 
 Cloud stages require the evaluator account's Vast.ai credentials and incur

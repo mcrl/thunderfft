@@ -154,9 +154,8 @@ def add_baseline_speedups(rows):
 def requested_variants(manifest):
     explicit = os.environ.get("THUNDERFFT_TABLE7_VARIANTS")
     if explicit is None:
-        timing_only = selected_timing_only()
         return ",".join(v["id"] for v in manifest_entries(manifest)
-                        if v["status"] == "available" and (timing_only or not v.get("require_timing_only")))
+                        if v["status"] == "available" and not v.get("require_timing_only"))
     return explicit
 
 

@@ -1,0 +1,133 @@
+{
+  "commit": "51e346c0fea2767c79075c2798fa2598876415a6",
+  "source_repository": "https://github.com/rhrnald/fft",
+  "source_files": [
+    {
+      "path": "fft/my_fft.cu",
+      "sha256": "253ee929d5be4b18fb5d31c30c0757c1ae1a8aaf4232ebe146949d386b516b2d"
+    },
+    {
+      "path": "fft/my_fft.h",
+      "sha256": "829acfaab2479c84c2bc423b31a6579aeb90a56652f8ec9ce8907c1e031e35db"
+    }
+  ],
+  "excerpts": [
+    {
+      "path": "fft/my_fft.h",
+      "symbol": "reverse_2bit_groups",
+      "lines": [
+        23,
+        31
+      ],
+      "excerpt_sha256": "7dda64caf6fd29c4b5404d10d51c46f4a66124931da1951996ff8f948483d2cf"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "fill_reg_b",
+      "lines": [
+        74,
+        133
+      ],
+      "excerpt_sha256": "6f6c481f03a2d3841d368ca1dda35ca9b28466217a392d4f0d2a4dda6fff2634"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "mma_m16n8k8_tf32_f32_rowcol",
+      "lines": [
+        148,
+        165
+      ],
+      "excerpt_sha256": "4557a57876f09a3b141a0f89710ad4f68a4c432dbd48616322146b3c23351a6b"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "permute_radix4",
+      "lines": [
+        167,
+        201
+      ],
+      "excerpt_sha256": "b7eba95f7bb0520274154544092807a9f5e6b204411d8f46491d9198ce7f2227"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "fft_kernel_r64_b16",
+      "lines": [
+        204,
+        274
+      ],
+      "excerpt_sha256": "c3331e53fb7a1e0c344ef074222b3d521833280b875821918beda3e1bbfa571c"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "fft_kernel_radix64_batch16",
+      "lines": [
+        412,
+        466
+      ],
+      "excerpt_sha256": "5939d2754925cf48928761e2c931de2dd280f36f37827e8683b4b5076aa63848"
+    },
+    {
+      "path": "fft/my_fft.h",
+      "symbol": "host_twiddle_generation",
+      "lines": [
+        70,
+        73
+      ],
+      "excerpt_sha256": "8ada3ec890168d9db376974557630dd92200cb57a102a05681a820a329821ba0"
+    }
+  ],
+  "adaptations": [
+    "Namespace thff_table7_51e346c; same-valued macros converted to namespace constexpr to avoid symbol collisions.",
+    "No executable statements, loop-unroll directives, data layouts, permutation branches, MMA instructions, or twiddle arithmetic changed.",
+    "Original global already includes final __syncwarp; no synchronization fix needed."
+  ],
+  "resources_sm80_cuda12_9": {
+    "registers": 218,
+    "stack_bytes": 0,
+    "spill_store_bytes": 0,
+    "spill_load_bytes": 0,
+    "static_shared_bytes": 8448,
+    "dynamic_shared_bytes": 0
+  },
+  "twiddle": {
+    "count": 64,
+    "type": "cuFloatComplex",
+    "generation": "float theta = -2.0f * 3.14159265358979323846f * i / 64.0f; make_cuFloatComplex(cosf(theta), sinf(theta))",
+    "pointer_required": true
+  },
+  "mma_flops_per_fft": 6144,
+  "paper_identity": "unconfirmed",
+  "gpu_validation": {
+    "status": "passed_local_a100_r1",
+    "date": "2026-11-07",
+    "gpu": "NVIDIA A100 80GB PCIe",
+    "cuda": "12.9",
+    "reference": "CPU FP64 DFT of represented FP32 input",
+    "inputs": [
+      "bounded_complex_gaussian",
+      "complex_tone"
+    ],
+    "batch": 64,
+    "maximum_transform_relative_l2": 0.00151072429021,
+    "nonfinite_outputs": 0,
+    "output_guard_changed": 0
+  },
+  "historical_build_comparison": {
+    "commit_403c6ae": {
+      "cuda_versions": [
+        "11.7",
+        "12.8",
+        "12.9"
+      ],
+      "sm": 80,
+      "stack_bytes": 256,
+      "registers": 74
+    },
+    "stashed_executable": {
+      "commit": "744eeea",
+      "path": "fft/fft",
+      "branch_stack_bytes": 256,
+      "note": "Confirms local-memory array also existed in a historical executable."
+    }
+  }
+}

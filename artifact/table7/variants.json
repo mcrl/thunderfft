@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "scope": "N64 TF32 unit-kernel measurements: three complete-FFT candidates and two explicitly partial historical kernels; end-to-end FFT is outside timing scope, and exact paper-stage identities remain unconfirmed",
-  "gpu_validation": "available_candidates_passed_local_a100_r1",
+  "scope": "N64 TF32 unit-kernel measurements: four complete-FFT candidates by default; two explicitly partial historical kernels are opt-in diagnostics. End-to-end FFT is outside timing scope, and exact paper-stage identities remain unconfirmed",
+  "gpu_validation": "recorded_per_candidate_and_run",
   "variants": [
     {
       "id": "radix16",
@@ -130,10 +130,10 @@
       "paper_identity": "unconfirmed"
     },
     "register_branch": {
-      "source_variant": "historical_e4aa1b0",
-      "selection_status": "artifact_selected",
-      "selection_date": "2026-11-09",
-      "selection_basis": "Selected artifact source for the approximately 0.0079 ms reduced-communication row; exact original-paper identity remains unconfirmed.",
+      "source_variant": "register_branch_cached",
+      "selection_status": "artifact_selected_reconstruction",
+      "selection_date": "2026-11-10",
+      "selection_basis": "Derived complete FFT using the 51e346c data mapping and the equivalent three conditional-swap permutation from pre-divergence checkpoint 652808b. Restores all operands and stage permutations omitted by the original checkpoint. All 28 distinct MMA coefficient pairs are initialized once before repetition, matching shared_stage_radix4 timing scope. Source hashes identify this derived implementation; neither the unmodified checkpoint nor original paper-stage identity is claimed.",
       "paper_identity": "unconfirmed"
     },
     "register_uniform": {
@@ -161,6 +161,26 @@
       "source_selection_basis": "New reconstruction using a conflict-free shared layout, vector loads/stores at every radix-4 stage, and 21 coefficient pairs cached per launch before repetition; no register-stage permutation. Difference-based timing excludes coefficient preparation. Identified by source SHA-256, not a recovered historical commit.",
       "source_dependencies": [
         "ablation/kernels/historical_uniform_5e37821.cuh"
+      ]
+    },
+    {
+      "id": "register_branch_cached",
+      "status": "available",
+      "implementation_kind": "reconstructed",
+      "title": "Derived register FFT with checkpoint three-condition permutations and cached coefficients",
+      "source": "ablation/kernels/register_branch_cached.cuh",
+      "namespace": "thff_table7_register_cached",
+      "kernel": "fft_kernel_radix64_batch16",
+      "candidate_paper_role": "reduced communication",
+      "paper_identity": "unconfirmed",
+      "gpu_validation": "passed_local_a100_r1",
+      "timing_scope": "repeated_kernel_compute_coefficients_prepared_once",
+      "operation_coverage": "complete_fft_candidate",
+      "known_source_issues": [],
+      "mma_flops_per_fft_slot": 6144,
+      "source_selection_basis": "Derived complete FFT with 51e346c data mapping, the three-condition permutation helper preserved in 652808b before 403c6ae reduce divergence, and 28 distinct initialized coefficient pairs cached once before repetition. All stage permutations and operands are present; the original 652808b timing-only kernel omits both. Difference-based timing excludes coefficient preparation, matching shared_stage_radix4. This is a reconstruction identified by hashes, not an unmodified historical kernel.",
+      "source_dependencies": [
+        "ablation/kernels/historical_branch_51e346c.cuh"
       ]
     }
   ]

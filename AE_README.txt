@@ -350,12 +350,17 @@ Table 5: boundary recheck or full exponent scan
     and is recorded in metadata and the ‡ note. Source/binary hashes identify
     the reconstruction; the original paper source and its 0.0120 ms experiment
     have not been recovered.
-    Default collection measures all five available kernels in timing-only mode
-    (unchecked, marked †). THUNDERFFT_TABLE7_TIMING_ONLY=0 checks the three
-    complete-FFT candidates separately at R=1. The selected reduced-communication
-    kernel omits MMA operand initialization and requires timing-only mode; its
-    incomplete FFT scope remains stated in the table. A missing measurement for
-    the selected radix-4 reconstruction fails the complete pipeline.
+    The reduced-communication row selects register_branch_cached, a complete
+    register FFT with the 51e346c data mapping and three conditional swaps from
+    checkpoint 652808b, before reduce divergence. Every stage permutation and
+    MMA operand is restored; this is a derived implementation. Its 28 coefficient
+    pairs are prepared once before repetition, matching the shared candidate's
+    timing boundary. The § note identifies this reconstruction.
+    Default collection measures four complete candidates in timing-only mode
+    (unchecked, marked †). THUNDERFFT_TABLE7_TIMING_ONLY=0 validates all four
+    at R=1. Partial historical kernels require explicit diagnostic selection and
+    cannot fill current paper rows. A missing measurement for either selected
+    reconstruction fails the complete pipeline.
 - The pipeline can report completed_with_coverage_limits with exit status 0.
 - Absolute timings depend on GPU clocks/load. Smoke timings are not paper results.
 

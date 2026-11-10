@@ -35,9 +35,9 @@ class EstimatedBaselineTests(unittest.TestCase):
         self.table6 = self.root / "table6"
         self.table6.mkdir()
         self.parts = []
-        for variant, timing in (("historical_e4aa1b0", 7.9), ("register_uniform", 4)):
+        for variant, timing in (("register_branch_cached", 7.9), ("register_uniform", 4)):
             part = fixture.fixture_part(self.root, variant, variant, time_us=timing,
-                                        timing_only=variant == "historical_e4aa1b0")
+                                        timing_only=variant == "register_branch_cached")
             meta = json.loads((part / "metadata.json").read_text())
             meta["profile"] = "paper"
             meta["settings"].update(batch=65536, R=1000)
@@ -85,7 +85,7 @@ class EstimatedBaselineTests(unittest.TestCase):
         self.assertAlmostEqual(float(rows["register_branch"]["speedup_vs_estimated_radix16"]), .008161125 / .0079)
         self.assertEqual(rows["register_branch"]["accuracy_status"], "unchecked")
         self.assertEqual(rows["register_branch"]["timing_status"], "collected_unvalidated")
-        self.assertEqual(rows["register_branch"]["source_variant"], "historical_e4aa1b0")
+        self.assertEqual(rows["register_branch"]["source_variant"], "register_branch_cached")
         self.assertAlmostEqual(float(rows["register_uniform"]["speedup_vs_estimated_radix16"]), .008161125 / .004)
         self.assertEqual(rows["register_uniform"]["radix16_speedup"], "")
         self.assertEqual(rows["radix4_compute"]["estimated_time_ms"], "")

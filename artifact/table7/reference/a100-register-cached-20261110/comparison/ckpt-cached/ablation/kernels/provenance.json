@@ -1,0 +1,424 @@
+{
+  "schema_version": 1,
+  "status": "Selected complete-FFT candidates are recovered from 51e346c (branch) and 5e37821 (uniform); optional historical_e4aa1b0 and historical_652808b measure explicitly partial instruction paths in timing-only mode. The branch previously passed local A100 R1 checks; selected uniform R1 validation remains pending. Exact paper identity is unconfirmed and original radix16/stage-wise radix4 sources remain missing. The top-level source_files/extracted_functions describe the retained inactive 403c6ae header.",
+  "source_repository": "https://github.com/rhrnald/fft",
+  "source_commit": "403c6ae8b152684d5b60bf04ebf067f02e97e026",
+  "source_commit_url": "https://github.com/rhrnald/fft/commit/403c6ae8b152684d5b60bf04ebf067f02e97e026",
+  "source_files": [
+    {
+      "path": "fft/my_fft.cu",
+      "sha256": "8f8869bb43f5103630802a7ebae27e8464ede22e16f0a754690adddf891f7b1e"
+    },
+    {
+      "path": "fft/my_fft.h",
+      "sha256": "2008ffd0456e15604dca9f9638ededa90300d16b73f90b62bec8a864b6564281"
+    },
+    {
+      "path": "fft/utils.h",
+      "sha256": "0eaa30496736ffda7dace2ebece625aa0dd7b1ed8797bbc64f4449d7d0fcace9"
+    },
+    {
+      "path": "fft/fft_tc_sm.h",
+      "sha256": "9ae0869502d9e70737918c30b093f979bdbe5b298aa47caf088eae13017d9f6a",
+      "role": "Reference radix-8 shared-stage layout for reconstruction, not copied as a radix-16 or radix-4 original"
+    }
+  ],
+  "extracted_functions": [
+    {
+      "symbol": "W",
+      "source_path": "fft/utils.h",
+      "source_lines": [
+        66,
+        69
+      ],
+      "source_excerpt_sha256": "47ae4851d2227cc732a67a9264776012322a41f357078ba74a23d6bc5da96848"
+    },
+    {
+      "symbol": "reverse_2bit_groups",
+      "source_path": "fft/my_fft.h",
+      "source_lines": [
+        23,
+        31
+      ],
+      "source_excerpt_sha256": "7dda64caf6fd29c4b5404d10d51c46f4a66124931da1951996ff8f948483d2cf"
+    },
+    {
+      "symbol": "fill_reg_b",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        73,
+        106
+      ],
+      "source_excerpt_sha256": "25bc40eac58a4fdc5e02838abc5ce07c68685df6189e9a60a19e4f114e64ec76"
+    },
+    {
+      "symbol": "fill_reg_b_branch",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        108,
+        126
+      ],
+      "source_excerpt_sha256": "9555ff8e307b8a0882c2cc89df1e21d0768d095df18b49b777c97d85aa161658"
+    },
+    {
+      "symbol": "mma_m16n8k8_tf32_f32_rowcol",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        141,
+        161
+      ],
+      "source_excerpt_sha256": "5447ed7adadde4028215c4cc6500fbc5a00218c3ffff2c716ba6ce379c0a07aa"
+    },
+    {
+      "symbol": "swap_inline",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        263,
+        268
+      ],
+      "source_excerpt_sha256": "5e834953be274d7a83e02a3947bebbcc4d8d04eb12ab795622661998d737c48b"
+    },
+    {
+      "symbol": "permute_radix4_tmp",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        269,
+        279
+      ],
+      "source_excerpt_sha256": "34fc37d1b4a8b4df5e89bc07f105fb0c25a5e10bc8adae044f0962a3ea39b5ed"
+    },
+    {
+      "symbol": "permute_radix4",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        281,
+        417
+      ],
+      "source_excerpt_sha256": "ce39765880482621e00a420fe49ffe546cbcfb2d46e4135f7310a79a642e3410"
+    },
+    {
+      "symbol": "fft_kernel_r64_b16",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        420,
+        534
+      ],
+      "source_excerpt_sha256": "72085c5d9bb7370e8044893321f9d0d2ea2cac2f0538b58b7352e5ae4fb43942"
+    },
+    {
+      "symbol": "fft_kernel_radix64_batch16",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        672,
+        767
+      ],
+      "source_excerpt_sha256": "69d1a477dd87b7a5fe7faa1dd7e7f6288b168eb16fa2eba7375a852eb83f0d17"
+    },
+    {
+      "symbol": "fft_kernel_r64_b16_branch",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        769,
+        840
+      ],
+      "source_excerpt_sha256": "281e27208e13f147d449e17cb2ce7ceec139df6458dee2d95310c1384f6764df"
+    },
+    {
+      "symbol": "fft_kernel_radix64_batch16_branch",
+      "source_path": "fft/my_fft.cu",
+      "source_lines": [
+        844,
+        897
+      ],
+      "source_excerpt_sha256": "ae2c57cd06619727733b4d13875aec9820870b25119cac433491b51a51492fce"
+    }
+  ],
+  "adaptations": [
+    "Extracted the minimal TF32 device/helper/global closure into one self-contained CUDA header; omitted the legacy host benchmark headers and unrelated FP16/prototype functions.",
+    "Wrapped recovered names in namespace thff_table7_legacy. Replaced needed preprocessor constants by same-value namespace constexpr constants to avoid leaking macros.",
+    "Kept W arithmetic and the original double PI literal; changed the PI identifier to local kLegacyPi to avoid collisions with existing project PI macros.",
+    "Added __syncwarp() after the branch global shared-output store loop, before cross-lane shared reads for the final global stores.",
+    "Fixed the historical uniform global output omission: retained the i<ept loop and original first-group index, and added a same-column store into batch laneid/4+8 from reg[i+ept] for both real and imaginary lanes. Input/output mappings and core arithmetic are otherwise preserved.",
+    "Removed trailing whitespace while preserving executable statements and original loop-unroll directives."
+  ],
+  "known_limitations": [
+    "Exact paper-stage identity remains unconfirmed; no recovered original is available for the first two rows.",
+    "N=64, forward, FP32 storage with historical TF32 raw-bit MMA input behavior, one warp per block, batch a positive multiple of 16. No batch-tail support.",
+    "R>1 reuses the resident layout without another input digit reversal; it is a throughput workload, while the optional complete-FFT accuracy gate uses R=1.",
+    "The former reconstructed first two kernels are retained for diagnostics under reconstructed_* IDs and are not eligible to fill the original paper rows.",
+    "Both selected implementations use LUTs but differ in fragment layouts, permutation and unrolling; their comparison does not isolate one optimization.",
+    "The uniform source is now the original 5e37821 with complete output stores. It has not undergone the artifact R1 gate; previous validation of repaired 403c6ae is not transferred.",
+    "The optional partial kernels omit MMA B-fragment initialization; 652808b also omits inter-stage permutation. Their compiler-dependent emitted instruction timings measure declared partial functions, not complete FFT correctness."
+  ],
+  "kernels": [
+    {
+      "name": "thff_table7_legacy::fft_kernel_radix64_batch16",
+      "candidate_paper_stage": "reducing_branch_divergence",
+      "block": [
+        32,
+        1,
+        1
+      ],
+      "grid": "batch / 16",
+      "dynamic_shared_bytes": 8192,
+      "twiddle_pointer": "Unused by TF32 helpers; nullptr is valid."
+    },
+    {
+      "name": "thff_table7_legacy::fft_kernel_radix64_batch16_branch",
+      "candidate_paper_stage": "reducing_communication",
+      "block": [
+        32,
+        1,
+        1
+      ],
+      "grid": "batch / 16",
+      "dynamic_shared_bytes": 0,
+      "static_shared_bytes": 8448,
+      "twiddle_pointer": "Unused by TF32 helpers; nullptr is valid."
+    }
+  ],
+  "external_code_copied": false,
+  "license_note": "No LICENSE/COPYING/NOTICE file was found in the inspected original project tree. Retain original commit provenance; no external tcFFT source is included.",
+  "history_search": {
+    "date": "2026-11-07",
+    "repository": "rhrnald/fft",
+    "reachable_commits": 98,
+    "reachable_unique_source_blobs": 401,
+    "additional_unreachable_stash_commits": 34,
+    "refs_inspected": [
+      "main",
+      "H100",
+      "origin/bsm",
+      "refactoring",
+      "backup/refactoring-e337bc9",
+      "stash"
+    ],
+    "result": "No identifiable N64 radix-16 baseline or stage-wise shared-memory TF32 radix-4 original found in the inspected objects.",
+    "nearest_shared_source": {
+      "commit": "403c6ae8b152684d5b60bf04ebf067f02e97e026",
+      "path": "fft/fft_tc_sm.h",
+      "symbol": "tc_kernel_fft_tc_sm<float, 8, false>",
+      "radix": 8
+    },
+    "scope_note": "Search result describes the locally available history, not all possible private branches or working copies.",
+    "additional_evidence": {
+      "source_doc_data_blobs_checked": 494,
+      "result_like_text_blobs_checked": 11,
+      "remote_heads_checked": [
+        "rhrnald/fft: H100, bsm, main, refactoring",
+        "mcrl/thunderfft: main, artifact"
+      ],
+      "stashed_executable": {
+        "commit": "744eeea",
+        "path": "fft/fft",
+        "sm": 80,
+        "old_branch_registers": 74,
+        "old_branch_stack_bytes": 256,
+        "old_branch_static_ldl_stl": 208,
+        "baseline_fft_radix": 8
+      },
+      "old_profiler_report": {
+        "commit": "744eeea",
+        "path": "fft/test.ncu-rep",
+        "gpu": "A100 80GB PCIe",
+        "launches": 38,
+        "kernels": "Uniform FP16/TF32 and radix8 shared FP16/TF32; no branch or radix16."
+      },
+      "original_403c6ae_builds": {
+        "cuda_versions": [
+          "11.7",
+          "12.8",
+          "12.9"
+        ],
+        "sm": 80,
+        "branch_stack_bytes": 256
+      },
+      "newly_selected_original": {
+        "commit": "51e346c0fea2767c79075c2798fa2598876415a6",
+        "details": "51e346c-provenance.json",
+        "kernel_statement_changes": 0,
+        "original_and_extracted_sass_instructions_equal": true
+      },
+      "conclusion": "No direct record tying four original kernels to Table 7 was found. The preserved shared baseline is radix8, not radix16. Match by algorithm and source evidence, not by similar timing values."
+    }
+  },
+  "reconstructed_kernels": [
+    {
+      "variant": "radix16",
+      "name": "thff_table7_legacy::fft_kernel_radix16_batch16",
+      "source": "radix16.cuh",
+      "implementation_kind": "reconstructed",
+      "paper_identity": "unconfirmed",
+      "block": [
+        32,
+        1,
+        1
+      ],
+      "grid": "batch / 16",
+      "dynamic_shared_bytes": 0,
+      "static_shared_bytes": 9344,
+      "radices": [
+        16,
+        4
+      ],
+      "input_permutation": "source(i) = 4*(i % 16) + i/16",
+      "mma_per_warp": 80,
+      "mma_flops_per_fft": 10240,
+      "operation_count": "(4 radix-16 butterflies * 4 N tiles * 4 K tiles + 16 radix-4 butterflies) * 2048 FLOPs / 16 FFTs",
+      "reused_helpers": [
+        "W",
+        "mma_m16n8k8_tf32_f32_rowcol"
+      ],
+      "adaptations": [
+        "New mixed-radix digit mapping, dense real matrix embedding and stage driver.",
+        "All A fragments are loaded before shared output is overwritten; warp barriers publish stages.",
+        "Shared layout uses 16 transforms and stride 64+9 from the historical shared-stage convention."
+      ],
+      "twiddle_pointer": "Unused; nullptr is valid.",
+      "canonical_paper_row": false,
+      "native_variant": "reconstructed_radix16"
+    },
+    {
+      "variant": "radix4_compute",
+      "name": "thff_table7_legacy::fft_kernel_radix4_shared_batch16",
+      "source": "radix4_shared.cuh",
+      "implementation_kind": "reconstructed",
+      "paper_identity": "unconfirmed",
+      "block": [
+        32,
+        1,
+        1
+      ],
+      "grid": "batch / 16",
+      "dynamic_shared_bytes": 0,
+      "static_shared_bytes": 9344,
+      "radices": [
+        4,
+        4,
+        4
+      ],
+      "input_permutation": "reverse_2bit_groups<6>(i)",
+      "mma_per_warp": 48,
+      "mma_flops_per_fft": 6144,
+      "operation_count": "3 stages * 16 butterflies * 2048 FLOPs / 16 FFTs",
+      "reused_helpers": [
+        "reverse_2bit_groups",
+        "fill_reg_b_branch",
+        "mma_m16n8k8_tf32_f32_rowcol"
+      ],
+      "adaptations": [
+        "Adapted the historical radix-8 shared-stage layout to radix-4 with one m16n8k8 instruction per butterfly.",
+        "Added a warp barrier before each butterfly's in-place stores; retained barriers between stages.",
+        "Every stage loads and stores shared memory rather than retaining FFT data across stages in registers."
+      ],
+      "twiddle_pointer": "Unused by TF32 helper; nullptr is valid.",
+      "canonical_paper_row": false,
+      "native_variant": "reconstructed_radix4_compute"
+    }
+  ],
+  "operation_count_note": "The reconstructed radix-16/radix-4 kernel issues 10240 FLOPs/FFT. The paper's approximate high-radix formula 32*N*log2(N)=12288 is not used as the instruction count of this new implementation.",
+  "active_selection": {
+    "register_branch": {
+      "source": "historical_branch_51e346c.cuh",
+      "source_commit": "51e346c0fea2767c79075c2798fa2598876415a6",
+      "details": "51e346c-provenance.json",
+      "kernel": "thff_table7_51e346c::fft_kernel_radix64_batch16",
+      "twiddle_pointer": "Required; initialize 64 entries with the historical float-PI host formula.",
+      "paper_identity": "unconfirmed",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "complete_fft_candidate"
+    },
+    "register_uniform": {
+      "source": "historical_uniform_5e37821.cuh",
+      "source_commit": "5e37821a24e02e9986b61acda044bfdf2f99f563",
+      "details": "5e37821-provenance.json",
+      "kernel": "thff_table7_5e37821::fft_kernel_radix64_batch16",
+      "twiddle_pointer": "Required; initialize 64 entries with the original double-PI expression converted to float theta.",
+      "dynamic_shared_bytes": 8704,
+      "gpu_validation": "pending_local_a100_r1",
+      "paper_identity": "unconfirmed",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_coverage": "complete_fft_candidate"
+    }
+  },
+  "history_timing_evidence": {
+    "path": "../../history/manifest.json",
+    "purpose": "Historical unit-kernel timing and source-selection evidence with explicit operation/accuracy scope. The archived raw CSVs are not current collection bundles; this format limitation does not exclude unchecked unit-kernel timings collected by the runner.",
+    "selected_branch": "51e346c",
+    "selected_uniform": "5e37821",
+    "timing_only": true,
+    "accuracy_checked": false,
+    "full_paper_comparison": false,
+    "optional_partial_sources": [
+      "e4aa1b0",
+      "652808b"
+    ]
+  },
+  "retained_inactive_kernels": [
+    {
+      "name": "thff_table7_legacy::fft_kernel_radix64_batch16_branch",
+      "reason": "Historical 403c6ae direct-trigonometry branch is retained as source evidence but no longer dispatched. Original and extracted SM80 builds use a 256-byte local-memory array, also present in the stashed executable."
+    },
+    {
+      "name": "thff_table7_legacy::fft_kernel_radix64_batch16",
+      "reason": "Repaired 403c6ae is retained for reconstruction helpers and source evidence; active uniform now uses original 5e37821 including its own complete output stores."
+    }
+  ],
+  "optional_microbenchmarks": [
+    {
+      "id": "historical_e4aa1b0",
+      "source_commit": "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375",
+      "implementation_kind": "historical_partial_kernel",
+      "require_timing_only": true,
+      "operation_coverage": "partial_fft_operand_setup_omitted",
+      "known_source_issues": [
+        "MMA B-fragment initialization is commented out; operand values are uninitialized and compiler dependent.",
+        "Whole-transform shared-memory loads/stores occur inside each R iteration.",
+        "Timing measures emitted instruction throughput, not a mathematically valid FFT."
+      ],
+      "paper_identity": "unconfirmed",
+      "mma_flops_per_fft_slot": 6144,
+      "source": "historical_e4aa1b0.cuh",
+      "details": "e4aa1b0-provenance.json",
+      "kernel": "thff_table7_e4aa1b0::fft_kernel_radix64_batch16",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_count": "48 issued m16n8k8 MMA instructions * 2048 FLOPs / 16 FFT-sized slots; not a count of correct FFTs"
+    },
+    {
+      "id": "historical_652808b",
+      "source_commit": "652808b8b5865bacf039cbf576e3b53b946ccd0e",
+      "implementation_kind": "historical_partial_kernel",
+      "require_timing_only": true,
+      "operation_coverage": "partial_fft_operand_setup_and_permutation_omitted",
+      "known_source_issues": [
+        "MMA B-fragment initialization is commented out; operand values are uninitialized and compiler dependent.",
+        "Inter-stage permutation is commented out.",
+        "Timing measures emitted instruction throughput, not a mathematically valid FFT."
+      ],
+      "paper_identity": "unconfirmed",
+      "mma_flops_per_fft_slot": 6144,
+      "source": "historical_652808b.cuh",
+      "details": "652808b-provenance.json",
+      "kernel": "thff_table7_652808b::fft_kernel_radix64_batch16",
+      "timing_scope": "repeated_kernel_compute",
+      "operation_count": "48 issued m16n8k8 MMA instructions * 2048 FLOPs / 16 FFT-sized slots; not a count of correct FFTs"
+    }
+  ],
+  "measurement_modes": {
+    "validated": {
+      "eligible_sources": "complete_fft_candidate",
+      "timing_input": "bounded_complex_gaussian_seed1234567",
+      "warmups_per_repeat": 3,
+      "accuracy": "independent R=1 CPU FP64 DFT and guard checks"
+    },
+    "timing_only": {
+      "eligible_sources": "complete FFT candidates and explicitly partial historical kernels",
+      "timing_input": "constant_complex_0.125_minus0.25",
+      "warmups_per_repeat": 1,
+      "accuracy": "unchecked",
+      "assembly_timing_status": "collected_unvalidated",
+      "primary_comparison_output": "kernel_comparison.csv"
+    },
+    "mixed_part_protocols": "Record trial count, warmups and input pattern for each part; protocol_heterogeneous marks differences rather than implying a matched protocol."
+  }
+}

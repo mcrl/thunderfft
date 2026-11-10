@@ -24,6 +24,8 @@ SELECTED_BRANCH_COMMIT = "e4aa1b0bf7d38493fcb8d5ff7c1ffd599c7d6375"
 UNIFORM_COMMIT = "5e37821a24e02e9986b61acda044bfdf2f99f563"
 SHARED_STAGE_SOURCE = "shared_stage_radix4"
 SHARED_STAGE_PATH = "ablation/kernels/shared_stage_radix4.cuh"
+CACHED_BRANCH_SOURCE = "register_branch_cached"
+CACHED_BRANCH_PATH = "ablation/kernels/register_branch_cached.cuh"
 
 # Transcribed from PPoPP27_chaewon__FFT_ (4).pdf, SHA-256
 # 02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9.
@@ -233,7 +235,9 @@ def _table7_selected_sources(indexed, metadata):
         if source == role:
             continue
         row = indexed.get((role,), {})
-        if role == "radix4_compute" and source == SHARED_STAGE_SOURCE:
+        reconstruction_path = {("radix4_compute", SHARED_STAGE_SOURCE): SHARED_STAGE_PATH,
+                               ("register_branch", CACHED_BRANCH_SOURCE): CACHED_BRANCH_PATH}.get((role, source))
+        if reconstruction_path:
             status = row.get("timing_status")
             accuracy = row.get("accuracy_status")
             collected = status in ("collected", "collected_unvalidated")
@@ -241,11 +245,13 @@ def _table7_selected_sources(indexed, metadata):
                     or not isinstance(selection.get("selection_basis"), str)
                     or not selection["selection_basis"].strip()
                     or row.get("source_variant") != source
-                    or row.get("source") != SHARED_STAGE_PATH
+                    or row.get("source") != reconstruction_path
                     or row.get("source_commit", "")
                     or row.get("implementation_kind") != "reconstructed"
                     or row.get("operation_coverage") != "complete_fft_candidate"
                     or row.get("paper_identity") != "unconfirmed"
+                    or (source == CACHED_BRANCH_SOURCE and row.get("timing_scope")
+                        != "repeated_kernel_compute_coefficients_prepared_once")
                     or metadata.get("full_paper_comparison") is True
                     or (status, accuracy) not in (("missing", "not_collected"),
                                                   ("collected", "passed"),
@@ -306,8 +312,8 @@ def _table7(rows, metadata):
         paper_values = PAPER_TABLE7[variant]
         paper_texts = [_decimal(paper_values[0], 4),
                        _decimal(paper_values[1], 0) + "%", _decimal(paper_values[2], 2)]
-        selected_partial = variant == "register_branch" and variant in selected_sources
-        selected_reconstruction = variant == "radix4_compute" and variant in selected_sources
+        selected_partial = variant in selected_sources and row.get("source_variant") == SELECTED_BRANCH_SOURCE
+        selected_reconstruction = variant in selected_sources and row.get("source_variant") in (SHARED_STAGE_SOURCE, CACHED_BRANCH_SOURCE)
         if variant == "radix16" and estimated_baseline:
             displayed.append([label + "*", _decimal(estimated_time, 4),
                               _decimal(estimated_utilization, 0) + "%", "1.00"])
@@ -347,7 +353,7 @@ def _table7(rows, metadata):
                    if (baseline_ok or estimated_baseline) and collected and (not unvalidated or timing_ratio)
                    and measured_time is not None and measured_time > 0
                    and speedup_value is not None and speedup_value > 0 else MISSING)
-        displayed.append([label + ("‡" if selected_reconstruction else "")
+        displayed.append([label + (("§" if variant == "register_branch" else "‡") if selected_reconstruction else "")
                           + ("†" if unvalidated else ""), timing, utilization, speedup])
         timing_status = ("timing_only_partial_fft" if selected_partial else "timing_only_unvalidated") \
             if unvalidated else "measured"
@@ -371,7 +377,9 @@ def _table7(rows, metadata):
         notes.append("‡ Newly reconstructed complete-FFT candidate: each radix-4 stage loads/stores shared memory instead of permuting register fragments. Source and binary hashes identify this implementation; the original paper source and its 0.0120 ms result have not been recovered.")
         if indexed.get(("radix4_compute",), {}).get("timing_scope") == "repeated_kernel_compute_coefficients_prepared_once":
             notes.append("For the optimized ‡ candidate, 21 invariant coefficient pairs are prepared once per kernel launch before repetition. The reported (t_2R - t_R) / R time excludes this preparation and measures the repeated computation, not full FFT launch latency.")
-    if "register_branch" in selected_sources:
+    if "register_branch" in selected_sources and indexed.get(("register_branch",), {}).get("source_variant") == CACHED_BRANCH_SOURCE:
+        notes.append("§ Complete-FFT reconstruction using the 51e346c data mapping and the three conditional swaps from checkpoint 652808b, before reduce divergence. Values remain in registers between stages; lane-dependent permutations are retained and every omitted operand is restored. All MMA operands are initialized; 28 distinct coefficient pairs are prepared once before repetition, matching the shared-stage candidate’s timing boundary. Source/binary hashes identify this derived implementation, not the unmodified checkpoint; original paper-stage identity remains unconfirmed.")
+    elif "register_branch" in selected_sources:
         notes.append("The selected reduced-communication kernel omits MMA B-fragment initialization and includes a shared-memory round trip each repeat; its FFT outputs are undefined.")
     if unchecked_ratio_shown:
         notes.append("Displayed ratios on † rows compare unit-kernel timings with the estimated baseline; they do not represent correctness-validated complete-FFT speedups.")

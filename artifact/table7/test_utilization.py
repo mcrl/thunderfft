@@ -28,6 +28,7 @@ class UtilizationChecks(unittest.TestCase):
         self.assertEqual(a, b)
         self.assertEqual(a, c)
         self.assertEqual(a, d)
+        self.assertEqual(a, utilization.calculate("register_branch_cached", 65536, 7.9, "NVIDIA A100 80GB PCIe"))
         self.assertAlmostEqual(a["utilization_pct"], 32.672280428432326)
 
     def test_mixed_radix16_uses_issued_mma_count_not_fractional_stage_model(self):

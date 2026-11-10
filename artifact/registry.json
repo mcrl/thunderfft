@@ -183,7 +183,7 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "N64 TF32 unit-kernel timings; radix4_compute selects the new shared_stage_radix4 reconstruction (marked ‡), with stage-wise shared-memory loads/stores, source/binary hashes, and unconfirmed original paper identity. The reduced-communication row selects a partial kernel (about 0.0079 ms on A100), with omitted MMA operand setup and unchecked accuracy retained. All five available kernels run in default timing-only mode; explicit validation checks the three complete-FFT candidates at R=1. Radix16 is estimated from validated Table 6 tcFFT at retained utilization. Missing selected reconstruction measurements fail the complete pipeline; exact original paper-stage identities remain unconfirmed."
+      "coverage": "N64 TF32 unit-kernel timings; reducing computation selects shared_stage_radix4 and reducing communication selects register_branch_cached. Both are complete-FFT reconstructions with initialized coefficients prepared once per launch outside the repeated interval, source/binary hashes, and unconfirmed original paper identity. Four complete candidates run by default; THUNDERFFT_TABLE7_TIMING_ONLY=0 validates them at R=1. Historical partial kernels require explicit diagnostic selection and cannot fill current paper rows. Radix16 is estimated from validated Table 6 tcFFT at retained utilization. Missing selected measurements fail the complete pipeline."
     },
     {
       "id": "figure2",

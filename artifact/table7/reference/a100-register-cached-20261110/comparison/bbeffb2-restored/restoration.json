@@ -1,0 +1,20 @@
+{
+  "original_commit": "bbeffb27339f07ef4cb6f55ca6cbc73b1d5c879a",
+  "original_source": "fft/my_fft.cu + reverse_2bit_groups from fft/my_fft.h",
+  "original_source_sha256": "1b216dbb3f528e9f1e5670d25609b2155669bb056666e539828e936a79dc2d1b",
+  "restored_header_sha256": "884ef8209ba3bb07481dd3eb6fa3c32c6147ecea144a0ddee89c228736216724",
+  "is_unmodified_historical_source": false,
+  "changes": [
+    "Restore fill_reg_b<N>(reg_frag_b, i*2, stride, i_perm, j_perm, k, W_4096), using unchanged original LUT helper.",
+    "Correct four scalar float-array second-half offsets from +16 to +32, matching original complex array +16.",
+    "Replace broken eight-scalar permutation with correct three-condition complex-pair swaps; identical four mappings to permute_radix4_local and later corrected ckpt branch.",
+    "Strip comments and unused functions, wrap namespace and use equivalent constexpr constants.",
+    "Scratch benchmark ID historical_652808b validates restored kernel; remove unrelated dynamic shared allocation because original bbeffb2 global kernel uses static shared."
+  ],
+  "preserved": [
+    "Original global input/output index mapping, static 32*33 float2 shared buffer, all 16 transforms per block stored.",
+    "Original float-array register representation, original stage/butterfly loops and MMA.",
+    "Original coefficient calculations remain inside repeated core."
+  ],
+  "validation": "Not run by this review agent. Root will measure."
+}

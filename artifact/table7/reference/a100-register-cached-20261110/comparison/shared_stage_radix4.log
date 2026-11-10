@@ -1,0 +1,8 @@
+gpu=NVIDIA A100 80GB PCIe device=0 sm=8.0 sm_count=108 driver=12090 runtime=12090 cuda_compiler=12.9.41 source=artifact/table7/ablation/benchmark.cu
+variant=shared_stage_radix4 N=64 precision=tf32 direction=forward normalization=none batch=65536 R=1000 trials=5 warmups_per_repeat=3 block=32 grid=4096 dynamic_shared_bytes=0 static_shared_bytes=8192 registers=168 local_bytes=0 input_seed=1234567 guard_elements_each_side=16 mode=timing
+timing=(t_2R-t_R)/R immutable_input_reset_before_every_launch=1 clock_policy=unchanged repeated_output_may_overflow=1 repeated_output_accuracy_claim=0
+accuracy_status=validation_requested timing_only=0 R1_validation=1 output_guard_checks=1
+timing_input=bounded_complex_gaussian_seed1234567
+gpu_uuid=GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6
+validation_input=bounded_complex_gaussian validation_batch=64 R=1 reference=cpu_fp64_dft relative_l2=0.0013155031841 max_transform_relative_l2=0.00144116603807 nonfinite_outputs=0 output_guard_changed=0 threshold=0.005 passed=1
+validation_input=complex_tone validation_batch=64 R=1 reference=cpu_fp64_dft relative_l2=0.00105967673279 max_transform_relative_l2=0.00151327457482 nonfinite_outputs=0 output_guard_changed=0 threshold=0.005 passed=1

@@ -1,0 +1,63 @@
+{
+  "evaluation": "table7",
+  "title": "64-point optimization ablation",
+  "profile": "paper",
+  "cufftdx_mode": "preset",
+  "cudnn_mode": "fast",
+  "table5_range_mode": "boundary",
+  "status": "completed",
+  "exit_code": 0,
+  "implementation": "ready_subset",
+  "owner": null,
+  "coverage": "N64 TF32 unit-kernel timings; reducing computation selects shared_stage_radix4 and reducing communication selects register_branch_cached. Both are complete-FFT reconstructions with initialized coefficients prepared once per launch outside the repeated interval, source/binary hashes, and unconfirmed original paper identity. Four complete candidates run by default; THUNDERFFT_TABLE7_TIMING_ONLY=0 validates them at R=1. Historical partial kernels require explicit diagnostic selection and cannot fill current paper rows. Radix16 is estimated from validated Table 6 tcFFT at retained utilization. Missing selected measurements fail the complete pipeline.",
+  "full_paper_comparison": false,
+  "scientific_validation": "not_assessed",
+  "command": [
+    "bash",
+    "/home/chaewon/ThunderFFT/artifact/table7/run.sh"
+  ],
+  "started_at": "2026-11-10T04:30:51.498920+00:00",
+  "result_dir": "/home/chaewon/ThunderFFT/result/table7/20261110T043051Z-df582bc9",
+  "required_outputs": [
+    "data.csv",
+    "table.csv",
+    "kernel_comparison.csv"
+  ],
+  "presentation": {
+    "schema_version": 1,
+    "evaluation": "table7",
+    "operation": "offline_paper_table_render",
+    "new_gpu_measurements": false,
+    "paper_layout_sha256": "02ab4855e16b721789c35b80a4b2488bc1e7849fa6da3f12f0bae861bb109fd9",
+    "source_csv_sha256": "ef96dede2beeec7e2572a48df9283d6bac133469081dd339f4ea003c4e949093",
+    "inputs": {
+      "table.csv": "ef96dede2beeec7e2572a48df9283d6bac133469081dd339f4ea003c4e949093",
+      "metadata.json": "d0dc5755ba994b59677248af11011620530909079649b2079d80811e065fd117"
+    },
+    "paper_reference_inputs": {
+      "paper_table_references.json": "48a29e9892a00b9321eb8f5aaa10a5dd8224df535dd631e521d9212637388d7c",
+      "table3/paper-table3-all-targets.csv": "75a393ba5bcf0e67632b894e37dbb56c27f1c22ad4494a2712e007c27d470cc4",
+      "paper_table_accuracy.py": "fc600e3eec19bc640f0abc5934c49633635e369c8ece9a0cca22b1f423f2fd71"
+    },
+    "outputs": {
+      "table.pdf": "0cbd4123dc6732b1d8ae9d775e1e1bdc98cb31552243cbb240cff17248195ee9",
+      "table.png": "4a7e1da8c208679a4a7ee1056e445f746addbea3d34aea1f3d5f4eb63051156e",
+      "table.html": "127a473c9da4a0a37ff81d6ddec3b76bcc65f29816b860fcf4b777bf649775b7",
+      "comparison.md": "10c9bc2db300256ed5f96655848afbbf9a8cd5d4be9e97b0e395116213a6d116",
+      "paper-comparison.csv": "480bf28a5a23b875ff42eebc036743beef71bf4d9fd02e1d5e1904615b9a56ba"
+    },
+    "comparison_formula": "100 * (new - paper) / abs(paper); absolute value is relative error",
+    "notes": [
+      "Each original numeric column has three columns: Paper, New, and \u0394%, with a blank separator between groups. \u0394% = (New \u2212 Paper) / |Paper| \u00d7 100; its absolute value is the relative error.",
+      "Paper values are the rounded numbers printed in the supplied PDF. \u2014 means missing or not exactly comparable; model values and estimates retain their stated scope.",
+      "\u2014 denotes an unavailable measurement. Missing original stages are not replaced by retained paper numbers.",
+      "Recovered candidates are displayed under their proposed paper roles; exact original-stage identities remain unconfirmed.",
+      "The original radix-16 baseline is unavailable; speedups relative to that baseline remain unreported.",
+      "\u2020 Timing-only measurement: FFT numerical correctness was not checked.",
+      "Paper references are the printed values. Differences for * and \u2020 rows retain the same estimate and timing-only qualifications; they do not establish a validated FFT reproduction.",
+      "Additional native variants remain in kernel_comparison.csv; only the explicit paper-row source mapping selects a displayed stage."
+    ]
+  },
+  "finished_at": "2026-11-10T04:30:54.661974+00:00",
+  "elapsed_seconds": 3.162713
+}

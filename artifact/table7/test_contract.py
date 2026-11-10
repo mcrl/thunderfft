@@ -51,7 +51,7 @@ class VariantSelectionContract(unittest.TestCase):
 
     def test_candidate_implementation_is_selectable_without_claiming_recovery(self):
         manifest = json.loads((HERE / "variants.json").read_text())
-        candidate, = manifest["candidate_implementations"]
+        candidate = next(entry for entry in manifest["candidate_implementations"] if entry["id"] == "shared_stage_radix4")
         self.assertEqual(candidate["id"], "shared_stage_radix4")
         self.assertEqual(candidate["implementation_kind"], "reconstructed")
         self.assertEqual(candidate["paper_identity"], "unconfirmed")
@@ -64,6 +64,20 @@ class VariantSelectionContract(unittest.TestCase):
         self.assertEqual(source["source_variant"], candidate["id"])
         self.assertEqual(source["selection_status"], "artifact_selected_reconstruction")
         self.assertEqual(measure.variant_provenance(candidate)["source_commit"], "")
+
+    def test_cached_branch_is_complete_reconstruction_with_matched_timing_scope(self):
+        manifest = json.loads((HERE / "variants.json").read_text())
+        candidate = next(entry for entry in manifest["candidate_implementations"]
+                         if entry["id"] == "register_branch_cached")
+        self.assertEqual(candidate["implementation_kind"], "reconstructed")
+        self.assertEqual(candidate["operation_coverage"], "complete_fft_candidate")
+        self.assertEqual(candidate["timing_scope"], "repeated_kernel_compute_coefficients_prepared_once")
+        self.assertEqual(candidate["source_dependencies"], ["ablation/kernels/historical_branch_51e346c.cuh"])
+        self.assertNotIn("source_commit", candidate)
+        self.assertFalse(candidate.get("require_timing_only"))
+        self.assertEqual(manifest["paper_row_sources"]["register_branch"]["source_variant"], candidate["id"])
+        for timing_only in (False, True):
+            self.assertEqual(measure.select_variants(candidate["id"], manifest, timing_only), [candidate])
 
     def test_candidate_ids_cannot_duplicate_historical_ids(self):
         self.manifest["candidate_implementations"] = [{"id": "register_branch", "status": "available"}]
@@ -111,7 +125,7 @@ class VariantSelectionContract(unittest.TestCase):
                 self.assertIn(entry["gpu_validation"], ("passed_local_a100_r1", "pending_local_a100_r1"))
         self.assertEqual(entries["register_branch"]["namespace"], "thff_table7_51e346c")
         self.assertIn(manifest["gpu_validation"], ("available_candidates_passed_local_a100_r1",
-                                                "selected_uniform_requires_local_a100_r1"))
+                                                "selected_uniform_requires_local_a100_r1", "recorded_per_candidate_and_run"))
         experiments = manifest["experimental_sources"]
         self.assertEqual({entry["id"] for entry in experiments},
                          {"reconstructed_radix16", "reconstructed_radix4_compute"})
@@ -140,7 +154,7 @@ class VariantSelectionContract(unittest.TestCase):
             manifest = json.loads((HERE / "variants.json").read_text())
             self.assertEqual(coverage["source_available"],
                              [entry["id"] for entry in measure.manifest_entries(manifest) if entry["status"] == "available"])
-            self.assertEqual(coverage["requested"], "register_branch,register_uniform,shared_stage_radix4,historical_e4aa1b0,historical_652808b")
+            self.assertEqual(coverage["requested"], "register_branch,register_uniform,shared_stage_radix4,register_branch_cached")
             self.assertEqual(coverage["source_missing"], ["radix16", "radix4_compute"])
             self.assertFalse(coverage["full_paper_comparison"])
             self.assertFalse((Path(directory) / "data.csv").exists())

@@ -1,0 +1,146 @@
+[
+  {
+    "pattern": 0,
+    "desired_complex_indices": [
+      0,
+      3,
+      2,
+      1
+    ],
+    "c800_e4_original_branch_complex_indices": [
+      0,
+      3,
+      2,
+      1
+    ],
+    "bbe_original_scalar_indices": [
+      0,
+      2,
+      1,
+      3,
+      4,
+      6,
+      5,
+      7
+    ],
+    "restored_scalar_indices": [
+      0,
+      1,
+      6,
+      7,
+      4,
+      5,
+      2,
+      3
+    ],
+    "restored_matches_desired": true
+  },
+  {
+    "pattern": 1,
+    "desired_complex_indices": [
+      1,
+      0,
+      3,
+      2
+    ],
+    "c800_e4_original_branch_complex_indices": [
+      2,
+      1,
+      0,
+      3
+    ],
+    "bbe_original_scalar_indices": [
+      4,
+      6,
+      5,
+      7,
+      0,
+      2,
+      1,
+      3
+    ],
+    "restored_scalar_indices": [
+      2,
+      3,
+      0,
+      1,
+      6,
+      7,
+      4,
+      5
+    ],
+    "restored_matches_desired": true
+  },
+  {
+    "pattern": 2,
+    "desired_complex_indices": [
+      2,
+      1,
+      0,
+      3
+    ],
+    "c800_e4_original_branch_complex_indices": [
+      1,
+      0,
+      3,
+      2
+    ],
+    "bbe_original_scalar_indices": [
+      0,
+      2,
+      1,
+      3,
+      4,
+      6,
+      5,
+      7
+    ],
+    "restored_scalar_indices": [
+      4,
+      5,
+      2,
+      3,
+      0,
+      1,
+      6,
+      7
+    ],
+    "restored_matches_desired": true
+  },
+  {
+    "pattern": 3,
+    "desired_complex_indices": [
+      3,
+      2,
+      1,
+      0
+    ],
+    "c800_e4_original_branch_complex_indices": [
+      3,
+      2,
+      1,
+      0
+    ],
+    "bbe_original_scalar_indices": [
+      4,
+      6,
+      5,
+      7,
+      0,
+      2,
+      1,
+      3
+    ],
+    "restored_scalar_indices": [
+      6,
+      7,
+      4,
+      5,
+      2,
+      3,
+      0,
+      1
+    ],
+    "restored_matches_desired": true
+  }
+]

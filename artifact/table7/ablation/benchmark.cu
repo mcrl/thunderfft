@@ -9,6 +9,7 @@
 #include "kernels/radix16.cuh"
 #include "kernels/radix4_shared.cuh"
 #include "kernels/shared_stage_radix4.cuh"
+#include "kernels/register_branch_cached.cuh"
 
 #include <algorithm>
 #include <cmath>
@@ -42,7 +43,7 @@ void check_cuda(cudaError_t status, const char* expression) {
 }
 #define CUDA_CHECK(expression) check_cuda((expression), #expression)
 
-enum class Variant { radix16, radix4_shared, shared_stage, branch, uniform, historical_e4aa1b0, historical_652808b };
+enum class Variant { radix16, radix4_shared, shared_stage, branch, branch_cached, uniform, historical_e4aa1b0, historical_652808b };
 
 struct DeviceBuffer {
     cuFloatComplex* pointer = nullptr;
@@ -81,7 +82,7 @@ int parse_int(const char* text, int minimum, int maximum, const char* name) {
 void help() {
     std::printf(
         "Usage: benchmark VARIANT [batch=65536] [R=1000] [trials=3] [--profile|--timing-only]\n"
-        "VARIANT: register_branch | register_uniform | shared_stage_radix4\n"
+        "VARIANT: register_branch | register_branch_cached | register_uniform | shared_stage_radix4\n"
         "Timing-only historical microbenchmarks: historical_e4aa1b0 | historical_652808b\n"
         "Experimental only: reconstructed_radix16 | reconstructed_radix4_compute\n"
         "N=64, forward, unnormalized TF32, batch must be a multiple of 16.\n"
@@ -112,6 +113,9 @@ void launch(Variant variant, cuFloatComplex* data, int batch, unsigned repeats,
     } else if (variant == Variant::uniform) {
         thff_table7_5e37821::fft_kernel_radix64_batch16<<<
             blocks, kThreadsPerBlock, kUniformSharedBytes>>>(data, twiddles, repeats);
+    } else if (variant == Variant::branch_cached) {
+        thff_table7_register_cached::fft_kernel_radix64_batch16<<<
+            blocks, kThreadsPerBlock>>>(data, twiddles, repeats);
     } else if (variant == Variant::historical_e4aa1b0) {
         thff_table7_e4aa1b0::fft_kernel_radix64_batch16<<<
             blocks, kThreadsPerBlock>>>(data, twiddles, repeats);
@@ -295,6 +299,7 @@ int main(int argc, char** argv) {
         else if (variant_name == "reconstructed_radix4_compute") variant = Variant::radix4_shared;
         else if (variant_name == "shared_stage_radix4") variant = Variant::shared_stage;
         else if (variant_name == "register_branch") variant = Variant::branch;
+        else if (variant_name == "register_branch_cached") variant = Variant::branch_cached;
         else if (variant_name == "register_uniform") variant = Variant::uniform;
         else if (variant_name == "historical_e4aa1b0") variant = Variant::historical_e4aa1b0;
         else if (variant_name == "historical_652808b") variant = Variant::historical_652808b;
@@ -324,6 +329,8 @@ int main(int argc, char** argv) {
             CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_shared_stage::fft_kernel_radix4_shared_stage_batch16));
         } else if (variant == Variant::uniform) {
             CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_5e37821::fft_kernel_radix64_batch16));
+        } else if (variant == Variant::branch_cached) {
+            CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_register_cached::fft_kernel_radix64_batch16));
         } else if (variant == Variant::historical_e4aa1b0) {
             CUDA_CHECK(cudaFuncGetAttributes(&attributes, thff_table7_e4aa1b0::fft_kernel_radix64_batch16));
         } else if (variant == Variant::historical_652808b) {
@@ -365,11 +372,13 @@ int main(int argc, char** argv) {
 
         // Preserve the original host expressions: float PI in 51e346c,
         // double PI followed by conversion to float theta in 5e37821.
-        // Both LUTs are initialized outside the timed interval.
+        // The new cached branch uses the same LUT as shared_stage_radix4 for
+        // their matched comparison. Both LUTs are outside the timed interval.
         DeviceBuffer twiddles(kN);
         cuFloatComplex host_twiddles[kN];
         for (int i = 0; i < kN; ++i) {
-            float theta = (variant == Variant::uniform || variant == Variant::shared_stage)
+            float theta = (variant == Variant::uniform || variant == Variant::shared_stage ||
+                           variant == Variant::branch_cached)
                 ? static_cast<float>(-2.0f * 3.14159265358979323846 * i / 64.0f)
                 : -2.0f * 3.14159265358979323846f * i / 64.0f;
             host_twiddles[i] = make_cuFloatComplex(cosf(theta), sinf(theta));

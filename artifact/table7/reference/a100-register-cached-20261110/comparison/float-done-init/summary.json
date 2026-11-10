@@ -1,0 +1,10 @@
+{
+  "candidate": "float-done-init",
+  "exit_code": 1,
+  "median_us": null,
+  "validation_lines": [
+    "validation_input=bounded_complex_gaussian validation_batch=64 R=1 reference=cpu_fp64_dft relative_l2=0.982960409744 max_transform_relative_l2=1.15177856249 nonfinite_outputs=0 output_guard_changed=0 threshold=0.005 passed=0",
+    "validation_input=complex_tone validation_batch=64 R=1 reference=cpu_fp64_dft relative_l2=0.999509181051 max_transform_relative_l2=0.999963231672 nonfinite_outputs=0 output_guard_changed=0 threshold=0.005 passed=0",
+    "error: independent R=1 accuracy gate failed; no timing performed"
+  ]
+}

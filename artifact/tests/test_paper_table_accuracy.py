@@ -337,6 +337,50 @@ class PaperTableAccuracyTests(unittest.TestCase):
                                "selection_basis": "New reconstruction with shared exchange each stage."}}}
         return baseline, selected, metadata
 
+    def cached_branch_table7(self, timing_only=False):
+        baseline, selected, metadata = self.reconstructed_table7(timing_only)
+        selected.update(variant="register_branch", source_variant="register_branch_cached",
+                        source="ablation/kernels/register_branch_cached.cuh",
+                        timing_scope="repeated_kernel_compute_coefficients_prepared_once")
+        selection = metadata["paper_row_sources"].pop("radix4_compute")
+        selection.update(source_variant="register_branch_cached",
+                         selection_basis="Complete register FFT with initialized cached coefficients.")
+        metadata["paper_row_sources"]["register_branch"] = selection
+        return baseline, selected, metadata
+
+    def test_table7_cached_branch_retains_complete_fft_identity_and_timing_boundary(self):
+        for timing_only in (False, True):
+            with self.subTest(timing_only=timing_only):
+                baseline, selected, metadata = self.cached_branch_table7(timing_only)
+                self.write([baseline, selected], metadata)
+                layout = tables.build("table7", self.directory)
+                self.assertEqual(layout["panels"][0]["rows"][3],
+                                 ["+ reducing communication§" + ("†" if timing_only else ""),
+                                  "0.0120", "22%", "0.68"])
+                notes = " ".join(layout["notes"])
+                self.assertIn("All MMA operands are initialized", notes)
+                self.assertIn("28 distinct coefficient pairs are prepared once before repetition", notes)
+                self.assertIn("lane-dependent permutations are retained", notes)
+                self.assertIn("three conditional swaps from checkpoint 652808b", notes)
+                self.assertIn("not the unmodified checkpoint", notes)
+                self.assertNotIn("FFT outputs are undefined", notes)
+                self.assertEqual("correctness was not checked" in notes, timing_only)
+                self.assertEqual(self.comparisons("table7")[3, 1]["status"],
+                                 "timing_only_reconstructed" if timing_only else "measured_reconstructed")
+
+    def test_table7_cached_branch_rejects_missing_hashes_wrong_scope_or_partial_coverage(self):
+        for key, value in (("source_sha256", ""), ("binary_sha256", "invalid"),
+                           ("timing_scope", "repeated_kernel_compute"),
+                           ("operation_coverage", "partial_fft_operand_setup_omitted"),
+                           ("source_commit", "51e346c"), ("source", "unrelated.cuh"),
+                           ("accuracy_status", "unchecked")):
+            with self.subTest(key=key):
+                baseline, selected, metadata = self.cached_branch_table7()
+                selected[key] = value
+                self.write([baseline, selected], metadata)
+                with self.assertRaisesRegex(ValueError, "reconstruction"):
+                    tables.build("table7", self.directory)
+
     def test_table7_reconstruction_keeps_identity_hashes_and_accuracy_qualifications(self):
         for timing_only in (False, True):
             with self.subTest(timing_only=timing_only):
@@ -533,13 +577,14 @@ class PaperTableAccuracyTests(unittest.TestCase):
         self.assertEqual(metadata["collected"]["validated"], [])
         return rows, metadata
 
-    def test_table7_default_assembly_keeps_both_qualified_timing_ratios(self):
+    def test_table7_archived_assembly_keeps_uniform_ratio_but_requires_new_branch_evidence(self):
         rows, metadata = self.default_table7_assembly()
         self.write(rows, metadata)
         layout = tables.build("table7", self.directory)
         displayed = layout["panels"][0]["rows"]
         baseline = next(row for row in rows if row["variant"] == "radix16")
-        for index, variant in ((3, "register_branch"), (4, "register_uniform")):
+        self.assertEqual(displayed[3][1:], ["—", "—", "—"])
+        for index, variant in ((4, "register_uniform"),):
             measured = next(row for row in rows if row["variant"] == variant)
             expected = float(baseline["estimated_time_ms"]) / float(measured["median_time_ms"])
             self.assertEqual(displayed[index][-1], f"{expected:.2f}")

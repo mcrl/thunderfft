@@ -1,0 +1,143 @@
+{
+  "commit": "5e37821a24e02e9986b61acda044bfdf2f99f563",
+  "source_repository": "https://github.com/rhrnald/fft",
+  "source_commit_url": "https://github.com/rhrnald/fft/commit/5e37821a24e02e9986b61acda044bfdf2f99f563",
+  "source_files": [
+    {
+      "path": "fft/my_fft.cu",
+      "sha256": "a07e9f4b536cdc82ecd8e9bc809e0a4fd9a1b6e1a4d65e40e483f54ccdd0082b"
+    },
+    {
+      "path": "fft/my_fft.h",
+      "sha256": "2008ffd0456e15604dca9f9638ededa90300d16b73f90b62bec8a864b6564281"
+    },
+    {
+      "path": "fft/utils.h",
+      "sha256": "860da643b6be2edfa6b3c9b2440875954d109b756b6d35ba5663c463c92d7761"
+    }
+  ],
+  "excerpts": [
+    {
+      "path": "fft/my_fft.h",
+      "symbol": "reverse_2bit_groups",
+      "lines": [
+        23,
+        31
+      ],
+      "excerpt_sha256": "7dda64caf6fd29c4b5404d10d51c46f4a66124931da1951996ff8f948483d2cf"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "fill_reg_b",
+      "lines": [
+        109,
+        144
+      ],
+      "excerpt_sha256": "4146b3ea53979f756e45faf50b6e0df6a9330290fd9d1befa7d3dce6642f6abd"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "mma_m16n8k8_tf32_f32_rowcol",
+      "lines": [
+        179,
+        199
+      ],
+      "excerpt_sha256": "5447ed7adadde4028215c4cc6500fbc5a00218c3ffff2c716ba6ce379c0a07aa"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "swap_inline",
+      "lines": [
+        321,
+        326
+      ],
+      "excerpt_sha256": "5e834953be274d7a83e02a3947bebbcc4d8d04eb12ab795622661998d737c48b"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "permute_radix4_tmp",
+      "lines": [
+        327,
+        337
+      ],
+      "excerpt_sha256": "34fc37d1b4a8b4df5e89bc07f105fb0c25a5e10bc8adae044f0962a3ea39b5ed"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "fft_kernel_r64_b16",
+      "lines": [
+        478,
+        592
+      ],
+      "excerpt_sha256": "72085c5d9bb7370e8044893321f9d0d2ea2cac2f0538b58b7352e5ae4fb43942"
+    },
+    {
+      "path": "fft/my_fft.cu",
+      "symbol": "fft_kernel_radix64_batch16",
+      "lines": [
+        878,
+        948
+      ],
+      "excerpt_sha256": "f8168a0e15ddbc06ee4de7216f88c6223bea08a71312581555388431f0541ab3"
+    },
+    {
+      "path": "fft/my_fft.h",
+      "symbol": "host_twiddle_generation",
+      "lines": [
+        72,
+        75
+      ],
+      "excerpt_sha256": "939ee61e5f7e278ffa733403490bc3f4596d10b386b78b7a497d4607133bb216"
+    }
+  ],
+  "adaptations": [
+    "Extracted the minimal original TF32 global/helper closure; omitted unrelated FP16/prototype functions and host benchmark headers.",
+    "Wrapped symbols in namespace thff_table7_5e37821 and converted macros to same-valued namespace constexpr constants.",
+    "No executable kernel statements, loop-unroll directives, MMA instructions, permutations, data mappings, or output stores changed. The original source already writes both groups of eight FFTs."
+  ],
+  "resources_sm80_cuda12_9": {
+    "registers": 151,
+    "stack_bytes": 0,
+    "spill_store_bytes": 0,
+    "spill_load_bytes": 0,
+    "static_shared_bytes": 0,
+    "minimum_dynamic_shared_bytes": 8192,
+    "original_host_dynamic_shared_bytes": 8704
+  },
+  "twiddle": {
+    "count": 64,
+    "type": "cuFloatComplex",
+    "pointer_required": true,
+    "generation": "float theta = -2.0f * 3.14159265358979323846 * i / 64.0f; make_cuFloatComplex(cosf(theta), sinf(theta))",
+    "pi_literal_type": "double",
+    "source": "fft/my_fft.h:72-75 and fft/utils.h:6",
+    "scope": "Initialize outside timing; the separate 51e346c branch source uses a float PI literal."
+  },
+  "mma_flops_per_fft": 6144,
+  "extraction_build_comparison": {
+    "cuda_compiler": "12.9",
+    "architecture": "sm_80",
+    "flags": ["-O3", "-std=c++17", "-arch=sm_80"],
+    "original_and_extracted_sass_instructions_identical": true,
+    "instruction_count": 1296,
+    "local_load_store_instruction_count": 0,
+    "scope": "Build and machine-instruction comparison only; no GPU numerical test."
+  },
+  "paper_identity": "unconfirmed",
+  "gpu_validation": {
+    "status": "pending_local_a100_r1",
+    "reason": "The original 5e37821 kernel was timed in the historical sweep without numerical checks. Earlier 403c6ae validation does not certify this selected source."
+  },
+  "comparison_with_previous_selection": {
+    "previous_source_commit": "403c6ae8b152684d5b60bf04ebf067f02e97e026",
+    "previous_header": "recovered.cuh",
+    "same_executable_functions": [
+      "mma_m16n8k8_tf32_f32_rowcol",
+      "swap_inline",
+      "permute_radix4_tmp",
+      "fft_kernel_r64_b16",
+      "fft_kernel_radix64_batch16 (with previously adapted second output group)"
+    ],
+    "difference": "fill_reg_b reads the 64-entry twiddle LUT instead of computing cosine directly; the original 5e37821 global output already includes both groups."
+  }
+}
