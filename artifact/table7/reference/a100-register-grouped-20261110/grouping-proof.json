@@ -1,0 +1,27 @@
+{
+  "status": "PASS",
+  "claim": "Grouping each conditional swap across disjoint quartets preserves all register values exactly",
+  "strides": [
+    1,
+    4
+  ],
+  "quartets_per_stage": 8,
+  "register_values_per_lane": 32,
+  "lane_pattern_domain": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "pattern_domain_reason": "Native code uses lane & 3",
+  "symbolic_orders_per_quartet": 24,
+  "stage_pattern_order_cases": 192,
+  "register_value_comparisons_per_candidate": 6144,
+  "quartets_are_disjoint_and_cover_all_registers": true,
+  "three_group_conditions_equivalent": true,
+  "one_switch_diagnostic_equivalent": true,
+  "arbitrary_symbolic_input_equivalence": true,
+  "floating_point_operations_in_permutation": 0,
+  "gpu_work_performed": false,
+  "limitation": "Mathematical permutation proof only; does not execute the CUDA source or validate compiled scheduling, FFT arithmetic, or performance"
+}

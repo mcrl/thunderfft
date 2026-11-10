@@ -133,7 +133,7 @@
       "source_variant": "register_branch_cached",
       "selection_status": "artifact_selected_reconstruction",
       "selection_date": "2026-11-10",
-      "selection_basis": "Derived complete FFT using the 51e346c data mapping and the equivalent three conditional-swap permutation from pre-divergence checkpoint 652808b. Restores all operands and stage permutations omitted by the original checkpoint. All 28 distinct MMA coefficient pairs are initialized once before repetition, matching shared_stage_radix4 timing scope. Source hashes identify this derived implementation; neither the unmodified checkpoint nor original paper-stage identity is claimed.",
+      "selection_basis": "Derived complete FFT using the 51e346c data mapping and the equivalent three conditional-swap permutation from pre-divergence checkpoint 652808b. Each of the three lane-dependent condition checks is applied across all eight disjoint quartets per stage, preserving conditional branches, exact permutations and all 48 MMAs. All 28 distinct MMA coefficient pairs are initialized once before repetition, matching shared_stage_radix4 timing scope. Source hashes identify this optimized reconstruction; neither the unmodified checkpoint nor original paper-stage identity is claimed.",
       "paper_identity": "unconfirmed"
     },
     "register_uniform": {
@@ -167,7 +167,7 @@
       "id": "register_branch_cached",
       "status": "available",
       "implementation_kind": "reconstructed",
-      "title": "Derived register FFT with checkpoint three-condition permutations and cached coefficients",
+      "title": "Derived register FFT with grouped checkpoint permutation branches and cached coefficients",
       "source": "ablation/kernels/register_branch_cached.cuh",
       "namespace": "thff_table7_register_cached",
       "kernel": "fft_kernel_radix64_batch16",
@@ -178,7 +178,7 @@
       "operation_coverage": "complete_fft_candidate",
       "known_source_issues": [],
       "mma_flops_per_fft_slot": 6144,
-      "source_selection_basis": "Derived complete FFT with 51e346c data mapping, the three-condition permutation helper preserved in 652808b before 403c6ae reduce divergence, and 28 distinct initialized coefficient pairs cached once before repetition. All stage permutations and operands are present; the original 652808b timing-only kernel omits both. Difference-based timing excludes coefficient preparation, matching shared_stage_radix4. This is a reconstruction identified by hashes, not an unmodified historical kernel.",
+      "source_selection_basis": "Derived complete FFT with 51e346c data mapping and the three-condition permutation from 652808b before 403c6ae reduce divergence. Each condition covers eight disjoint quartets per stage, retaining lane-dependent branches, every permutation and all 48 MMAs. All 28 distinct coefficient pairs are initialized and cached before repetition. Difference-based timing excludes coefficient preparation, matching shared_stage_radix4. Exact source hashes identify this optimization; older ungrouped cached measurements do not fill this row.",
       "source_dependencies": [
         "ablation/kernels/historical_branch_51e346c.cuh"
       ]

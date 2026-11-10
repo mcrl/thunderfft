@@ -237,9 +237,10 @@ unconfirmed. Its time is measured anew, not filled from the
 paper's 0.0120 ms reference.
 The `+ reducing communication` row selects `register_branch_cached`, a complete
 register FFT using the `51e346c` data mapping and the three conditional swaps
-from pre-divergence checkpoint `652808b`. Every stage permutation and MMA
-operand is restored; 28 coefficient pairs are prepared before repetition matching the shared
-candidate. It is a derived reconstruction marked `§`, identified by source and
+from pre-divergence checkpoint `652808b`. Each condition covers all eight
+disjoint quartets per stage; lane-dependent branches, every permutation and
+all 48 MMAs remain. The 28 coefficient pairs are prepared before repetition,
+matching the shared candidate. It is a derived reconstruction marked `§`, identified by source and
 binary hashes. Table 7 defaults to four complete candidates in timing-only mode,
 marked `†`; set `THUNDERFFT_TABLE7_TIMING_ONLY=0` for R=1 numerical validation.
 The partial historical kernels remain explicit diagnostic options and cannot

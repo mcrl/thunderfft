@@ -352,9 +352,10 @@ Table 5: boundary recheck or full exponent scan
     have not been recovered.
     The reduced-communication row selects register_branch_cached, a complete
     register FFT with the 51e346c data mapping and three conditional swaps from
-    checkpoint 652808b, before reduce divergence. Every stage permutation and
-    MMA operand is restored; this is a derived implementation. Its 28 coefficient
-    pairs are prepared once before repetition, matching the shared candidate's
+    checkpoint 652808b, before reduce divergence. Each condition covers eight
+    disjoint quartets per stage, preserving lane-dependent branches, every
+    permutation and all 48 MMAs. This is a derived implementation. Its 28
+    coefficient pairs are prepared before repetition, matching the shared candidate's
     timing boundary. The § note identifies this reconstruction.
     Default collection measures four complete candidates in timing-only mode
     (unchecked, marked †). THUNDERFFT_TABLE7_TIMING_ONLY=0 validates all four

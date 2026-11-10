@@ -1,0 +1,42 @@
+
+Fatbin ptx code:
+================
+arch = sm_80
+code version = [8,8]
+host = linux
+compile_size = 64bit
+compressed
+identifier = /home/chaewon/ThunderFFT/artifact/table7/ablation/benchmark.cu
+ptxasOptions =  --generate-line-info 
+
+Fatbin elf code:
+================
+arch = sm_80
+code version = [1,7]
+host = linux
+compile_size = 64bit
+identifier = /home/chaewon/ThunderFFT/artifact/table7/ablation/benchmark.cu
+
+Resource usage:
+ Common:
+  GLOBAL:0
+ Function _ZN27thff_table7_register_cached26fft_kernel_radix64_batch16EP6float2PKS0_j:
+  REG:160 STACK:0 SHARED:8448 LOCAL:0 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN24thff_table7_shared_stage38fft_kernel_radix4_shared_stage_batch16EP6float2PKS0_j:
+  REG:168 STACK:0 SHARED:8192 LOCAL:0 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN19thff_table7_652808b26fft_kernel_radix64_batch16EP6float2PKS0_j:
+  REG:118 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN19thff_table7_e4aa1b026fft_kernel_radix64_batch16EP6float2PKS0_j:
+  REG:115 STACK:0 SHARED:8448 LOCAL:0 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN19thff_table7_5e3782126fft_kernel_radix64_batch16EP6float2PKS0_j:
+  REG:151 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN19thff_table7_51e346c26fft_kernel_radix64_batch16EP6float2PKS0_j:
+  REG:218 STACK:0 SHARED:8448 LOCAL:0 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN18thff_table7_legacy32fft_kernel_radix4_shared_batch16EP6float2PKS0_j:
+  REG:63 STACK:0 SHARED:9344 LOCAL:0 CONSTANT[2]:8 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN18thff_table7_legacy26fft_kernel_radix16_batch16EP6float2PKS0_j:
+  REG:125 STACK:0 SHARED:9344 LOCAL:0 CONSTANT[2]:8 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN18thff_table7_legacy33fft_kernel_radix64_batch16_branchEP6float2PKS0_j:
+  REG:74 STACK:256 SHARED:8448 LOCAL:0 CONSTANT[2]:8 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN18thff_table7_legacy26fft_kernel_radix64_batch16EP6float2PKS0_j:
+  REG:152 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:8 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0

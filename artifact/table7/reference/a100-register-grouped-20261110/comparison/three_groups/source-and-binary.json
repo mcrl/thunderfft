@@ -1,0 +1,31 @@
+{
+  "variant": "register_branch_cached",
+  "command": [
+    "benchmark",
+    "register_branch_cached",
+    "65536",
+    "1000",
+    "5"
+  ],
+  "CUDA_VISIBLE_DEVICES": "0",
+  "source_files_sha256": {
+    "benchmark.cu": "0cbe2c84be2ca5b1f42d4fe1ccd3654fdceebacdee51739dfdbf82401bc0c59e",
+    "kernels/51e346c-provenance.json": "0075b5ef961d63fe10ba0b61a4c0fc35b5e96b9e6fabba5f7395fd5a65d936ae",
+    "kernels/5e37821-provenance.json": "888d466635597ccb3fbed046785392ac449ff145ddcc1b7379287a4f623dcf09",
+    "kernels/652808b-provenance.json": "328ce18efe50b48d3aba47e7ced2f3496756157a50679e1fe27eeb6c53514542",
+    "kernels/e4aa1b0-provenance.json": "b92ec58d48cac8ae6ac915172d9e8111998d769e171678fe5fc6e902a6a922cf",
+    "kernels/historical_652808b.cuh": "cb310039cee84aeec6c62b5de4ecf0c0860db944a4e8257c74f82bb5eed32eb3",
+    "kernels/historical_branch_51e346c.cuh": "b78c95b6864d22b484481f633582f6835cd95df39e8caaf9522304c86f7fc843",
+    "kernels/historical_e4aa1b0.cuh": "ae8fe49ce2cce5d14953a1070e3f62ffa4decbbafe71c4846b27eb351078912f",
+    "kernels/historical_uniform_5e37821.cuh": "50c766ac47026fa9dfff8c41f44e9123f18125fd1e8f5e5ef64a4b5bf1496ac5",
+    "kernels/provenance.json": "cbffd07612c6fc6d7f7202996a9c5857c6fcee5a3df597854aaaed998132d525",
+    "kernels/radix16.cuh": "76ef188a3ec9c0867305c85415c79c285c971dea0ee07366124e88017eed059d",
+    "kernels/radix4_shared.cuh": "908c1205791d5c3089b62cf4118ed73031ab956a84b41e3edcc831c195b8cf57",
+    "kernels/recovered.cuh": "77ff0d82363e80544991ab0309b1ececb069d2d2853d7d481bc44a3defa99925",
+    "kernels/register_branch_cached.cuh": "c5c27b781d848bb3ecf2b6cdd6573c7e1ca15cd9c719662feff87331f13897a4",
+    "kernels/shared_stage_radix4.cuh": "d7844ec66cc42b9d39d97edbf5bd3e9cc7eab5314946efd46391b431ef372c7b"
+  },
+  "binary_sha256": "b8ab35675befbe03ddd9bd8fc805539eba661786734a623077419b53d38ac3c1",
+  "median_compute_us": 6.5402879715,
+  "source_layout": "Use source/ as the common native build tree, replacing kernels/register_branch_cached.cuh with this directory's header. Source hashes record the exact tree used for the comparison."
+}

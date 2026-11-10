@@ -1,0 +1,7 @@
+{
+  "candidate": "one_switch",
+  "baseline_source_sha256": "6e16e333855c4fd824e17087fa77fdb7945320e92cb7d486d6aafaebba445397",
+  "candidate_source_sha256": "80f97ea7895a2744fb173eae647f54077f118c33b6c8fc91ac30cc1eb7d9e414",
+  "only_change": "stage-wide branch grouping of equivalent register permutation; coefficients/MMA/data mapping unchanged",
+  "gpu_tested": false
+}

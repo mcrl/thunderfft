@@ -1,0 +1,6 @@
+variant,N,batch,precision,trial,inside_repeats,t_R_us,t_2R_us,compute_us,relative_l2,max_transform_relative_l2,nonfinite_outputs,output_guard_changed,passed
+register_branch_cached,64,65536,tf32,0,1000,6565.88792801,13111.2957001,6.54540777206,nan,nan,-1,-1,0
+register_branch_cached,64,65536,tf32,1,1000,6563.83991241,13109.2481613,6.5454082489,nan,nan,-1,-1,0
+register_branch_cached,64,65536,tf32,2,1000,6566.91217422,13106.1763763,6.53926420212,nan,nan,-1,-1,0
+register_branch_cached,64,65536,tf32,3,1000,6564.86415863,13106.1763763,6.54131221771,nan,nan,-1,-1,0
+register_branch_cached,64,65536,tf32,4,1000,6566.91217422,13106.1763763,6.53926420212,nan,nan,-1,-1,0

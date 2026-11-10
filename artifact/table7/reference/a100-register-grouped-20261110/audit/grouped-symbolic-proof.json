@@ -1,0 +1,46 @@
+{
+  "status": "PASS",
+  "arbitrary_input_equivalence": true,
+  "cases": [
+    {
+      "stride": 1,
+      "pattern": 0,
+      "exact_label_permutation_match": true
+    },
+    {
+      "stride": 1,
+      "pattern": 1,
+      "exact_label_permutation_match": true
+    },
+    {
+      "stride": 1,
+      "pattern": 2,
+      "exact_label_permutation_match": true
+    },
+    {
+      "stride": 1,
+      "pattern": 3,
+      "exact_label_permutation_match": true
+    },
+    {
+      "stride": 4,
+      "pattern": 0,
+      "exact_label_permutation_match": true
+    },
+    {
+      "stride": 4,
+      "pattern": 1,
+      "exact_label_permutation_match": true
+    },
+    {
+      "stride": 4,
+      "pattern": 2,
+      "exact_label_permutation_match": true
+    },
+    {
+      "stride": 4,
+      "pattern": 3,
+      "exact_label_permutation_match": true
+    }
+  ]
+}

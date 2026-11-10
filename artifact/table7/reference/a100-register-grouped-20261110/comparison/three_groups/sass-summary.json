@@ -1,0 +1,67 @@
+{
+  "candidate": "three_groups",
+  "binary": "/home/chaewon/ae-e2e-20261110/table7-register-opt/grouped/three_groups/benchmark",
+  "binary_sha256": "b8ab35675befbe03ddd9bd8fc805539eba661786734a623077419b53d38ac3c1",
+  "resources": "REG:160 STACK:0 SHARED:8448 LOCAL:0 CONSTANT[0]:372 TEXTURE:0 SURFACE:0 SAMPLER:0",
+  "repeat_start": "0x19e0",
+  "repeat_end": "0x3e50",
+  "static_repeat_instructions": 584,
+  "repeat_opcodes": {
+    "HMMA.1688.F32.TF32": 48,
+    "BSSY": 6,
+    "MOV": 215,
+    "IMAD.MOV.U32": 285,
+    "NOP": 2,
+    "BRA": 9,
+    "BSYNC": 6,
+    "LOP3.LUT": 6,
+    "ISETP.NE.AND": 4,
+    "IADD3": 1,
+    "ISETP.GE.U32.AND": 1,
+    "CALL.REL.NOINC": 1
+  },
+  "forward_branches": [
+    {
+      "branch": "0x1d00",
+      "target": "0x2110",
+      "skipped_hmma": []
+    },
+    {
+      "branch": "0x21d0",
+      "target": "0x2300",
+      "skipped_hmma": []
+    },
+    {
+      "branch": "0x22f0",
+      "target": "0x2500",
+      "skipped_hmma": []
+    },
+    {
+      "branch": "0x2750",
+      "target": "0x2960",
+      "skipped_hmma": []
+    },
+    {
+      "branch": "0x2cc0",
+      "target": "0x30d0",
+      "skipped_hmma": []
+    },
+    {
+      "branch": "0x31b0",
+      "target": "0x32e0",
+      "skipped_hmma": []
+    },
+    {
+      "branch": "0x32d0",
+      "target": "0x34e0",
+      "skipped_hmma": []
+    },
+    {
+      "branch": "0x3700",
+      "target": "0x3910",
+      "skipped_hmma": []
+    }
+  ],
+  "gpu_correctness_or_timing": "not_run",
+  "note": "Static opcode totals include divergent alternatives; 48HMMAunconditional with no forwardbranchskip. Predicated finalCALL exits through one-timeoutputpath."
+}

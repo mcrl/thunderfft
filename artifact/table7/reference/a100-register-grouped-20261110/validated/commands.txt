@@ -1,0 +1,4 @@
+/home/chaewon/ThunderFFT/build_artifact/table7/thff_ablation register_branch 65536 1000 5
+/home/chaewon/ThunderFFT/build_artifact/table7/thff_ablation register_uniform 65536 1000 5
+/home/chaewon/ThunderFFT/build_artifact/table7/thff_ablation shared_stage_radix4 65536 1000 5
+/home/chaewon/ThunderFFT/build_artifact/table7/thff_ablation register_branch_cached 65536 1000 5

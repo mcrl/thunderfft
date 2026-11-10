@@ -1,0 +1,54 @@
+{
+  "status": "PASS",
+  "independent_cases": [
+    {
+      "stride": 1,
+      "pattern": 0,
+      "quartets_are_disjoint": true,
+      "exact_label_mapping_equal": true
+    },
+    {
+      "stride": 1,
+      "pattern": 1,
+      "quartets_are_disjoint": true,
+      "exact_label_mapping_equal": true
+    },
+    {
+      "stride": 1,
+      "pattern": 2,
+      "quartets_are_disjoint": true,
+      "exact_label_mapping_equal": true
+    },
+    {
+      "stride": 1,
+      "pattern": 3,
+      "quartets_are_disjoint": true,
+      "exact_label_mapping_equal": true
+    },
+    {
+      "stride": 4,
+      "pattern": 0,
+      "quartets_are_disjoint": true,
+      "exact_label_mapping_equal": true
+    },
+    {
+      "stride": 4,
+      "pattern": 1,
+      "quartets_are_disjoint": true,
+      "exact_label_mapping_equal": true
+    },
+    {
+      "stride": 4,
+      "pattern": 2,
+      "quartets_are_disjoint": true,
+      "exact_label_mapping_equal": true
+    },
+    {
+      "stride": 4,
+      "pattern": 3,
+      "quartets_are_disjoint": true,
+      "exact_label_mapping_equal": true
+    }
+  ],
+  "each_label_represents_arbitrary_complex_bits": true
+}

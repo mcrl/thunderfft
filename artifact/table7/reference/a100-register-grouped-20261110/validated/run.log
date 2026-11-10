@@ -1,0 +1,111 @@
+Command: bash /home/chaewon/ThunderFFT/artifact/table7/run.sh
+Ablation source selection available: register_branch, register_uniform, shared_stage_radix4, register_branch_cached
+-- Configuring done (0.1s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/chaewon/ThunderFFT/build_artifact/table7
+[ 50%] Building CUDA object CMakeFiles/thff_ablation.dir/ablation/benchmark.cu.o
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/recovered.cuh(405): warning #177-D: variable "n" was declared but never referenced
+      constexpr int n = 8;
+                    ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/recovered.cuh(408): warning #177-D: variable "radix" was declared but never referenced
+      constexpr int radix = k / 2;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/recovered.cuh(409): warning #177-D: variable "iter" was declared but never referenced
+      constexpr int iter = 3;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/recovered.cuh(421): warning #177-D: variable "block_id" was declared but never referenced
+      int block_id = blockIdx.x;
+          ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/recovered.cuh(580): warning #177-D: variable "n" was declared but never referenced
+      constexpr int n = 8;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/recovered.cuh(583): warning #177-D: variable "radix" was declared but never referenced
+      constexpr int radix = k / 2;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/recovered.cuh(584): warning #177-D: variable "iter" was declared but never referenced
+      constexpr int iter = 3;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_branch_51e346c.cuh(222): warning #177-D: variable "n" was declared but never referenced
+      constexpr int n = 8;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_branch_51e346c.cuh(225): warning #177-D: variable "radix" was declared but never referenced
+      constexpr int radix = k / 2;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_branch_51e346c.cuh(226): warning #177-D: variable "iter" was declared but never referenced
+      constexpr int iter = 3;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_uniform_5e37821.cuh(237): warning #177-D: variable "n" was declared but never referenced
+      constexpr int n = 8;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_uniform_5e37821.cuh(240): warning #177-D: variable "radix" was declared but never referenced
+      constexpr int radix = k / 2;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_uniform_5e37821.cuh(241): warning #177-D: variable "iter" was declared but never referenced
+      constexpr int iter = 3;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_uniform_5e37821.cuh(253): warning #177-D: variable "block_id" was declared but never referenced
+      int block_id = blockIdx.x;
+          ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_e4aa1b0.cuh(216): warning #177-D: variable "n" was declared but never referenced
+      constexpr int n = 8;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_e4aa1b0.cuh(219): warning #177-D: variable "radix" was declared but never referenced
+      constexpr int radix = k / 2;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_e4aa1b0.cuh(220): warning #177-D: variable "iter" was declared but never referenced
+      constexpr int iter = 3;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_652808b.cuh(181): warning #177-D: variable "n" was declared but never referenced
+      constexpr int n = 8;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_652808b.cuh(184): warning #177-D: variable "radix" was declared but never referenced
+      constexpr int radix = k / 2;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_652808b.cuh(185): warning #177-D: variable "iter" was declared but never referenced
+      constexpr int iter = 3;
+                    ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_e4aa1b0.cuh(126): warning #177-D: variable "i_perm" was declared but never referenced
+              int i_perm = (j / stride) % RADIX_DEVICE_CONST;
+                  ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_e4aa1b0.cuh(127): warning #177-D: variable "k" was declared but never referenced
+              int k = j % stride;
+                  ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_652808b.cuh(91): warning #177-D: variable "i_perm" was declared but never referenced
+              int i_perm = (j / stride) % RADIX_DEVICE_CONST;
+                  ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_652808b.cuh(92): warning #177-D: variable "k" was declared but never referenced
+              int k = j % stride;
+                  ^
+
+/home/chaewon/ThunderFFT/artifact/table7/ablation/kernels/historical_652808b.cuh(65): warning #177-D: variable "laneid" was declared but never referenced
+      int laneid = threadIdx.x;
+          ^
+
+[100%] Linking CUDA executable thff_ablation
+[100%] Built target thff_ablation
+Selected ablation candidates completed; utilization calculated from timing where the hardware peak is confirmed

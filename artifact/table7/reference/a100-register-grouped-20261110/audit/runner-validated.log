@@ -1,0 +1,9 @@
+A100 starting | [..........] | 0/1 steps | 00:00
+A100 building | [..........] | 0/1 steps | Table7 | 00:01
+A100 measuring | [..........] | 0/1 steps | Table7 0/4 variants | 00:06 | register_branch
+A100 finalizing | [#########.] | 1/1 steps | Table7 | 00:08
+A100 completed | [##########] | 1/1 steps | Table7 | 00:08
+[table7] View table: /home/chaewon/ThunderFFT/result/table7/20261110T044249Z-400fff61/table.html
+Summary: /home/chaewon/ThunderFFT/result/runs/20261110T044249Z-400fff61/summary.csv
+Collected parts: /home/chaewon/ThunderFFT/result/collections/communication-grouped-validated-20261110/parts
+Assemble with: ./run.sh --collection communication-grouped-validated-20261110 --assemble --result-dir /home/chaewon/ThunderFFT/result

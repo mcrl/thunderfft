@@ -1,0 +1,27 @@
+{
+  "scope": "N64 TF32 unit-kernel measurements: four complete-FFT candidates by default; two explicitly partial historical kernels are opt-in diagnostics. End-to-end FFT is outside timing scope, and exact paper-stage identities remain unconfirmed",
+  "requested": "register_branch,register_uniform,shared_stage_radix4,register_branch_cached",
+  "phase": "timing",
+  "source_available": [
+    "register_branch",
+    "register_uniform",
+    "shared_stage_radix4",
+    "register_branch_cached",
+    "historical_e4aa1b0",
+    "historical_652808b"
+  ],
+  "source_missing": [
+    "radix16",
+    "radix4_compute"
+  ],
+  "full_paper_comparison": false,
+  "gpu_validation": "selected variants passed separate R1 numerical gates",
+  "timing_only": false,
+  "accuracy_status": "passed",
+  "measured_variants": [
+    "register_branch",
+    "register_uniform",
+    "shared_stage_radix4",
+    "register_branch_cached"
+  ]
+}

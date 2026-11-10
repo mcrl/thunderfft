@@ -17,27 +17,35 @@ on an A100.
 The `+ reducing communication` row selects **`register_branch_cached`**, a
 complete-FFT reconstruction using the valid `51e346c` data mapping and the
 three conditional-swap permutation from checkpoint `652808b`, preceding
-`403c6ae` (`reduce divergence`). It restores every stage permutation and MMA
-operand; the original checkpoint comments out both. This is a derived
+`403c6ae` (`reduce divergence`). Each condition now covers all eight disjoint
+quartets in a stage, reducing repeated branch handling while preserving the
+lane-dependent branches and exact permutation. It restores every stage
+permutation and MMA operand; the original checkpoint comments out both. This is a derived
 implementation, not an unmodified historical kernel. Its 28 distinct coefficient
 pairs are prepared once before repetition, matching `shared_stage_radix4`; the
-difference-based timing excludes that preparation for both rows. The `§` marker and source/binary hashes identify this
-new implementation; its original paper-stage identity remains unconfirmed.
+difference-based timing excludes that preparation for both rows. The `§` marker
+and source/binary hashes identify this new implementation; its original paper-stage identity remains unconfirmed.
 
-The [native A100 comparison](reference/a100-register-cached-20261110/README.md)
-measures **9.3051 µs** for the derived three-condition cached candidate, versus
-**10.3741 µs** for the earlier switch-based cached candidate. Restoring the
-checkpoint with coefficient preparation inside repetition measures **11.4207 µs**.
-The shared candidate measures **10.9742 µs**, the original register branch
-**11.9388 µs**, and the uniform register candidate **3.6680 µs** (N=64,
-batch=65536, R=1000). These are repeated-computation timings, not full FFT calls.
+The [native matched A100 comparison](reference/a100-register-grouped-20261110/README.md)
+measures **6.5403 µs** for the grouped-branch candidate versus **9.3051 µs**
+for the previous per-quartet implementation, approximately **29.7% less time**
+(N=64, batch=65536, R=1000). Coefficient preparation and all FFT operations
+have the same timing boundary in this comparison. These measurements describe
+repeated computation, not full FFT calls.
 Separate R=1 Gaussian and tone checks pass with maximum per-transform relative
-L2 error **0.00151072429021**. The compiled derived kernel uses 194 registers,
-retains 48 HMMA instructions per repeat, and has no local-memory spills or
-shared/global loads/stores in the repeated interval. Its host W64 LUT follows
-the same construction as the shared and uniform candidates; the archived
-original branch's float-PI construction is preserved. The original checkpoint's
-approximately **3.48 µs** partial-kernel timing cannot be used as an FFT result.
+L2 error **0.00151072429021**. Register use drops from **194 to 160**, with no
+local-memory spills. The repeat body retains all **48 HMMA** instructions and
+no shared/global loads/stores; its static branch-control counts drop from
+16 to 6 BSSY instructions and from 33 to 9 BRA instructions. Static totals
+include divergent alternatives and are not general dynamic instruction counts.
+The host W64 LUT follows the same construction as the shared and uniform
+candidates; the original branch's float-PI construction remains unchanged.
+
+The [previous 9.30 µs measurement archive](reference/a100-register-cached-20261110/README.md)
+is preserved unchanged, including historical restoration comparisons. Its
+source hashes describe the earlier per-quartet implementation and cannot fill
+the current selected row. The original checkpoint's approximately **3.48 µs**
+partial-kernel timing cannot be used as an FFT result.
 
 Normal collection includes the four complete candidates. Timing-only remains
 the default and marks each run `accuracy_status=unchecked`.

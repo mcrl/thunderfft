@@ -1,0 +1,8 @@
+A100 starting | [..........] | 0/1 steps | 00:00
+A100 measuring | [##........] | 0/1 steps | Table7 1/4 variants | 00:01 | register_uniform
+A100 finalizing | [#########.] | 1/1 steps | Table7 | 00:03
+A100 completed | [##########] | 1/1 steps | Table7 | 00:03
+[table7] View table: /home/chaewon/ThunderFFT/result/table7/20261110T044330Z-a08a74a1/table.html
+Summary: /home/chaewon/ThunderFFT/result/runs/20261110T044330Z-a08a74a1/summary.csv
+Collected parts: /home/chaewon/ThunderFFT/result/collections/communication-grouped-default-20261110/parts
+Assemble with: ./run.sh --collection communication-grouped-default-20261110 --assemble --result-dir /home/chaewon/ThunderFFT/result

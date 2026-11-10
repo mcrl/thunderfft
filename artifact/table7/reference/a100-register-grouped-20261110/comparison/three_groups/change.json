@@ -1,0 +1,7 @@
+{
+  "candidate": "three_groups",
+  "baseline_source_sha256": "6e16e333855c4fd824e17087fa77fdb7945320e92cb7d486d6aafaebba445397",
+  "candidate_source_sha256": "c5c27b781d848bb3ecf2b6cdd6573c7e1ca15cd9c719662feff87331f13897a4",
+  "only_change": "stage-wide branch grouping of equivalent register permutation; coefficients/MMA/data mapping unchanged",
+  "gpu_tested": false
+}

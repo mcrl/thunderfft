@@ -183,7 +183,7 @@
       },
       "available": true,
       "full_paper_comparison": false,
-      "coverage": "N64 TF32 unit-kernel timings; reducing computation selects shared_stage_radix4 and reducing communication selects register_branch_cached. Both are complete-FFT reconstructions with initialized coefficients prepared once per launch outside the repeated interval, source/binary hashes, and unconfirmed original paper identity. Four complete candidates run by default; THUNDERFFT_TABLE7_TIMING_ONLY=0 validates them at R=1. Historical partial kernels require explicit diagnostic selection and cannot fill current paper rows. Radix16 is estimated from validated Table 6 tcFFT at retained utilization. Missing selected measurements fail the complete pipeline."
+      "coverage": "N64 TF32 unit-kernel timings; reducing computation selects shared_stage_radix4 and reducing communication selects register_branch_cached. The register candidate groups each lane-dependent permutation condition across eight disjoint quartets, preserving branches and all 48 MMAs. Both are complete-FFT reconstructions with initialized coefficients prepared once per launch outside the repeated interval, source/binary hashes, and unconfirmed original paper identity. Four complete candidates run by default; THUNDERFFT_TABLE7_TIMING_ONLY=0 validates them at R=1. Historical partial kernels require explicit diagnostic selection and cannot fill current paper rows. Radix16 is estimated from validated Table 6 tcFFT at retained utilization. Missing selected measurements fail the complete pipeline."
     },
     {
       "id": "figure2",

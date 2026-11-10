@@ -14,34 +14,12 @@
 // may overflow, just like the other Table 7 candidates.
 namespace thff_table7_register_cached {
 
-// Recovered verbatim from rhrnald/fft commit
+// The conditional swaps originate in rhrnald/fft commit
 // 652808b8b5865bacf039cbf576e3b53b946ccd0e, fft/my_fft.cu:223-243.
-// That checkpoint comments out all FP32 calls to this helper; this candidate
-// restores them and is therefore a derived implementation.
-template <typename T>
-__device__ void permute_radix4_branch(T &a, T &b, T &c, T &d, int pattern) {
-    if (pattern == 1 || pattern == 3) {
-        T tmp = a;
-        a = b;
-        b = tmp;
-
-        tmp = c;
-        c = d;
-        d = tmp;
-    }
-    if (pattern == 0 || pattern == 3) {
-        T tmp = b;
-        b = d;
-        d = tmp;
-    }
-    if (pattern == 2 || pattern == 3) {
-        T tmp = a;
-        a = c;
-        c = tmp;
-    }
-}
-
-
+// This version groups each condition across all eight disjoint quartets in a
+// stage, retaining the three swap groups' order within every quartet. It
+// preserves lane-dependent branches and the full permutation while avoiding
+// eight separate branch/reconvergence sequences for the same condition.
 __global__ void fft_kernel_radix64_batch16(
     cuFloatComplex* d_data, const cuFloatComplex* __restrict__ W_64,
     unsigned int repeat) {
@@ -114,14 +92,43 @@ __global__ void fft_kernel_radix64_batch16(
                 reg[j + 16].y = result[3];
             }
             if (stage < 2) {
+                const int pattern = lane & 3;
+                // Each quartet is disjoint. Apply each conditional swap group
+                // to all eight quartets before the next group, preserving order.
+                if (pattern == 1 || pattern == 3) {
 #pragma unroll
-                for (int j = 0; j < ept; j += 4 * stride) {
+                    for (int j = 0; j < ept; j += 4 * stride) {
 #pragma unroll
-                    for (int k = 0; k < stride; ++k) {
-                        permute_radix4_branch(
-                            reg[j + k], reg[j + k + stride],
-                            reg[j + k + 2 * stride], reg[j + k + 3 * stride],
-                            lane & 3);
+                        for (int k = 0; k < stride; ++k) {
+                            auto &a = reg[j + k];
+                            auto &b = reg[j + k + stride];
+                            auto &c = reg[j + k + 2 * stride];
+                            auto &d = reg[j + k + 3 * stride];
+                            auto tmp = a; a = b; b = tmp;
+                            tmp = c; c = d; d = tmp;
+                        }
+                    }
+                }
+                if (pattern == 0 || pattern == 3) {
+#pragma unroll
+                    for (int j = 0; j < ept; j += 4 * stride) {
+#pragma unroll
+                        for (int k = 0; k < stride; ++k) {
+                            auto &b = reg[j + k + stride];
+                            auto &d = reg[j + k + 3 * stride];
+                            auto tmp = b; b = d; d = tmp;
+                        }
+                    }
+                }
+                if (pattern == 2 || pattern == 3) {
+#pragma unroll
+                    for (int j = 0; j < ept; j += 4 * stride) {
+#pragma unroll
+                        for (int k = 0; k < stride; ++k) {
+                            auto &a = reg[j + k];
+                            auto &c = reg[j + k + 2 * stride];
+                            auto tmp = a; a = c; c = tmp;
+                        }
                     }
                 }
             }

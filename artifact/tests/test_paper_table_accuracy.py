@@ -363,6 +363,8 @@ class PaperTableAccuracyTests(unittest.TestCase):
                 self.assertIn("lane-dependent permutations are retained", notes)
                 self.assertIn("three conditional swaps from checkpoint 652808b", notes)
                 self.assertIn("not the unmodified checkpoint", notes)
+                self.assertIn("Each condition covers all eight disjoint quartets per stage", notes)
+                self.assertIn("lane-dependent branches, exact permutations and all 48 MMAs remain", notes)
                 self.assertNotIn("FFT outputs are undefined", notes)
                 self.assertEqual("correctness was not checked" in notes, timing_only)
                 self.assertEqual(self.comparisons("table7")[3, 1]["status"],
