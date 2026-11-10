@@ -13,7 +13,7 @@ ThunderFFT_kernel_reg<float, 128, 8, true>(vec2_t<float>* __restrict__ reg, vec2
 
     for (int i = 0; i < ept / 2; i++) {
         int idx = i + (laneid % 4) * 16;
-        rotate(reg[i + ept / 2], idx, 128);
+        unit::rotate_cached_table<128>(reg[i + ept / 2], idx);
 
         auto t1 = reg[i] + reg[i + ept / 2];
         auto t2 = reg[i] - reg[i + ept / 2];
@@ -33,7 +33,7 @@ ThunderFFT_kernel_reg<float, 128, 8, false>(vec2_t<float>* __restrict__ reg, vec
 
     for (int i = 0; i < ept / 2; i++) {
         int idx = i + (laneid % 4) * 16;
-        rotate(reg[i + ept / 2], -idx, 128);
+        unit::rotate_cached_table<128, false>(reg[i + ept / 2], idx);
 
         auto t1 = reg[i] + reg[i + ept / 2];
         auto t2 = reg[i] - reg[i + ept / 2];
@@ -54,7 +54,7 @@ ThunderFFT_kernel_reg<half, 128, 8, true>(vec2_t<half>* __restrict__ reg, vec2_t
 
     for (int i = 0; i < ept / 2; i++) { 
         int idx = i + (laneid % 4)*16 ;
-        rotate(reg[i + ept / 2], idx, 128);
+        unit_fp16::rotate_n_cached<128, true>(reg[i + ept / 2], idx);
 
 
         auto t1 = reg[i] + reg[i + ept / 2];
@@ -76,7 +76,7 @@ ThunderFFT_kernel_reg<half, 128, 8, false>(vec2_t<half>* __restrict__ reg, vec2_
 
     for (int i = 0; i < ept / 2; i++) { 
         int idx = i + (laneid % 4)*16 ;
-        rotate(reg[i + ept / 2], -idx, 128);
+        unit_fp16::rotate_n_cached<128, false>(reg[i + ept / 2], idx);
 
 
         auto t1 = reg[i] + reg[i + ept / 2];

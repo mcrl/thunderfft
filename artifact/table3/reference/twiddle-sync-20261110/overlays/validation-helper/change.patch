@@ -1,0 +1,78 @@
+--- before/artifact/table3/paired_validation.py
++++ after/artifact/table3/paired_validation.py
+@@ -1,5 +1,6 @@
+ """Correctness-only preflight for the immutable paired benchmark binaries."""
+ import csv
++import hashlib
+ import hashlib
+ import os
+ from pathlib import Path
+@@ -8,6 +9,25 @@
+ import signal
+ import subprocess
+ import time
++
++from artifact.table3.measure import RAW_FIELDS
++
++TIMING_ERROR = 'ERROR: nonpositive/nonfinite differential timing'
++
++
++def timing_only_race_outcome(code, stderr, stdout):
++    """Recognize the instrumented timing stop after the native R=1 gates.
++
++    This is not a successful timing trial. The immutable native program has
++    already checked repeat/e2e accuracy and executed the repeated wrappers.
++    The caller must independently require a zero-hazard sanitizer summary.
++    """
++    lines = stderr.rstrip().splitlines()
++    reader = csv.DictReader(stdout.splitlines())
++    rows = list(reader)
++    return (code == 1 and bool(lines) and lines[-1] == TIMING_ERROR
++            and [line for line in lines if line.startswith('ERROR:')] == [TIMING_ERROR]
++            and tuple(reader.fieldnames or ()) == RAW_FIELDS and not rows)
+ 
+ 
+ def race_command(binary, n, precision, placement):
+@@ -92,6 +112,11 @@
+                 'sanitizers': 'required' if sanitizers else 'not_requested_on_this_architecture',
+                 'sanitizer_executable': sanitizer,
+                 'aggregate_timeout_seconds': 360, 'runs': []}
++    evidence['validation_helper_sha256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
++    evidence['native_adapter_sha256'] = hashlib.sha256(
++        (Path(__file__).resolve().parents[2]/'sample/bench/paper_fft.cu').read_bytes()).hexdigest()
++    if evidence['native_adapter_sha256'] != '8bca2a0f3d54e75aa9ce9ad82aca47f376bf3df44cdcd8e67351f8ab6e3b4f53':
++        raise RuntimeError('Native adapter changed; re-audit the post-correctness timing exception')
+     save(evidence)
+     previous_term_handler = signal.getsignal(signal.SIGTERM)
+     def interrupt_validation(signum, frame):
+@@ -111,7 +136,9 @@
+             code = run_checked(task['command'], output/(name+'.stdout'),
+                                output/(name+'.log'), min(task['timeout'], remaining))
+             entry.update(returncode=code, elapsed_seconds=time.monotonic()-begin)
+-            if code:
++            timing_unavailable = task['kind'] == 'racecheck' and timing_only_race_outcome(
++                code, (output/(name+'.log')).read_text(), (output/(name+'.stdout')).read_text())
++            if code and not timing_unavailable:
+                 raise RuntimeError(f'{name} failed with return code {code}')
+             if 'csv' in task:
+                 path = output/task['csv']
+@@ -128,9 +155,18 @@
+                 # This is the real unmodified benchmark wrapper, including its
+                 # FP64 R=1 gate. Sanitized timings never enter paired-data.csv.
+                 rows = list(csv.DictReader((output/(name+'.stdout')).open()))
+-                if len(rows) != 1 or (rows[0].get('inside_repeats'), rows[0].get('batch')) != ('32', '32'):
++                if not timing_unavailable and (len(rows) != 1 or
++                        (rows[0].get('inside_repeats'), rows[0].get('batch')) != ('32', '32')):
+                     raise RuntimeError(f'{name}: benchmark wrapper did not complete the requested case')
+                 entry['rows'] = len(rows)
++                entry['native_correctness_gate_completed'] = True
++                entry['native_timing_status'] = ('unavailable_under_instrumentation'
++                                                if timing_unavailable else 'completed_but_discarded')
++                if timing_unavailable:
++                    entry['native_terminal_error'] = TIMING_ERROR
++                    entry['native_csv_header_verified'] = True
++                    entry['note'] = ('Both R=1 FP64 correctness gates and repeated wrapper launches '
++                                     'precede this exact native timing exception; no timing row is claimed.')
+             entry['status'] = 'passed'
+             save(evidence)
+         evidence.update(status='passed', elapsed_seconds=time.monotonic()-started)

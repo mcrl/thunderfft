@@ -1,0 +1,1591 @@
+{
+  "schema_version": 1,
+  "evaluation": "paired_thunderfft_optimization",
+  "scope": "Before/after ThunderFFT on one GPU; not a paper Table 3 collection part",
+  "status": "completed",
+  "started_at": "2026-11-10T06:16:35.662863+00:00",
+  "baseline_head": "00bc845d0f3119fa405517cc601126bdbd9b3351",
+  "settings": {
+    "batch": 65536,
+    "inside_repeats": 1000,
+    "trials": 3,
+    "N": [
+      64,
+      128,
+      256,
+      512,
+      1024,
+      2048,
+      4096
+    ],
+    "precisions": [
+      "fp16",
+      "tf32"
+    ],
+    "placements": [
+      "register",
+      "shared"
+    ],
+    "arch": "90"
+  },
+  "correctness": "Native R=1 cuFFT FP64 gate, relL2 <= 0.005; repeated outputs are not correctness evidence",
+  "order": "Before then after for even configuration indices; after then before for odd indices",
+  "source_sha256": {
+    "before": {
+      "include/thunderfft/detail/kernel/global_kernel.cuh": "ccc41b9fc9a59633a93d09a53a1d606f34e85db38415736fe6a462ae72a280b1",
+      "include/thunderfft/detail/kernel/shared_kernel_n1024_b1.cuh": "e15c3b6e522cec924c68feb5430a527e8d684997132064d0e5aec84f2feb1d79",
+      "include/thunderfft/detail/kernel/shared_kernel_n128_b8.cuh": "9803eedc4d4079cd21f527a90b22eaea13cf5eb5846161e3bfdac2c313656dd4",
+      "include/thunderfft/detail/kernel/shared_kernel_n2048_b1.cuh": "d7ccffad5ee6761cca42a22d51384016fe21b99ff261e91ec296a727aaaa7125",
+      "include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh": "21dbfed92af6c498f9d551f1ee6115a4f8d39420b5552710a9c89640d1bc5bab",
+      "include/thunderfft/detail/kernel/shared_kernel_n4096_b1.cuh": "e8f1c8e76c0f5c93382c66bf34f099040b761466c9f827d8445201c8758de264",
+      "include/thunderfft/detail/kernel/shared_kernel_n512_b2.cuh": "9147503159e8ce3590d808f2472deb808b96a6fe0bb11d904a782e24836faa7e",
+      "include/thunderfft/detail/kernel/shared_kernel_n64_b16.cuh": "43b8e23cb5c65b751f6700e4aadb0025efdc7bd97a910270e5ac861595abb5e6",
+      "include/thunderfft/detail/kernel/unit_kernel_fp16.cuh": "5e896d06476050f52c3fde0e831dd5d26c293662675294d668f63feda86ea4d8",
+      "include/thunderfft/detail/kernel/unit_kernel_fp32.cuh": "565965f52a68bdd9946bcf1e6fc317c37f98cbaa42f959455ad95aa176754158",
+      "include/thunderfft/detail/thunderfft_impl.cuh": "4b2607dc9b19f322e9fd23e9a5d94827468e531d43c90e59e54dff75b5b15d43",
+      "include/thunderfft/detail/thunderfft_impl_helper.cuh": "e1dd85662f2ebc9b384f491ad628f3abaf5cda6fdc05d98e6e03d368a32446f0",
+      "include/thunderfft/detail/thunderfft_impl_kernel.cuh": "423a1cc748ab4b69d9656c13807410a0013c85ab9a45c1ee12036f0dc1168e4b",
+      "include/thunderfft/detail/thunderfft_impl_twiddle.cuh": "c18f6713c5bde82419821555f9c343ae211ceb0ae872aaeb37ec792cf37b26b3",
+      "include/thunderfft/detail/util_arith.h": "eacf31de9129fca8ea6279ebd83491e2f0f08422ba1faf7059a275dcec955765",
+      "include/thunderfft/detail/util_cuda.h": "e76c8aaa9705f19b33d80b675f03517cae8b8fa9a4f649b96e05e531dc59b134",
+      "include/thunderfft/detail/utils.h": "8367ed493754cbd1f2253929573b37e25d97b1c9bcee7f82b25aba18593b532f",
+      "include/thunderfft/thunderfft.cuh": "4be198c77db2d0f4d7f0c325b50371ac61b015eb5689603348143327d5f2079d",
+      "include/thunderfft/thunderfft_layout_tuned.h": "ac1abb139f0849e71d312e7c927a5d0e5d629b746d6fb36fa1835e7261a99e9a",
+      "sample/bench/CMakeLists.txt": "59186ee42ce7d714287497c0eeac5862a29d0fd7cf11863ec18b08dbedbc6895",
+      "sample/bench/baseline/baseline_cufft.cu": "e7fda9c80c0e0179d6d6c5815d734f0d2c3d44701745962c4f729bdcac12badb",
+      "sample/bench/baseline/cufftdx_bench.h": "4ba6a9cb375292b71e6441007ffc49dd6bcb33b63ee72640a5634133e43273b3",
+      "sample/bench/baseline/thunderfft_bench.h": "dcf4f14b2c1cab4437077ffa21de1968dec3d793c1bde3e7800167f5e0b41aec",
+      "sample/bench/main.cu": "a00b9a236083c4d650da205c4e1f08b7c8211822614befc6488a5c6e6931bfff",
+      "sample/bench/paper_fft.cu": "8bca2a0f3d54e75aa9ce9ad82aca47f376bf3df44cdcd8e67351f8ab6e3b4f53",
+      "sample/bench/util/helper.h": "ad9a78fe14f96e3c783f4b1d03deb5d414163fec60112a3b4a2deb4c174a3297",
+      "sample/bench/util/stat.cu": "a36c85334484b69dec002bc2088ec011f1cb4a816fc6eead2325347bc8f1847f",
+      "sample/bench/util/stat.h": "87b4d07956c7d1771533796d5bef413571bdf83c82b62d3d897a15672f9df2d2"
+    },
+    "after": {
+      "include/thunderfft/detail/kernel/global_kernel.cuh": "ccc41b9fc9a59633a93d09a53a1d606f34e85db38415736fe6a462ae72a280b1",
+      "include/thunderfft/detail/kernel/shared_kernel_n1024_b1.cuh": "9da43c3678b6533aa8f6eac740971eb02bb6145ccd072cfbf4692da2308d2a27",
+      "include/thunderfft/detail/kernel/shared_kernel_n128_b8.cuh": "ee29e50ccc25af83767c7cb7ad86279eb56c2633715e9a4bac8ff01c60f31edd",
+      "include/thunderfft/detail/kernel/shared_kernel_n2048_b1.cuh": "d7ccffad5ee6761cca42a22d51384016fe21b99ff261e91ec296a727aaaa7125",
+      "include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh": "d4576176c55e6a1129cc3bf60ff492b1d8f0939f571388321d5364439aa6c24c",
+      "include/thunderfft/detail/kernel/shared_kernel_n4096_b1.cuh": "e8f1c8e76c0f5c93382c66bf34f099040b761466c9f827d8445201c8758de264",
+      "include/thunderfft/detail/kernel/shared_kernel_n512_b2.cuh": "447bdef32fbcad89b7afac891b61240b146e24022a5af477f1a42eaef0d614a6",
+      "include/thunderfft/detail/kernel/shared_kernel_n64_b16.cuh": "43b8e23cb5c65b751f6700e4aadb0025efdc7bd97a910270e5ac861595abb5e6",
+      "include/thunderfft/detail/kernel/unit_kernel_fp16.cuh": "4ac97b542e513c1d809661eebf2e57e31ca1ac5f67bbab1f14b93012cd01847b",
+      "include/thunderfft/detail/kernel/unit_kernel_fp32.cuh": "a6678010d89331347c084f84bb0050f790812dd14446fd325248fa5a056b8d1f",
+      "include/thunderfft/detail/thunderfft_impl.cuh": "4b2607dc9b19f322e9fd23e9a5d94827468e531d43c90e59e54dff75b5b15d43",
+      "include/thunderfft/detail/thunderfft_impl_helper.cuh": "e1dd85662f2ebc9b384f491ad628f3abaf5cda6fdc05d98e6e03d368a32446f0",
+      "include/thunderfft/detail/thunderfft_impl_kernel.cuh": "423a1cc748ab4b69d9656c13807410a0013c85ab9a45c1ee12036f0dc1168e4b",
+      "include/thunderfft/detail/thunderfft_impl_twiddle.cuh": "c18f6713c5bde82419821555f9c343ae211ceb0ae872aaeb37ec792cf37b26b3",
+      "include/thunderfft/detail/util_arith.h": "eacf31de9129fca8ea6279ebd83491e2f0f08422ba1faf7059a275dcec955765",
+      "include/thunderfft/detail/util_cuda.h": "e76c8aaa9705f19b33d80b675f03517cae8b8fa9a4f649b96e05e531dc59b134",
+      "include/thunderfft/detail/utils.h": "8367ed493754cbd1f2253929573b37e25d97b1c9bcee7f82b25aba18593b532f",
+      "include/thunderfft/thunderfft.cuh": "eb803339d86159bad8db674425c9ed2b0a4e15b0418730a05486a3830b1b7d4a",
+      "include/thunderfft/thunderfft_layout_tuned.h": "ac1abb139f0849e71d312e7c927a5d0e5d629b746d6fb36fa1835e7261a99e9a",
+      "sample/bench/CMakeLists.txt": "59186ee42ce7d714287497c0eeac5862a29d0fd7cf11863ec18b08dbedbc6895",
+      "sample/bench/baseline/baseline_cufft.cu": "e7fda9c80c0e0179d6d6c5815d734f0d2c3d44701745962c4f729bdcac12badb",
+      "sample/bench/baseline/cufftdx_bench.h": "4ba6a9cb375292b71e6441007ffc49dd6bcb33b63ee72640a5634133e43273b3",
+      "sample/bench/baseline/thunderfft_bench.h": "adf1312fd6ab85dfb85205d4217b252d630c1afe83826ad3a6d7e0b7c2b2d52e",
+      "sample/bench/main.cu": "a00b9a236083c4d650da205c4e1f08b7c8211822614befc6488a5c6e6931bfff",
+      "sample/bench/paper_fft.cu": "8bca2a0f3d54e75aa9ce9ad82aca47f376bf3df44cdcd8e67351f8ab6e3b4f53",
+      "sample/bench/util/helper.h": "ad9a78fe14f96e3c783f4b1d03deb5d414163fec60112a3b4a2deb4c174a3297",
+      "sample/bench/util/stat.cu": "a36c85334484b69dec002bc2088ec011f1cb4a816fc6eead2325347bc8f1847f",
+      "sample/bench/util/stat.h": "87b4d07956c7d1771533796d5bef413571bdf83c82b62d3d897a15672f9df2d2",
+      "sample/validation/CMakeLists.txt": "e01e6c2b28f4adb7a07f311cae080004edc8dd75f5251e2bc155a70ed9010472",
+      "sample/validation/cache_validation.cu": "b2cefdfec1ecabaa65ab7498e518ad496b016e39c9b7310504a03ed870472216",
+      "sample/validation/fft_validation.cu": "3811d6d24c6d50a7e410c05a9c897f92e5f08ba0f351159c5a1e5a4134f9a119"
+    }
+  },
+  "builds": {
+    "before": {
+      "commands": [
+        [
+          "/usr/bin/cmake",
+          "-S",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/artifact/table3/paired-build",
+          "-B",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+          "-DCMAKE_CUDA_FLAGS=",
+          "-DTHUNDERFFT_ARCHS=90",
+          "-DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc",
+          "-DCUDAToolkit_ROOT=/usr/local/cuda-13.0",
+          "-DTHFF_SOURCE_ROOT=/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/paired-baseline",
+          "-DTHFF_BUILD_VALIDATION=OFF"
+        ],
+        [
+          "/usr/bin/cmake",
+          "--build",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before",
+          "--target",
+          "thff_paper_fft",
+          "-j",
+          "2"
+        ]
+      ],
+      "binary_sha256": "ea02d627400ea9d9a8c0344e530da0b37f59e3bc3143c456b1682d3eb0ff87c6",
+      "compile_commands": [
+        {
+          "directory": "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before",
+          "command": "/usr/local/cuda/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/thff_paper_fft.dir/includes_CUDA.rsp -O3 -DNDEBUG -std=c++17 \"--generate-code=arch=compute_90,code=[compute_90,sm_90]\" -O3 --use_fast_math -lineinfo -x cu -c /workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/paired-baseline/sample/bench/paper_fft.cu -o CMakeFiles/thff_paper_fft.dir/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/paired-baseline/sample/bench/paper_fft.cu.o",
+          "file": "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/paired-baseline/sample/bench/paper_fft.cu",
+          "output": "CMakeFiles/thff_paper_fft.dir/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/paired-baseline/sample/bench/paper_fft.cu.o"
+        }
+      ],
+      "nvcc": {
+        "command": [
+          "/usr/local/cuda/bin/nvcc",
+          "--version"
+        ],
+        "returncode": 0,
+        "stdout": "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2025 NVIDIA Corporation\nBuilt on Wed_Aug_20_01:58:59_PM_PDT_2025\nCuda compilation tools, release 13.0, V13.0.88\nBuild cuda_13.0.r13.0/compiler.36424714_0",
+        "stderr": ""
+      }
+    },
+    "after": {
+      "commands": [
+        [
+          "/usr/bin/cmake",
+          "-S",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/artifact/table3/paired-build",
+          "-B",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+          "-DCMAKE_CUDA_FLAGS=",
+          "-DTHUNDERFFT_ARCHS=90",
+          "-DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc",
+          "-DCUDAToolkit_ROOT=/usr/local/cuda-13.0",
+          "-DTHFF_SOURCE_ROOT=/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source",
+          "-DTHFF_BUILD_VALIDATION=ON"
+        ],
+        [
+          "/usr/bin/cmake",
+          "--build",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after",
+          "--target",
+          "thff_paper_fft",
+          "thff_validate",
+          "-j",
+          "2"
+        ]
+      ],
+      "binary_sha256": "19576cbfb29e1a0b28adb822473fb8c2d8b56b739a934e225e641f785c5a5e02",
+      "compile_commands": [
+        {
+          "directory": "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after",
+          "command": "/usr/local/cuda/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/thff_paper_fft.dir/includes_CUDA.rsp -O3 -DNDEBUG -std=c++17 \"--generate-code=arch=compute_90,code=[compute_90,sm_90]\" -O3 --use_fast_math -lineinfo -x cu -c /workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/paper_fft.cu -o CMakeFiles/thff_paper_fft.dir/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/paper_fft.cu.o",
+          "file": "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/paper_fft.cu",
+          "output": "CMakeFiles/thff_paper_fft.dir/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/paper_fft.cu.o"
+        },
+        {
+          "directory": "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after",
+          "command": "/usr/local/cuda/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/thff_validate.dir/includes_CUDA.rsp -O3 -DNDEBUG -std=c++17 \"--generate-code=arch=compute_90,code=[compute_90,sm_90]\" -O3 -x cu -c /workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/validation/fft_validation.cu -o CMakeFiles/thff_validate.dir/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/validation/fft_validation.cu.o",
+          "file": "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/validation/fft_validation.cu",
+          "output": "CMakeFiles/thff_validate.dir/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/validation/fft_validation.cu.o"
+        }
+      ],
+      "nvcc": {
+        "command": [
+          "/usr/local/cuda/bin/nvcc",
+          "--version"
+        ],
+        "returncode": 0,
+        "stdout": "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2025 NVIDIA Corporation\nBuilt on Wed_Aug_20_01:58:59_PM_PDT_2025\nCuda compilation tools, release 13.0, V13.0.88\nBuild cuda_13.0.r13.0/compiler.36424714_0",
+        "stderr": ""
+      }
+    }
+  },
+  "commands": [
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "64",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:16.088859+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:16.754507+00:00",
+      "raw_csv": "raw/before-n64-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "64",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:16.758119+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:17.525118+00:00",
+      "raw_csv": "raw/after-n64-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "64",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:17.528387+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:18.194057+00:00",
+      "raw_csv": "raw/after-n64-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "64",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:18.196332+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:19.315160+00:00",
+      "raw_csv": "raw/before-n64-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "64",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:19.325777+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:20.697993+00:00",
+      "raw_csv": "raw/before-n64-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "64",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:20.711358+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:21.838727+00:00",
+      "raw_csv": "raw/after-n64-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "64",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:21.841805+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:22.860567+00:00",
+      "raw_csv": "raw/after-n64-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "64",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:22.874857+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:23.850644+00:00",
+      "raw_csv": "raw/before-n64-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "128",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:23.854088+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:24.822632+00:00",
+      "raw_csv": "raw/before-n128-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "128",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:24.837276+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:25.611046+00:00",
+      "raw_csv": "raw/after-n128-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "128",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:25.615581+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:26.231650+00:00",
+      "raw_csv": "raw/after-n128-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "128",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:26.235216+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:26.901208+00:00",
+      "raw_csv": "raw/before-n128-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "128",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:26.905294+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:27.721535+00:00",
+      "raw_csv": "raw/before-n128-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "128",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:27.726836+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:28.494305+00:00",
+      "raw_csv": "raw/after-n128-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "128",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:28.498878+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:29.265718+00:00",
+      "raw_csv": "raw/after-n128-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "128",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:29.269073+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:30.085426+00:00",
+      "raw_csv": "raw/before-n128-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "256",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:30.087966+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:31.105446+00:00",
+      "raw_csv": "raw/before-n256-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "256",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:31.123581+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:32.450508+00:00",
+      "raw_csv": "raw/after-n256-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "256",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:32.468689+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:33.744805+00:00",
+      "raw_csv": "raw/after-n256-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "256",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:33.762619+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:35.439841+00:00",
+      "raw_csv": "raw/before-n256-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "256",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:35.444560+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:37.113456+00:00",
+      "raw_csv": "raw/before-n256-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "256",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:37.131900+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:38.758818+00:00",
+      "raw_csv": "raw/after-n256-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "256",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:38.778318+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:40.100920+00:00",
+      "raw_csv": "raw/after-n256-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "256",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:40.104417+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:41.471413+00:00",
+      "raw_csv": "raw/before-n256-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "512",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:41.473994+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:42.790966+00:00",
+      "raw_csv": "raw/before-n512-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "512",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:42.795519+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:44.315576+00:00",
+      "raw_csv": "raw/after-n512-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "512",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:44.320315+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:45.991184+00:00",
+      "raw_csv": "raw/after-n512-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "512",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:45.995667+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:48.318862+00:00",
+      "raw_csv": "raw/before-n512-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "512",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:48.324488+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:50.548451+00:00",
+      "raw_csv": "raw/before-n512-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "512",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:50.569362+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:52.599341+00:00",
+      "raw_csv": "raw/after-n512-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "512",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:52.602614+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:55.222614+00:00",
+      "raw_csv": "raw/after-n512-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "512",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:55.229125+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:18:57.949561+00:00",
+      "raw_csv": "raw/before-n512-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "1024",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:18:57.953917+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:00.477816+00:00",
+      "raw_csv": "raw/before-n1024-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "1024",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:00.479821+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:02.701525+00:00",
+      "raw_csv": "raw/after-n1024-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "1024",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:02.707251+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:05.234165+00:00",
+      "raw_csv": "raw/after-n1024-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "1024",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:05.238383+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:08.211345+00:00",
+      "raw_csv": "raw/before-n1024-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "1024",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:08.215769+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:11.290722+00:00",
+      "raw_csv": "raw/before-n1024-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "1024",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:11.316261+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:14.396362+00:00",
+      "raw_csv": "raw/after-n1024-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "1024",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:14.403001+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:18.101072+00:00",
+      "raw_csv": "raw/after-n1024-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "1024",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:18.127232+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:21.918396+00:00",
+      "raw_csv": "raw/before-n1024-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "2048",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:21.923037+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:26.252068+00:00",
+      "raw_csv": "raw/before-n2048-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "2048",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:26.256243+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:30.590357+00:00",
+      "raw_csv": "raw/after-n2048-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "2048",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:30.595914+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:36.030661+00:00",
+      "raw_csv": "raw/after-n2048-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "2048",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:36.056037+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:41.451121+00:00",
+      "raw_csv": "raw/before-n2048-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "2048",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:41.473648+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:47.880174+00:00",
+      "raw_csv": "raw/before-n2048-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "2048",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:47.884770+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:19:54.222158+00:00",
+      "raw_csv": "raw/after-n2048-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "2048",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:19:54.268063+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:20:01.915910+00:00",
+      "raw_csv": "raw/after-n2048-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "2048",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:20:01.920977+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:20:09.756056+00:00",
+      "raw_csv": "raw/before-n2048-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "4096",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:20:09.759177+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:20:18.604963+00:00",
+      "raw_csv": "raw/before-n4096-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "4096",
+        "fp16",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:20:18.608820+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:20:27.708063+00:00",
+      "raw_csv": "raw/after-n4096-fp16-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "4096",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:20:27.712692+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:20:37.155479+00:00",
+      "raw_csv": "raw/after-n4096-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "4096",
+        "fp16",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:20:37.161539+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:20:47.008887+00:00",
+      "raw_csv": "raw/before-n4096-fp16-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "4096",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:20:47.014452+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:20:59.669320+00:00",
+      "raw_csv": "raw/before-n4096-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "4096",
+        "tf32",
+        "register",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:20:59.673209+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:21:12.085365+00:00",
+      "raw_csv": "raw/after-n4096-tf32-register.csv"
+    },
+    {
+      "variant": "after",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+        "4096",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:21:12.090219+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:21:26.560113+00:00",
+      "raw_csv": "raw/after-n4096-tf32-shared.csv"
+    },
+    {
+      "variant": "before",
+      "command": [
+        "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_before/thff_paper_fft",
+        "4096",
+        "tf32",
+        "shared",
+        "1000",
+        "3",
+        "65536"
+      ],
+      "started_at": "2026-11-10T06:21:26.589698+00:00",
+      "returncode": 0,
+      "finished_at": "2026-11-10T06:21:41.070869+00:00",
+      "raw_csv": "raw/before-n4096-tf32-shared.csv"
+    }
+  ],
+  "completed_native_runs": 56,
+  "full_paper_comparison": false,
+  "gpu_commands_run": true,
+  "gpu_inventory_before": {
+    "command": [
+      "nvidia-smi",
+      "--query-gpu=uuid,name,driver_version,memory.total,clocks.sm,clocks.mem,power.limit",
+      "--format=csv,noheader"
+    ],
+    "returncode": 0,
+    "stdout": "GPU-508ace01-a2b3-bec9-5fe1-855752e6b08c, NVIDIA H100 PCIe, 610.57.04, 81559 MiB, 345 MHz, 1593 MHz, 350.00 W",
+    "stderr": ""
+  },
+  "candidate_validation": {
+    "status": "passed",
+    "full_expected_cases": 500,
+    "validator_binary_sha256": "432942a1bc281eadc6ca953fa6d37979eec6867626ccaebf091460200e37d518",
+    "sanitizers": "required",
+    "sanitizer_executable": "/usr/local/cuda/bin/compute-sanitizer",
+    "aggregate_timeout_seconds": 360,
+    "runs": [
+      {
+        "name": "after-full-validation",
+        "kind": "validator",
+        "expected_rows": 500,
+        "command": [
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_validate",
+          "--csv",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-full-validation.csv"
+        ],
+        "csv": "after-full-validation.csv",
+        "timeout": 120,
+        "status": "passed",
+        "started_at_unix": 1794291464.334559,
+        "returncode": 0,
+        "elapsed_seconds": 3.321534856018843,
+        "rows": 500
+      },
+      {
+        "name": "after-quick-memcheck",
+        "kind": "memcheck",
+        "expected_rows": 88,
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "memcheck",
+          "--error-exitcode",
+          "99",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-quick-memcheck-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_validate",
+          "--quick",
+          "--csv",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-quick-memcheck.csv"
+        ],
+        "csv": "after-quick-memcheck.csv",
+        "timeout": 120,
+        "status": "passed",
+        "started_at_unix": 1794291467.6608913,
+        "returncode": 0,
+        "elapsed_seconds": 1.0654466320120264,
+        "rows": 88,
+        "sanitizer_zero_summary": true
+      },
+      {
+        "name": "after-quick-synccheck",
+        "kind": "synccheck",
+        "expected_rows": 88,
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "synccheck",
+          "--error-exitcode",
+          "99",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-quick-synccheck-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_validate",
+          "--quick",
+          "--csv",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-quick-synccheck.csv"
+        ],
+        "csv": "after-quick-synccheck.csv",
+        "timeout": 120,
+        "status": "passed",
+        "started_at_unix": 1794291468.730039,
+        "returncode": 0,
+        "elapsed_seconds": 0.9657459990121424,
+        "rows": 88,
+        "sanitizer_zero_summary": true
+      },
+      {
+        "name": "after-racecheck-n64-fp16-register",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n64-fp16-register-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "64",
+          "fp16",
+          "register",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291469.6990674,
+        "returncode": 0,
+        "elapsed_seconds": 1.1661570940050296,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      },
+      {
+        "name": "after-racecheck-n64-fp16-shared",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n64-fp16-shared-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "64",
+          "fp16",
+          "shared",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291470.8678498,
+        "returncode": 0,
+        "elapsed_seconds": 1.4169900480192155,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      },
+      {
+        "name": "after-racecheck-n64-tf32-register",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n64-tf32-register-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "64",
+          "tf32",
+          "register",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291472.2883403,
+        "returncode": 0,
+        "elapsed_seconds": 1.8186729989829473,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      },
+      {
+        "name": "after-racecheck-n64-tf32-shared",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n64-tf32-shared-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "64",
+          "tf32",
+          "shared",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291474.115887,
+        "returncode": 0,
+        "elapsed_seconds": 3.1743772570043802,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      },
+      {
+        "name": "after-racecheck-n128-fp16-register",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n128-fp16-register-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "128",
+          "fp16",
+          "register",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291477.2996418,
+        "returncode": 0,
+        "elapsed_seconds": 2.2197711390035693,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      },
+      {
+        "name": "after-racecheck-n128-fp16-shared",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n128-fp16-shared-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "128",
+          "fp16",
+          "shared",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291479.5222473,
+        "returncode": 0,
+        "elapsed_seconds": 1.6666680229827762,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      },
+      {
+        "name": "after-racecheck-n128-tf32-register",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n128-tf32-register-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "128",
+          "tf32",
+          "register",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291481.1923835,
+        "returncode": 1,
+        "elapsed_seconds": 1.2664197169942781,
+        "sanitizer_zero_summary": true,
+        "rows": 0,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "unavailable_under_instrumentation",
+        "native_terminal_error": "ERROR: nonpositive/nonfinite differential timing",
+        "native_csv_header_verified": true,
+        "note": "Both R=1 FP64 correctness gates and repeated wrapper launches precede this exact native timing exception; no timing row is claimed."
+      },
+      {
+        "name": "after-racecheck-n128-tf32-shared",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n128-tf32-shared-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "128",
+          "tf32",
+          "shared",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291482.4622,
+        "returncode": 0,
+        "elapsed_seconds": 1.7225271479983348,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      },
+      {
+        "name": "after-racecheck-n512-fp16-register",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n512-fp16-register-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "512",
+          "fp16",
+          "register",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291484.1880147,
+        "returncode": 0,
+        "elapsed_seconds": 2.6714076380012557,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      },
+      {
+        "name": "after-racecheck-n512-fp16-shared",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n512-fp16-shared-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "512",
+          "fp16",
+          "shared",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291486.8636496,
+        "returncode": 1,
+        "elapsed_seconds": 4.876655959000345,
+        "sanitizer_zero_summary": true,
+        "rows": 0,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "unavailable_under_instrumentation",
+        "native_terminal_error": "ERROR: nonpositive/nonfinite differential timing",
+        "native_csv_header_verified": true,
+        "note": "Both R=1 FP64 correctness gates and repeated wrapper launches precede this exact native timing exception; no timing row is claimed."
+      },
+      {
+        "name": "after-racecheck-n512-tf32-register",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n512-tf32-register-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "512",
+          "tf32",
+          "register",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291491.7440581,
+        "returncode": 0,
+        "elapsed_seconds": 1.9174474519968498,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      },
+      {
+        "name": "after-racecheck-n512-tf32-shared",
+        "kind": "racecheck",
+        "command": [
+          "/usr/local/cuda/bin/compute-sanitizer",
+          "--tool",
+          "racecheck",
+          "--error-exitcode",
+          "99",
+          "--racecheck-report",
+          "all",
+          "--log-file",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/final-candidate-output/after-racecheck-n512-tf32-shared-sanitizer.log",
+          "/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/build_artifact/paired_after/thff_paper_fft",
+          "512",
+          "tf32",
+          "shared",
+          "32",
+          "1",
+          "32"
+        ],
+        "timeout": 45,
+        "status": "passed",
+        "started_at_unix": 1794291493.665998,
+        "returncode": 0,
+        "elapsed_seconds": 2.4184702250058763,
+        "sanitizer_zero_summary": true,
+        "rows": 1,
+        "native_correctness_gate_completed": true,
+        "native_timing_status": "completed_but_discarded"
+      }
+    ],
+    "validation_helper_sha256": "e1744817fe0f720c1673632bc024cdfcc5247df23f7fd055a386461892fddc94",
+    "native_adapter_sha256": "8bca2a0f3d54e75aa9ce9ad82aca47f376bf3df44cdcd8e67351f8ab6e3b4f53",
+    "elapsed_seconds": 31.759722148999572
+  },
+  "native_identity": {
+    "gpu": "H100",
+    "name": "NVIDIA H100 PCIe",
+    "compute_capability": "9.0",
+    "uuid": "GPU-508ace01-a2b3-bec9-5fe1-855752e6b08c",
+    "native_versions": "compiled_CUDART=13000 runtime=13000 driver=13030 cuFFT=12000 extra_R_warmups=3"
+  },
+  "finished_at": "2026-11-10T06:21:41.077112+00:00",
+  "elapsed_seconds": 305.4095471149776,
+  "passed_single_fft_gates": 56,
+  "complete_paired_configurations": 28,
+  "gpu_inventory_after": {
+    "command": [
+      "nvidia-smi",
+      "--query-gpu=uuid,name,driver_version,memory.total,clocks.sm,clocks.mem,power.limit",
+      "--format=csv,noheader"
+    ],
+    "returncode": 0,
+    "stdout": "GPU-508ace01-a2b3-bec9-5fe1-855752e6b08c, NVIDIA H100 PCIe, 610.57.04, 81559 MiB, 1740 MHz, 1593 MHz, 350.00 W",
+    "stderr": ""
+  }
+}

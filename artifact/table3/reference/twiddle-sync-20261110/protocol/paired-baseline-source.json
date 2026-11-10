@@ -1,0 +1,33 @@
+{
+  "source_head": "00bc845d0f3119fa405517cc601126bdbd9b3351",
+  "files": {
+    "include/thunderfft/detail/kernel/global_kernel.cuh": "ccc41b9fc9a59633a93d09a53a1d606f34e85db38415736fe6a462ae72a280b1",
+    "include/thunderfft/detail/kernel/shared_kernel_n1024_b1.cuh": "e15c3b6e522cec924c68feb5430a527e8d684997132064d0e5aec84f2feb1d79",
+    "include/thunderfft/detail/kernel/shared_kernel_n128_b8.cuh": "9803eedc4d4079cd21f527a90b22eaea13cf5eb5846161e3bfdac2c313656dd4",
+    "include/thunderfft/detail/kernel/shared_kernel_n2048_b1.cuh": "d7ccffad5ee6761cca42a22d51384016fe21b99ff261e91ec296a727aaaa7125",
+    "include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh": "21dbfed92af6c498f9d551f1ee6115a4f8d39420b5552710a9c89640d1bc5bab",
+    "include/thunderfft/detail/kernel/shared_kernel_n4096_b1.cuh": "e8f1c8e76c0f5c93382c66bf34f099040b761466c9f827d8445201c8758de264",
+    "include/thunderfft/detail/kernel/shared_kernel_n512_b2.cuh": "9147503159e8ce3590d808f2472deb808b96a6fe0bb11d904a782e24836faa7e",
+    "include/thunderfft/detail/kernel/shared_kernel_n64_b16.cuh": "43b8e23cb5c65b751f6700e4aadb0025efdc7bd97a910270e5ac861595abb5e6",
+    "include/thunderfft/detail/kernel/unit_kernel_fp16.cuh": "5e896d06476050f52c3fde0e831dd5d26c293662675294d668f63feda86ea4d8",
+    "include/thunderfft/detail/kernel/unit_kernel_fp32.cuh": "565965f52a68bdd9946bcf1e6fc317c37f98cbaa42f959455ad95aa176754158",
+    "include/thunderfft/detail/thunderfft_impl.cuh": "4b2607dc9b19f322e9fd23e9a5d94827468e531d43c90e59e54dff75b5b15d43",
+    "include/thunderfft/detail/thunderfft_impl_helper.cuh": "e1dd85662f2ebc9b384f491ad628f3abaf5cda6fdc05d98e6e03d368a32446f0",
+    "include/thunderfft/detail/thunderfft_impl_kernel.cuh": "423a1cc748ab4b69d9656c13807410a0013c85ab9a45c1ee12036f0dc1168e4b",
+    "include/thunderfft/detail/thunderfft_impl_twiddle.cuh": "c18f6713c5bde82419821555f9c343ae211ceb0ae872aaeb37ec792cf37b26b3",
+    "include/thunderfft/detail/util_arith.h": "eacf31de9129fca8ea6279ebd83491e2f0f08422ba1faf7059a275dcec955765",
+    "include/thunderfft/detail/util_cuda.h": "e76c8aaa9705f19b33d80b675f03517cae8b8fa9a4f649b96e05e531dc59b134",
+    "include/thunderfft/detail/utils.h": "8367ed493754cbd1f2253929573b37e25d97b1c9bcee7f82b25aba18593b532f",
+    "include/thunderfft/thunderfft.cuh": "4be198c77db2d0f4d7f0c325b50371ac61b015eb5689603348143327d5f2079d",
+    "include/thunderfft/thunderfft_layout_tuned.h": "ac1abb139f0849e71d312e7c927a5d0e5d629b746d6fb36fa1835e7261a99e9a",
+    "sample/bench/CMakeLists.txt": "59186ee42ce7d714287497c0eeac5862a29d0fd7cf11863ec18b08dbedbc6895",
+    "sample/bench/baseline/baseline_cufft.cu": "e7fda9c80c0e0179d6d6c5815d734f0d2c3d44701745962c4f729bdcac12badb",
+    "sample/bench/baseline/cufftdx_bench.h": "4ba6a9cb375292b71e6441007ffc49dd6bcb33b63ee72640a5634133e43273b3",
+    "sample/bench/baseline/thunderfft_bench.h": "dcf4f14b2c1cab4437077ffa21de1968dec3d793c1bde3e7800167f5e0b41aec",
+    "sample/bench/main.cu": "a00b9a236083c4d650da205c4e1f08b7c8211822614befc6488a5c6e6931bfff",
+    "sample/bench/paper_fft.cu": "8bca2a0f3d54e75aa9ce9ad82aca47f376bf3df44cdcd8e67351f8ab6e3b4f53",
+    "sample/bench/util/helper.h": "ad9a78fe14f96e3c783f4b1d03deb5d414163fec60112a3b4a2deb4c174a3297",
+    "sample/bench/util/stat.cu": "a36c85334484b69dec002bc2088ec011f1cb4a816fc6eead2325347bc8f1847f",
+    "sample/bench/util/stat.h": "87b4d07956c7d1771533796d5bef413571bdf83c82b62d3d897a15672f9df2d2"
+  }
+}

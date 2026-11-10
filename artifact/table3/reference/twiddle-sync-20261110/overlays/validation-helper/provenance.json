@@ -1,0 +1,8 @@
+{
+  "before_harness_commit": "9b6b4235f835b068d1a0816b82b6bc6128737b31",
+  "before_sha256": "dad0bbec266c7cfac23eeb6fcadb59b34715b335a9d7868fcadce0eb54a0ba6e",
+  "after_sha256": "e1744817fe0f720c1673632bc024cdfcc5247df23f7fd055a386461892fddc94",
+  "native_adapter_sha256": "8bca2a0f3d54e75aa9ce9ad82aca47f376bf3df44cdcd8e67351f8ab6e3b4f53",
+  "scope": "Validation orchestration only; instrumented timing is discarded; no native benchmark or numerical threshold edit.",
+  "a100_import_evidence": "a100/paired-metadata.json candidate_validation.validation_helper_sha256"
+}

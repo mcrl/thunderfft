@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "N": 128,
+      "callsite_instances_per_block": 512,
+      "index_min": 0,
+      "index_max": 63,
+      "unique_indices": 64,
+      "all_inside_N_element_table": true
+    },
+    {
+      "N": 256,
+      "callsite_instances_per_block": 3072,
+      "index_min": 0,
+      "index_max": 189,
+      "unique_indices": 127,
+      "all_inside_N_element_table": true
+    },
+    {
+      "N": 512,
+      "callsite_instances_per_block": 1024,
+      "index_min": 0,
+      "index_max": 441,
+      "unique_indices": 244,
+      "all_inside_N_element_table": true
+    },
+    {
+      "N": 1024,
+      "callsite_instances_per_block": 1024,
+      "index_min": 0,
+      "index_max": 945,
+      "unique_indices": 449,
+      "all_inside_N_element_table": true
+    }
+  ],
+  "n1024_inverse_reverse_bit_groups_matches_forward_rev_row": true,
+  "scope": "TF32 N128/256 and FP16 N128/512/1024, both forward and inverse. Inverse N256/512 use conjugate-forward-conjugate.",
+  "applies_to_final_core_sources": true,
+  "reason": "Every LUT/core header hash is unchanged from independently reviewed source; only benchmark sync helper changed."
+}

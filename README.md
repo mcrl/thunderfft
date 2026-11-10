@@ -95,6 +95,15 @@ It does not establish a single-FFT end-to-end speedup or update the other
 Table 3 configurations. Native SM90 and SM100 builds retain their previous
 code paths; SM80 PTX JIT-compiled on a newer GPU would use the cached path.
 
+The [2026-11-10 Table 3 optimization comparison](artifact/table3/reference/twiddle-sync-20261110/before-after.md)
+reports a subsequent matched comparison against `00bc845` over all 28
+ThunderFFT configurations. It reuses initialized twiddle coefficients in
+selected FFT stages and uses warp synchronization in selected single-warp
+benchmark wrappers, preserving FFT stages and precision categories. Repeated
+compute and single-FFT end-to-end timings are reported separately, including
+regressions. See the [evidence and validation scope](artifact/table3/reference/twiddle-sync-20261110/README.md);
+these results do not replace paper targets or establish a new complete AE run.
+
 The host wrapper synchronizes its supplied stream before returning and throws
 `std::runtime_error` for CUDA failures. A negative batch, null buffers for a
 positive batch or identical input/output pointers throws `std::invalid_argument`.

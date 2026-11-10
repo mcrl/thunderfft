@@ -1,0 +1,4818 @@
+[
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 1024,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1520,
+      "HMMA": 80,
+      "MUFU": 64,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1392,
+      "HMMA": 80,
+      "MUFU": 0,
+      "LDG": 100,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1392,
+      "HMMA": 80,
+      "MUFU": 0,
+      "LDG": 100,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 241,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 241,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x3080",
+        "backedge": "0x4fe0",
+        "counts": {
+          "instructions": 503,
+          "HMMA": 80,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 2,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x3080",
+        "backedge": "0x4fe0",
+        "counts": {
+          "instructions": 503,
+          "HMMA": 80,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 2,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 128,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 920,
+      "HMMA": 48,
+      "MUFU": 32,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 832,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 76,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 832,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 76,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 145,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 145,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x1800",
+        "backedge": "0x2a50",
+        "counts": {
+          "instructions": 294,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 0,
+          "STS": 0,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x1800",
+        "backedge": "0x2a50",
+        "counts": {
+          "instructions": 294,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 0,
+          "STS": 0,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 2048,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2056,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2056,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2056,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 249,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 249,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x3f20",
+        "backedge": "0x6df0",
+        "counts": {
+          "instructions": 750,
+          "HMMA": 80,
+          "MUFU": 72,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 3,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x3f20",
+        "backedge": "0x6df0",
+        "counts": {
+          "instructions": 750,
+          "HMMA": 80,
+          "MUFU": 72,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 3,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 256,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1360,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1360,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1360,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 115,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 115,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x2580",
+        "backedge": "0x4030",
+        "counts": {
+          "instructions": 428,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 3,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x2580",
+        "backedge": "0x4030",
+        "counts": {
+          "instructions": 428,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 3,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 4096,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2000,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 1,
+      "BRA": 4
+    },
+    "final2_static_counts": {
+      "instructions": 2000,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 1,
+      "BRA": 4
+    },
+    "final_static_counts": {
+      "instructions": 2000,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 1,
+      "BRA": 4
+    },
+    "final2_resources": {
+      "REG": 196,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 196,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x3730",
+        "backedge": "0x63f0",
+        "counts": {
+          "instructions": 717,
+          "HMMA": 96,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 2,
+          "WARPSYNC": 2,
+          "CALL": 1,
+          "BRA": 2
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x3730",
+        "backedge": "0x63f0",
+        "counts": {
+          "instructions": 717,
+          "HMMA": 96,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 2,
+          "WARPSYNC": 2,
+          "CALL": 1,
+          "BRA": 2
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 512,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1608,
+      "HMMA": 64,
+      "MUFU": 34,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1560,
+      "HMMA": 64,
+      "MUFU": 2,
+      "LDG": 76,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1560,
+      "HMMA": 64,
+      "MUFU": 2,
+      "LDG": 76,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 156,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 156,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x2a60",
+        "backedge": "0x4ce0",
+        "counts": {
+          "instructions": 553,
+          "HMMA": 64,
+          "MUFU": 2,
+          "LDG": 28,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 1,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x2a60",
+        "backedge": "0x4ce0",
+        "counts": {
+          "instructions": 553,
+          "HMMA": 64,
+          "MUFU": 2,
+          "LDG": 28,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 1,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 64,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 576,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 576,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 576,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 127,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 127,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x11a0",
+        "backedge": "0x1ce0",
+        "counts": {
+          "instructions": 181,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 0,
+          "STS": 0,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 0,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x11a0",
+        "backedge": "0x1ce0",
+        "counts": {
+          "instructions": 181,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 0,
+          "STS": 0,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 0,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regIfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 1024,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2064,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 15,
+      "STL": 15,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2064,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 15,
+      "STL": 15,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2064,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 15,
+      "STL": 15,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 64,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 64,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x49e0",
+        "backedge": "0x6c20",
+        "counts": {
+          "instructions": 549,
+          "HMMA": 80,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 15,
+          "STL": 0,
+          "BAR": 2,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x49e0",
+        "backedge": "0x6c20",
+        "counts": {
+          "instructions": 549,
+          "HMMA": 80,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 15,
+          "STL": 0,
+          "BAR": 2,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 128,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": true,
+    "same_assembly_as_final2": false,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1568,
+      "HMMA": 48,
+      "MUFU": 84,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1480,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 48,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1480,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 48,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 202,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 230,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x3a30",
+        "backedge": "0x4ea0",
+        "counts": {
+          "instructions": 328,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 16,
+          "LDS": 0,
+          "STS": 0,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x3940",
+        "backedge": "0x4c80",
+        "counts": {
+          "instructions": 309,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 0,
+          "STS": 0,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 1,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regIfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 2048,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2720,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2720,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2720,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x6420",
+        "backedge": "0x91e0",
+        "counts": {
+          "instructions": 733,
+          "HMMA": 80,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 3,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x6420",
+        "backedge": "0x91e0",
+        "counts": {
+          "instructions": 733,
+          "HMMA": 80,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 3,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regIfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 256,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2448,
+      "HMMA": 48,
+      "MUFU": 76,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 8,
+      "STL": 8,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2384,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 44,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2384,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 44,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x5f60",
+        "backedge": "0x7cc0",
+        "counts": {
+          "instructions": 471,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 3,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x5f60",
+        "backedge": "0x7cc0",
+        "counts": {
+          "instructions": 471,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 3,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regIfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 4096,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2584,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 91,
+      "STL": 91,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2584,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 91,
+      "STL": 91,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2584,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 91,
+      "STL": 91,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 368,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 368,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x6330",
+        "backedge": "0x9360",
+        "counts": {
+          "instructions": 772,
+          "HMMA": 96,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 25,
+          "STL": 0,
+          "BAR": 2,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x6330",
+        "backedge": "0x9360",
+        "counts": {
+          "instructions": 772,
+          "HMMA": 96,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 25,
+          "STL": 0,
+          "BAR": 2,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regIfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 512,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2328,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2328,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2328,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x57c0",
+        "backedge": "0x7c80",
+        "counts": {
+          "instructions": 589,
+          "HMMA": 64,
+          "MUFU": 34,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 1,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x57c0",
+        "backedge": "0x7c80",
+        "counts": {
+          "instructions": 589,
+          "HMMA": 64,
+          "MUFU": 34,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 1,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regIfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 64,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1272,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1272,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1272,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 184,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 184,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x3600",
+        "backedge": "0x4540",
+        "counts": {
+          "instructions": 245,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 0,
+          "STS": 0,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 0,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x3600",
+        "backedge": "0x4540",
+        "counts": {
+          "instructions": 245,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 0,
+          "STS": 0,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 0,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 1024,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1432,
+      "HMMA": 80,
+      "MUFU": 64,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1304,
+      "HMMA": 80,
+      "MUFU": 0,
+      "LDG": 100,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1304,
+      "HMMA": 80,
+      "MUFU": 0,
+      "LDG": 100,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 206,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 206,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x26b0",
+        "backedge": "0x4c40",
+        "counts": {
+          "instructions": 602,
+          "HMMA": 80,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 4,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x26b0",
+        "backedge": "0x4c40",
+        "counts": {
+          "instructions": 602,
+          "HMMA": 80,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 4,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 128,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 936,
+      "HMMA": 48,
+      "MUFU": 32,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 824,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 76,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 824,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 76,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 153,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 153,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x1610",
+        "backedge": "0x2c80",
+        "counts": {
+          "instructions": 360,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x1610",
+        "backedge": "0x2c80",
+        "counts": {
+          "instructions": 360,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 2048,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2096,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 49,
+      "STL": 49,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2096,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 49,
+      "STL": 49,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2096,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 49,
+      "STL": 49,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 200,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 200,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x47e0",
+        "backedge": "0x7bd0",
+        "counts": {
+          "instructions": 832,
+          "HMMA": 80,
+          "MUFU": 72,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 15,
+          "STL": 0,
+          "BAR": 5,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x47e0",
+        "backedge": "0x7bd0",
+        "counts": {
+          "instructions": 832,
+          "HMMA": 80,
+          "MUFU": 72,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 15,
+          "STL": 0,
+          "BAR": 5,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 256,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1304,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1304,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1304,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 180,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 180,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x2dd0",
+        "backedge": "0x4ca0",
+        "counts": {
+          "instructions": 494,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 5,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x2dd0",
+        "backedge": "0x4ca0",
+        "counts": {
+          "instructions": 494,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 5,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 4096,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1640,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 1,
+      "BRA": 4
+    },
+    "final2_static_counts": {
+      "instructions": 1640,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 1,
+      "BRA": 4
+    },
+    "final_static_counts": {
+      "instructions": 1640,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 1,
+      "BRA": 4
+    },
+    "final2_resources": {
+      "REG": 249,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 249,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x30b0",
+        "backedge": "0x6190",
+        "counts": {
+          "instructions": 783,
+          "HMMA": 96,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 4,
+          "WARPSYNC": 2,
+          "CALL": 1,
+          "BRA": 2
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x30b0",
+        "backedge": "0x6190",
+        "counts": {
+          "instructions": 783,
+          "HMMA": 96,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 4,
+          "WARPSYNC": 2,
+          "CALL": 1,
+          "BRA": 2
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 512,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1536,
+      "HMMA": 64,
+      "MUFU": 34,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1488,
+      "HMMA": 64,
+      "MUFU": 2,
+      "LDG": 76,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1488,
+      "HMMA": 64,
+      "MUFU": 2,
+      "LDG": 76,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 245,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 245,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x3160",
+        "backedge": "0x57f0",
+        "counts": {
+          "instructions": 618,
+          "HMMA": 64,
+          "MUFU": 2,
+          "LDG": 28,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 1,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x3160",
+        "backedge": "0x57f0",
+        "counts": {
+          "instructions": 618,
+          "HMMA": 64,
+          "MUFU": 2,
+          "LDG": 28,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 1,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j",
+    "N": 64,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 640,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 640,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 640,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 104,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 104,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0xf70",
+        "backedge": "0x1ed0",
+        "counts": {
+          "instructions": 247,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 0,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0xf70",
+        "backedge": "0x1ed0",
+        "counts": {
+          "instructions": 247,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 0,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemIfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 1024,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1872,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 45,
+      "STL": 45,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1872,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 45,
+      "STL": 45,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1872,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 45,
+      "STL": 45,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 184,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 184,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x4820",
+        "backedge": "0x6db0",
+        "counts": {
+          "instructions": 602,
+          "HMMA": 80,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 11,
+          "STL": 0,
+          "BAR": 4,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x4820",
+        "backedge": "0x6db0",
+        "counts": {
+          "instructions": 602,
+          "HMMA": 80,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 11,
+          "STL": 0,
+          "BAR": 4,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 128,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": true,
+    "same_assembly_as_final2": false,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1488,
+      "HMMA": 48,
+      "MUFU": 84,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1376,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 48,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1384,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 48,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 236,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 224,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x3590",
+        "backedge": "0x5100",
+        "counts": {
+          "instructions": 440,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 16,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x36a0",
+        "backedge": "0x5160",
+        "counts": {
+          "instructions": 429,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 3,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemIfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 2048,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2848,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 117,
+      "STL": 117,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2848,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 117,
+      "STL": 117,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2848,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 117,
+      "STL": 117,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 472,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 472,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x73f0",
+        "backedge": "0xab00",
+        "counts": {
+          "instructions": 882,
+          "HMMA": 80,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 83,
+          "STL": 0,
+          "BAR": 5,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x73f0",
+        "backedge": "0xab00",
+        "counts": {
+          "instructions": 882,
+          "HMMA": 80,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 83,
+          "STL": 0,
+          "BAR": 5,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemIfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 256,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2392,
+      "HMMA": 48,
+      "MUFU": 76,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 63,
+      "STL": 63,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2360,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 44,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 75,
+      "STL": 75,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2360,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 44,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 75,
+      "STL": 75,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 304,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 304,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x6510",
+        "backedge": "0x8c70",
+        "counts": {
+          "instructions": 631,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 41,
+          "STL": 0,
+          "BAR": 5,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x6510",
+        "backedge": "0x8c70",
+        "counts": {
+          "instructions": 631,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 41,
+          "STL": 0,
+          "BAR": 5,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemIfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 4096,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2384,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 67,
+      "STL": 67,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2384,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 67,
+      "STL": 67,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2384,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 67,
+      "STL": 67,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 272,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 272,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x5a00",
+        "backedge": "0x8e30",
+        "counts": {
+          "instructions": 836,
+          "HMMA": 96,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 35,
+          "STL": 0,
+          "BAR": 4,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x5a00",
+        "backedge": "0x8e30",
+        "counts": {
+          "instructions": 836,
+          "HMMA": 96,
+          "MUFU": 64,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 35,
+          "STL": 0,
+          "BAR": 4,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemIfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 512,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2176,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 58,
+      "STL": 58,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 2176,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 58,
+      "STL": 58,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 2176,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 58,
+      "STL": 58,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 232,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 232,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x5310",
+        "backedge": "0x8100",
+        "counts": {
+          "instructions": 736,
+          "HMMA": 64,
+          "MUFU": 34,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 26,
+          "STL": 0,
+          "BAR": 1,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x5310",
+        "backedge": "0x8100",
+        "counts": {
+          "instructions": 736,
+          "HMMA": 64,
+          "MUFU": 34,
+          "LDG": 0,
+          "LDS": 64,
+          "STS": 64,
+          "LDL": 26,
+          "STL": 0,
+          "BAR": 1,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemIfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+    "N": 64,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "repeat",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1168,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_static_counts": {
+      "instructions": 1168,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final_static_counts": {
+      "instructions": 1168,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 1,
+      "BRA": 3
+    },
+    "final2_resources": {
+      "REG": 198,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 198,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [
+      {
+        "start": "0x3140",
+        "backedge": "0x4400",
+        "counts": {
+          "instructions": 301,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ],
+    "final_loop_spans": [
+      {
+        "start": "0x3140",
+        "backedge": "0x4400",
+        "counts": {
+          "instructions": 301,
+          "HMMA": 48,
+          "MUFU": 0,
+          "LDG": 0,
+          "LDS": 32,
+          "STS": 32,
+          "LDL": 0,
+          "STL": 0,
+          "BAR": 0,
+          "WARPSYNC": 0,
+          "CALL": 1,
+          "BRA": 1
+        }
+      }
+    ]
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 1024,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1432,
+      "HMMA": 80,
+      "MUFU": 64,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1296,
+      "HMMA": 80,
+      "MUFU": 0,
+      "LDG": 100,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1296,
+      "HMMA": 80,
+      "MUFU": 0,
+      "LDG": 100,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 168,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 168,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 128,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 880,
+      "HMMA": 48,
+      "MUFU": 32,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 768,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 76,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 768,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 76,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 138,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 138,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 2048,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2032,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2032,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2032,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 256,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1336,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1336,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1336,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 167,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 167,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 4096,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1688,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 0,
+      "BRA": 2
+    },
+    "final2_static_counts": {
+      "instructions": 1688,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 0,
+      "BRA": 2
+    },
+    "final_static_counts": {
+      "instructions": 1688,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 0,
+      "BRA": 2
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 512,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1584,
+      "HMMA": 64,
+      "MUFU": 34,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1520,
+      "HMMA": 64,
+      "MUFU": 2,
+      "LDG": 76,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1520,
+      "HMMA": 64,
+      "MUFU": 2,
+      "LDG": 76,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 168,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 168,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 64,
+    "precision": "fp16",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 568,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 568,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 568,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 115,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 115,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 1024,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1800,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1800,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1800,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 174,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 174,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 128,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": true,
+    "same_assembly_as_final2": false,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1504,
+      "HMMA": 48,
+      "MUFU": 84,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1376,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 48,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1376,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 48,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 181,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 181,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 2048,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2688,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2688,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2688,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 256,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2280,
+      "HMMA": 48,
+      "MUFU": 76,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2216,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 44,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2216,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 44,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 223,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 223,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 4096,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2296,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2296,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2296,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 253,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 253,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 512,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2064,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2064,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2064,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 210,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 210,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 64,
+    "precision": "tf32",
+    "placement": "register",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1160,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1160,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1160,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 183,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 183,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 1024,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1432,
+      "HMMA": 80,
+      "MUFU": 64,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1296,
+      "HMMA": 80,
+      "MUFU": 0,
+      "LDG": 100,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1296,
+      "HMMA": 80,
+      "MUFU": 0,
+      "LDG": 100,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 168,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 168,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 128,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 880,
+      "HMMA": 48,
+      "MUFU": 32,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 768,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 76,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 768,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 76,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 138,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 138,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 2048,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2032,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2032,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2032,
+      "HMMA": 80,
+      "MUFU": 72,
+      "LDG": 68,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 256,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1336,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1336,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1336,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 72,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 167,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 167,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 4096,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1688,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 0,
+      "BRA": 2
+    },
+    "final2_static_counts": {
+      "instructions": 1688,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 0,
+      "BRA": 2
+    },
+    "final_static_counts": {
+      "instructions": 1688,
+      "HMMA": 96,
+      "MUFU": 64,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 2,
+      "CALL": 0,
+      "BRA": 2
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 512,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1584,
+      "HMMA": 64,
+      "MUFU": 34,
+      "LDG": 60,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1520,
+      "HMMA": 64,
+      "MUFU": 2,
+      "LDG": 76,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1520,
+      "HMMA": 64,
+      "MUFU": 2,
+      "LDG": 76,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 168,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 168,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_",
+    "N": 64,
+    "precision": "fp16",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 568,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 568,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 568,
+      "HMMA": 48,
+      "MUFU": 0,
+      "LDG": 60,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 115,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 115,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 1024,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1800,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1800,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1800,
+      "HMMA": 80,
+      "MUFU": 60,
+      "LDG": 64,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 174,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 174,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 128,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": true,
+    "same_assembly_as_final2": false,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1504,
+      "HMMA": 48,
+      "MUFU": 84,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1376,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 48,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1376,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 48,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 181,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 181,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 2048,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2688,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2688,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2688,
+      "HMMA": 80,
+      "MUFU": 133,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 255,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 256,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2280,
+      "HMMA": 48,
+      "MUFU": 76,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2216,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 44,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2216,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 44,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 7,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 223,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 223,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 4096,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2296,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2296,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2296,
+      "HMMA": 96,
+      "MUFU": 116,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 253,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 253,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 512,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 2064,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 6,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 2064,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 2064,
+      "HMMA": 64,
+      "MUFU": 86,
+      "LDG": 32,
+      "LDS": 96,
+      "STS": 96,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 1,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 210,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 210,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  },
+  {
+    "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+    "N": 64,
+    "precision": "tf32",
+    "placement": "shared",
+    "kind": "e2e",
+    "intended_sync_change": false,
+    "same_assembly_as_final2": true,
+    "same_static_HMMA_as_baseline": true,
+    "same_static_HMMA_as_final2": true,
+    "baseline_static_counts": {
+      "instructions": 1160,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 5,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_static_counts": {
+      "instructions": 1160,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final_static_counts": {
+      "instructions": 1160,
+      "HMMA": 48,
+      "MUFU": 52,
+      "LDG": 32,
+      "LDS": 64,
+      "STS": 64,
+      "LDL": 0,
+      "STL": 0,
+      "BAR": 0,
+      "WARPSYNC": 0,
+      "CALL": 0,
+      "BRA": 1
+    },
+    "final2_resources": {
+      "REG": 183,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final_resources": {
+      "REG": 183,
+      "STACK": 0,
+      "SHARED": 0,
+      "LOCAL": 0
+    },
+    "final2_loop_spans": [],
+    "final_loop_spans": []
+  }
+]

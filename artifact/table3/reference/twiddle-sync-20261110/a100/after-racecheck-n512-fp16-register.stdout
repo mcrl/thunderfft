@@ -1,0 +1,2 @@
+N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_out_of_place_us,single_fft_relL2,shared_bytes
+512,fp16,register,32,32,0,191806.458,375487.488,5740.0322,23013.5803,0.000588647456412,4608

@@ -1,0 +1,2 @@
+Host API validation: 18 checks passed before any CUDA calls
+Validation: 88 cases, 0 failures; relative L2 limit 0.005

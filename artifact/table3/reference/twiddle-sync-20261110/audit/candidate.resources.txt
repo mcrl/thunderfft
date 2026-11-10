@@ -1,0 +1,144 @@
+
+Fatbin ptx code:
+================
+arch = sm_80
+code version = [8,8]
+host = linux
+compile_size = 64bit
+compressed
+identifier = /home/chaewon/ae-e2e-20261110/table3-opt/paired-cloud-worktree-v2/sample/bench/paper_fft.cu
+ptxasOptions =  --generate-line-info 
+
+Fatbin elf code:
+================
+arch = sm_80
+code version = [1,7]
+host = linux
+compile_size = 64bit
+identifier = /home/chaewon/ae-e2e-20261110/table3-opt/paired-cloud-worktree-v2/sample/bench/paper_fft.cu
+
+Resource usage:
+ Common:
+  GLOBAL:27648 CONSTANT[3]:28 CONSTANT[4]:16
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:253 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regIfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:368 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:253 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemIfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:272 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:255 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:196 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:255 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi4096ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:249 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:255 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regIfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:255 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemIfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:472 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:255 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:249 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:255 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi2048ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:255 STACK:200 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:174 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regIfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:64 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:174 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemIfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:184 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:168 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:56 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:241 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:56 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:168 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:56 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi1024ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:206 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:56 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:210 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regIfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:210 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemIfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:232 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:168 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:156 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:168 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi512ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:245 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:223 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regIfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:223 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemIfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:255 STACK:304 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:167 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:115 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:167 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi256ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:180 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:181 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:230 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:181 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:224 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:138 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:145 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:138 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:153 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:183 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regIfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:184 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_:
+  REG:183 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemIfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j:
+  REG:198 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft28ThunderFFT_benchmark_reg_e2eI6__halfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:115 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft24ThunderFFT_benchmark_regI6__halfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:127 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft29ThunderFFT_benchmark_smem_e2eI6__halfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_:
+  REG:115 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:376 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10thunderfft25ThunderFFT_benchmark_smemI6__halfLi64ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES7_PKT_j:
+  REG:104 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _Z11copy_kernelI6float2EvPKT_PS1_mj:
+  REG:14 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _Z11copy_kernelI7__half2EvPKT_PS1_mj:
+  REG:14 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _Z10initializeI6__halfEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeEP7double2mi:
+  REG:26 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _Z11copy_kernelI4int4EvPKT_PS1_mj:
+  REG:16 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _Z10initializeIfEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeEP7double2mi:
+  REG:26 STACK:0 SHARED:0 LOCAL:0 CONSTANT[2]:16 CONSTANT[0]:380 TEXTURE:0 SURFACE:0 SAMPLER:0

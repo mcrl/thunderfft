@@ -1,0 +1,13 @@
+{
+  "status": "applied",
+  "before_sha256": "dad0bbec266c7cfac23eeb6fcadb59b34715b335a9d7868fcadce0eb54a0ba6e",
+  "after_sha256": "e1744817fe0f720c1673632bc024cdfcc5247df23f7fd055a386461892fddc94",
+  "applied_at": 1794290982.92262,
+  "source_manifest_preserved": true,
+  "derivation": "Selected application fields from original helper-overlay audit; operational fields omitted.",
+  "original_audit_sha256": "1f9afb87876131c9ed4f2e7a19457578618369d874ffc4726f1fca84d8c70de2",
+  "runtime_import_confirmed": true,
+  "final_metadata_path": "../../h100/paired-metadata.json",
+  "final_metadata_sha256": "95c3a3a977fa7c5800edb77713472ff13cef8ed4694126d555fbbbb3fc6be168",
+  "runtime_validation_helper_sha256": "e1744817fe0f720c1673632bc024cdfcc5247df23f7fd055a386461892fddc94"
+}

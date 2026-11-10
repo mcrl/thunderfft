@@ -59,8 +59,8 @@ ThunderFFT_kernel_reg<float, 256, 16, true>(vec2_t<float>* __restrict__ reg, vec
                 // reg[i*4+j+16] = s_out_1[0];
                 
                 if (j != 0) {
-                    rotate(reg[i*4+j], x * j, 256);
-                    rotate(reg[i*4+j+16], x * j, 256);
+                    unit::rotate_cached_table<256>(reg[i*4+j], x * j);
+                    unit::rotate_cached_table<256>(reg[i*4+j+16], x * j);
                 }
             }
         }

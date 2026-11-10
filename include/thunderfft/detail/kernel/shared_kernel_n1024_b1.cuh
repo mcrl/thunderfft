@@ -125,8 +125,8 @@ ThunderFFT_kernel_reg<half, 1024, 1, true>(vec2_t<half>* __restrict__ reg, vec2_
 
         reg[i] = smem[index0];
         reg[i+ept/2] = smem[index1];
-        rotate(reg[i], col0 * rev_row, 1024);
-        rotate(reg[i+ept/2], col1 * rev_row, 1024);
+        unit_fp16::rotate_n_cached<1024, true>(reg[i], col0 * rev_row);
+        unit_fp16::rotate_n_cached<1024, true>(reg[i+ept/2], col1 * rev_row);
 
         
         // __syncthreads();
@@ -171,8 +171,8 @@ ThunderFFT_kernel_reg<half, 1024, 1, false>(vec2_t<half>* __restrict__ reg, vec2
         reg[i] = smem[index0];
         reg[i+ept/2] = smem[index1];
         
-        rotate(reg[i], -col0 * rev_row, 1024);
-        rotate(reg[i+ept/2], -col1 * rev_row, 1024);
+        unit_fp16::rotate_n_cached<1024, false>(reg[i], col0 * rev_row);
+        unit_fp16::rotate_n_cached<1024, false>(reg[i+ept/2], col1 * rev_row);
     }
 
     thunderfft::unit_fp16::fft_kernel_r16_b64<false>(reg, W_reg);

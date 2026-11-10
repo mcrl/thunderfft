@@ -1,4 +1,13 @@
 namespace thunderfft::unit {
+// Use the initialized transform's read-only twiddle table for the selected
+// inter-stage rotations. The load and complex multiply remain in each FFT,
+// including single-pass kernels; no precision or FFT stage is changed.
+template <int N, bool Forward = true>
+__device__ __forceinline__ void rotate_cached_table(float2& value, int index) {
+    const float2 factor = __ldg(ThunderFFT_get_twiddle<float>() + index);
+    value = cmul(value, make_float2(factor.x, Forward ? -factor.y : factor.y));
+}
+
 __device__ __forceinline__ float W_cos(int index, int N) {
     return __cosf(-2 * PI * index / N);
 }

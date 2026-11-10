@@ -5,6 +5,23 @@ batch 65536, register and shared-memory input, ThunderFFT FP16 and TF32 against
 cuFFTDx FP16 and FP32, with speedups. The paper reports A100 PCIe 80GB, H100
 PCIe and B200 columns; one run measures one GPU.
 
+## Optimization comparison (2026-11-10)
+
+The [matched before/after report](reference/twiddle-sync-20261110/before-after.md)
+compares the implementation at `00bc845` with selected twiddle-table reuse and
+warp synchronization changes. It retains the FFT stages, precision categories,
+batch 65536, R=1000 differential timing and three trials per version. Each GPU
+is compared with itself, alternating before/after execution order by configuration.
+All 28 configurations are reported, including unchanged and slower cases.
+
+These are ThunderFFT optimization measurements, separate from the paper
+reference values and cuFFTDx comparisons. The report distinguishes repeated
+compute latency from single-FFT latency including global-memory transfers;
+an improvement in the former does not establish an improvement in the latter.
+The [evidence guide](reference/twiddle-sync-20261110/README.md) records the
+tested hardware, correctness and sanitizer coverage, source hashes and limits.
+The usual commands below measure the updated implementation afresh.
+
 ## Run
 
 Run locally on an A100 80GB PCIe GPU; H100 and B200 run on

@@ -152,6 +152,12 @@ A100 Table 3 preset measurement took 4 minutes 56 seconds, plus 2 minutes
 9 seconds for build/setup, compared with the previous full search's
 8 minutes 41 seconds of measurement. See the Table 3 README for details.
 
+The [2026-11-10 Table 3 before/after report](table3/reference/twiddle-sync-20261110/before-after.md)
+measures subsequent ThunderFFT kernel changes against `00bc845`. It preserves
+the paper timing settings and reports compute and single-FFT end-to-end
+latencies separately. This comparison does not remeasure cuFFTDx or the
+complete workflow; the stage-time estimates above are unchanged.
+
 The retained 2026-11-09 run at commit `6864641` completed the former default
 (`all` cuFFTDx candidates and every cuDNN filter) in 61 minutes 52 seconds
 on A100/H100/B200, including automatic assembly. At commit `317593c`, a

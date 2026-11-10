@@ -1,0 +1,3 @@
+compiled_CUDART=12090 runtime=12080 driver=12090 cuFFT=11303 extra_R_warmups=3
+GPU=NVIDIA A100 80GB PCIe compute=8.0 batch=65536 R=1000 trials=3 single_fft_relL2_limit=0.005
+GPU_UUID=GPU-f4bb2c48-b43c-0f5a-8f59-75d6373ea4e6

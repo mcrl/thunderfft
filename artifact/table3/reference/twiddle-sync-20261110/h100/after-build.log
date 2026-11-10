@@ -1,0 +1,152 @@
+[ 50%] Building CUDA object CMakeFiles/thff_paper_fft.dir/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/paper_fft.cu.o
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/baseline/thunderfft_bench.h(139): warning #549-D: variable "dW" is used before its value is set
+      auto kernel = [grid, block, shmem_bytes, dW, stream]
+                                               ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/baseline/thunderfft_bench.h(267): warning #549-D: variable "dW" is used before its value is set
+      auto kernel = [grid, block, shmem_bytes, dW, stream]
+                                               ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp32.cuh(447): warning #177-D: variable "b" was declared but never referenced
+      int b = ((laneid>>1) & 1);
+          ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp32.cuh(479): warning #177-D: variable "block_id" was declared but never referenced
+      int block_id = blockIdx.x;
+          ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp32.cuh(481): warning #177-D: variable "b" was declared but never referenced
+      int b = ((laneid>>1) & 1);
+          ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(479): warning #177-D: variable "block_id" was declared but never referenced
+      int block_id = blockIdx.x;
+          ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(482): warning #177-D: variable "b" was declared but never referenced
+      int b = ((laneid>>1) & 1);
+          ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(514): warning #177-D: variable "block_id" was declared but never referenced
+      int block_id = blockIdx.x;
+          ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(516): warning #177-D: variable "b" was declared but never referenced
+      int b = ((laneid>>1) & 1);
+          ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(162): warning #177-D: variable "index" was declared but never referenced
+                  int index = (laneid%4) + warpid*4 + j*16 + i * 64;
+                      ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(131): warning #177-D: variable "pad_period" was declared but never referenced
+          const int pad_period=64, pad=1;
+                    ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(131): warning #177-D: variable "pad" was declared but never referenced
+          const int pad_period=64, pad=1;
+                                   ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(132): warning #177-D: variable "batch0" was declared but never referenced
+          int batch0 = (laneid/4);
+              ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(133): warning #177-D: variable "batch1" was declared but never referenced
+          int batch1 = (laneid/4+8);
+              ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(236): warning #177-D: variable "index" was declared but never referenced
+                  int index = (laneid%4) + warpid*4 + j*16 + i * 64;
+                      ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(217): warning #177-D: variable "pad_period" was declared but never referenced
+          const int pad_period=64, pad=1;
+                    ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(217): warning #177-D: variable "pad" was declared but never referenced
+          const int pad_period=64, pad=1;
+                                   ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(218): warning #177-D: variable "batch0" was declared but never referenced
+          int batch0 = (laneid/4);
+              ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh(219): warning #177-D: variable "batch1" was declared but never referenced
+          int batch1 = (laneid/4+8);
+              ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n1024_b1.cuh(16): warning #177-D: variable "block_id" was declared but never referenced
+      int block_id = blockIdx.x;
+          ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n1024_b1.cuh(60): warning #177-D: variable "block_id" was declared but never referenced
+      int block_id = blockIdx.x;
+          ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/shared_kernel_n1024_b1.cuh(148): warning #177-D: variable "block_id" was declared but never referenced
+      int block_id = blockIdx.x;
+          ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp32.cuh(157): warning #177-D: variable "ept" was declared but never referenced
+      constexpr int ept = (n * tc_m) / threads_per_warp;
+                    ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(192): warning #177-D: variable "j_perm" was declared but never referenced
+              const int j_perm = (stride >= radix)
+                        ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(195): warning #177-D: variable "i_perm" was declared but never referenced
+              const int i_perm = ((j / stride) / 2 * 2) % radix;
+                        ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(196): warning #177-D: variable "k" was declared but never referenced
+              const int k = j % stride;
+                        ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(171): warning #177-D: variable "reg_frag_b" was declared but never referenced
+          half2 reg_frag_b[tc_k * tc_n / warp_size / 2];
+                ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(158): warning #177-D: variable "ept" was declared but never referenced
+      constexpr int ept = (n * tc_m) / warp_size;
+                    ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp32.cuh(308): warning #177-D: variable "ept" was declared but never referenced
+      constexpr int ept = (n * tc_m) / threads_per_warp;
+                    ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(401): warning #177-D: variable "j_perm" was declared but never referenced
+              const int j_perm = (stride >= radix)
+                        ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(404): warning #177-D: variable "i_perm" was declared but never referenced
+              const int i_perm = i==0? ((j / stride) / 2 * 2) % radix : 0;
+                        ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(405): warning #177-D: variable "k" was declared but never referenced
+              const int k = j % stride;
+                        ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(380): warning #177-D: variable "reg_frag_b" was declared but never referenced
+          half2 reg_frag_b[tc_k * tc_n / warp_size / 2];
+                ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh(367): warning #177-D: variable "ept" was declared but never referenced
+      constexpr int ept = (n * tc_m) / warp_size;
+                    ^
+
+/workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/include/thunderfft/detail/thunderfft_impl_helper.cuh(49): warning #177-D: variable "block_size" was declared but never referenced
+      int block_size = blockDim.x * blockDim.y;
+          ^
+          detected during:
+            instantiation of "void thunderfft::ThunderFFT_benchmark_smem<T,N,forward>(vec2_t<T> *, vec2_t<T> *, const T *, unsigned int) [with T=half, N=64, forward=true]" at line 163 of /workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/paper_fft.cu
+            instantiation of "void run<T,N,Shared>(int, int, int) [with T=half, N=64, Shared=true]" at line 279 of /workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/paper_fft.cu
+            instantiation of "void choose<N>(const std::string &, const std::string &, int, int, int, const Options &) [with N=64]" at line 334 of /workspace/thunderfft-ae-b6777963803840e09b5cfa2232a76efd/source/sample/bench/paper_fft.cu
+
+[100%] Linking CUDA executable thff_paper_fft
+[100%] Built target thff_paper_fft
+[100%] Built target thff_validate

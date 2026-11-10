@@ -1,0 +1,394 @@
+{
+  "created_utc": "2026-11-10T06:13:42.384518+00:00",
+  "actual_paired_binary": "/home/chaewon/ae-e2e-20261110/table3-opt/paired-local-build/paired_after/thff_paper_fft",
+  "actual_paired_binary_sha256": "3ad33dd5a11063210b687a98e031bb97765861904df8afd53a905cd74489eb23",
+  "actual_paired_before_sha256": "ae68e68e9a00479e0165239fc952487512cf82f8f2b5df3d98676a096a94b60b",
+  "previous_paired_after_sha256": "8506f103c81f5195557c638b9a514a4551ddbd8b9cfa645ad248dd7e5b60e04e",
+  "previous_equivalence_evidence": "/home/chaewon/ae-e2e-20261110/table3-opt/combined-audit/paired-sass-equivalence.json",
+  "candidate_source_hashes": {
+    "include/thunderfft/detail/kernel/global_kernel.cuh": "ccc41b9fc9a59633a93d09a53a1d606f34e85db38415736fe6a462ae72a280b1",
+    "include/thunderfft/detail/kernel/shared_kernel_n1024_b1.cuh": "9da43c3678b6533aa8f6eac740971eb02bb6145ccd072cfbf4692da2308d2a27",
+    "include/thunderfft/detail/kernel/shared_kernel_n128_b8.cuh": "ee29e50ccc25af83767c7cb7ad86279eb56c2633715e9a4bac8ff01c60f31edd",
+    "include/thunderfft/detail/kernel/shared_kernel_n2048_b1.cuh": "d7ccffad5ee6761cca42a22d51384016fe21b99ff261e91ec296a727aaaa7125",
+    "include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh": "d4576176c55e6a1129cc3bf60ff492b1d8f0939f571388321d5364439aa6c24c",
+    "include/thunderfft/detail/kernel/shared_kernel_n4096_b1.cuh": "e8f1c8e76c0f5c93382c66bf34f099040b761466c9f827d8445201c8758de264",
+    "include/thunderfft/detail/kernel/shared_kernel_n512_b2.cuh": "447bdef32fbcad89b7afac891b61240b146e24022a5af477f1a42eaef0d614a6",
+    "include/thunderfft/detail/kernel/shared_kernel_n64_b16.cuh": "43b8e23cb5c65b751f6700e4aadb0025efdc7bd97a910270e5ac861595abb5e6",
+    "include/thunderfft/detail/kernel/unit_kernel_fp16.cuh": "4ac97b542e513c1d809661eebf2e57e31ca1ac5f67bbab1f14b93012cd01847b",
+    "include/thunderfft/detail/kernel/unit_kernel_fp32.cuh": "a6678010d89331347c084f84bb0050f790812dd14446fd325248fa5a056b8d1f",
+    "include/thunderfft/detail/thunderfft_impl.cuh": "4b2607dc9b19f322e9fd23e9a5d94827468e531d43c90e59e54dff75b5b15d43",
+    "include/thunderfft/detail/thunderfft_impl_helper.cuh": "e1dd85662f2ebc9b384f491ad628f3abaf5cda6fdc05d98e6e03d368a32446f0",
+    "include/thunderfft/detail/thunderfft_impl_kernel.cuh": "423a1cc748ab4b69d9656c13807410a0013c85ab9a45c1ee12036f0dc1168e4b",
+    "include/thunderfft/detail/thunderfft_impl_twiddle.cuh": "c18f6713c5bde82419821555f9c343ae211ceb0ae872aaeb37ec792cf37b26b3",
+    "include/thunderfft/detail/util_arith.h": "eacf31de9129fca8ea6279ebd83491e2f0f08422ba1faf7059a275dcec955765",
+    "include/thunderfft/detail/util_cuda.h": "e76c8aaa9705f19b33d80b675f03517cae8b8fa9a4f649b96e05e531dc59b134",
+    "include/thunderfft/detail/utils.h": "8367ed493754cbd1f2253929573b37e25d97b1c9bcee7f82b25aba18593b532f",
+    "include/thunderfft/thunderfft.cuh": "eb803339d86159bad8db674425c9ed2b0a4e15b0418730a05486a3830b1b7d4a",
+    "include/thunderfft/thunderfft_layout_tuned.h": "ac1abb139f0849e71d312e7c927a5d0e5d629b746d6fb36fa1835e7261a99e9a",
+    "sample/bench/baseline/thunderfft_bench.h": "adf1312fd6ab85dfb85205d4217b252d630c1afe83826ad3a6d7e0b7c2b2d52e",
+    "sample/bench/paper_fft.cu": "8bca2a0f3d54e75aa9ce9ad82aca47f376bf3df44cdcd8e67351f8ab6e3b4f53"
+  },
+  "selected_header_sha256": "adf1312fd6ab85dfb85205d4217b252d630c1afe83826ad3a6d7e0b7c2b2d52e",
+  "architecture": "sm_80",
+  "functions_audited": 56,
+  "all_static_HMMA_counts_preserved": true,
+  "unchanged_functions_identical_to_final2": 52,
+  "n128_tf32_repeat_loop_LDG_count": 0,
+  "notes": [
+    "No GPU workloads launched by this audit.",
+    "Counts are static assembly counts; backward-branch spans are linear assembly intervals, not dynamic instruction totals.",
+    "LUT values/precision and bounds are inherited unchanged; compiler invariant handling, not source hoisting across the timing interval, removes N128 TF32 repeated loads."
+  ],
+  "changed_functions": [
+    {
+      "symbol": "_ZN10thunderfft24ThunderFFT_benchmark_regIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+      "N": 128,
+      "precision": "tf32",
+      "placement": "register",
+      "kind": "repeat",
+      "intended_sync_change": true,
+      "same_assembly_as_final2": false,
+      "same_static_HMMA_as_baseline": true,
+      "same_static_HMMA_as_final2": true,
+      "baseline_static_counts": {
+        "instructions": 1568,
+        "HMMA": 48,
+        "MUFU": 84,
+        "LDG": 32,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 5,
+        "WARPSYNC": 0,
+        "CALL": 1,
+        "BRA": 3
+      },
+      "final2_static_counts": {
+        "instructions": 1480,
+        "HMMA": 48,
+        "MUFU": 52,
+        "LDG": 48,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 0,
+        "WARPSYNC": 0,
+        "CALL": 1,
+        "BRA": 3
+      },
+      "final_static_counts": {
+        "instructions": 1480,
+        "HMMA": 48,
+        "MUFU": 52,
+        "LDG": 48,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 5,
+        "WARPSYNC": 0,
+        "CALL": 1,
+        "BRA": 3
+      },
+      "final2_resources": {
+        "REG": 202,
+        "STACK": 0,
+        "SHARED": 0,
+        "LOCAL": 0
+      },
+      "final_resources": {
+        "REG": 230,
+        "STACK": 0,
+        "SHARED": 0,
+        "LOCAL": 0
+      },
+      "final2_loop_spans": [
+        {
+          "start": "0x3a30",
+          "backedge": "0x4ea0",
+          "counts": {
+            "instructions": 328,
+            "HMMA": 48,
+            "MUFU": 0,
+            "LDG": 16,
+            "LDS": 0,
+            "STS": 0,
+            "LDL": 0,
+            "STL": 0,
+            "BAR": 0,
+            "WARPSYNC": 0,
+            "CALL": 1,
+            "BRA": 1
+          }
+        }
+      ],
+      "final_loop_spans": [
+        {
+          "start": "0x3940",
+          "backedge": "0x4c80",
+          "counts": {
+            "instructions": 309,
+            "HMMA": 48,
+            "MUFU": 0,
+            "LDG": 0,
+            "LDS": 0,
+            "STS": 0,
+            "LDL": 0,
+            "STL": 0,
+            "BAR": 1,
+            "WARPSYNC": 0,
+            "CALL": 1,
+            "BRA": 1
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "_ZN10thunderfft25ThunderFFT_benchmark_smemIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_j",
+      "N": 128,
+      "precision": "tf32",
+      "placement": "shared",
+      "kind": "repeat",
+      "intended_sync_change": true,
+      "same_assembly_as_final2": false,
+      "same_static_HMMA_as_baseline": true,
+      "same_static_HMMA_as_final2": true,
+      "baseline_static_counts": {
+        "instructions": 1488,
+        "HMMA": 48,
+        "MUFU": 84,
+        "LDG": 32,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 5,
+        "WARPSYNC": 0,
+        "CALL": 1,
+        "BRA": 3
+      },
+      "final2_static_counts": {
+        "instructions": 1376,
+        "HMMA": 48,
+        "MUFU": 52,
+        "LDG": 48,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 0,
+        "WARPSYNC": 0,
+        "CALL": 1,
+        "BRA": 3
+      },
+      "final_static_counts": {
+        "instructions": 1384,
+        "HMMA": 48,
+        "MUFU": 52,
+        "LDG": 48,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 5,
+        "WARPSYNC": 0,
+        "CALL": 1,
+        "BRA": 3
+      },
+      "final2_resources": {
+        "REG": 236,
+        "STACK": 0,
+        "SHARED": 0,
+        "LOCAL": 0
+      },
+      "final_resources": {
+        "REG": 224,
+        "STACK": 0,
+        "SHARED": 0,
+        "LOCAL": 0
+      },
+      "final2_loop_spans": [
+        {
+          "start": "0x3590",
+          "backedge": "0x5100",
+          "counts": {
+            "instructions": 440,
+            "HMMA": 48,
+            "MUFU": 0,
+            "LDG": 16,
+            "LDS": 32,
+            "STS": 32,
+            "LDL": 0,
+            "STL": 0,
+            "BAR": 0,
+            "WARPSYNC": 0,
+            "CALL": 1,
+            "BRA": 1
+          }
+        }
+      ],
+      "final_loop_spans": [
+        {
+          "start": "0x36a0",
+          "backedge": "0x5160",
+          "counts": {
+            "instructions": 429,
+            "HMMA": 48,
+            "MUFU": 0,
+            "LDG": 0,
+            "LDS": 32,
+            "STS": 32,
+            "LDL": 0,
+            "STL": 0,
+            "BAR": 3,
+            "WARPSYNC": 0,
+            "CALL": 1,
+            "BRA": 1
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "_ZN10thunderfft28ThunderFFT_benchmark_reg_e2eIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+      "N": 128,
+      "precision": "tf32",
+      "placement": "register",
+      "kind": "e2e",
+      "intended_sync_change": true,
+      "same_assembly_as_final2": false,
+      "same_static_HMMA_as_baseline": true,
+      "same_static_HMMA_as_final2": true,
+      "baseline_static_counts": {
+        "instructions": 1504,
+        "HMMA": 48,
+        "MUFU": 84,
+        "LDG": 32,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 5,
+        "WARPSYNC": 0,
+        "CALL": 0,
+        "BRA": 1
+      },
+      "final2_static_counts": {
+        "instructions": 1376,
+        "HMMA": 48,
+        "MUFU": 52,
+        "LDG": 48,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 0,
+        "WARPSYNC": 0,
+        "CALL": 0,
+        "BRA": 1
+      },
+      "final_static_counts": {
+        "instructions": 1376,
+        "HMMA": 48,
+        "MUFU": 52,
+        "LDG": 48,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 5,
+        "WARPSYNC": 0,
+        "CALL": 0,
+        "BRA": 1
+      },
+      "final2_resources": {
+        "REG": 181,
+        "STACK": 0,
+        "SHARED": 0,
+        "LOCAL": 0
+      },
+      "final_resources": {
+        "REG": 181,
+        "STACK": 0,
+        "SHARED": 0,
+        "LOCAL": 0
+      },
+      "final2_loop_spans": [],
+      "final_loop_spans": []
+    },
+    {
+      "symbol": "_ZN10thunderfft29ThunderFFT_benchmark_smem_e2eIfLi128ELb1EEEvPNSt11conditionalIL_ZSt9is_same_vE6float27__half2E4typeES6_PKT_",
+      "N": 128,
+      "precision": "tf32",
+      "placement": "shared",
+      "kind": "e2e",
+      "intended_sync_change": true,
+      "same_assembly_as_final2": false,
+      "same_static_HMMA_as_baseline": true,
+      "same_static_HMMA_as_final2": true,
+      "baseline_static_counts": {
+        "instructions": 1504,
+        "HMMA": 48,
+        "MUFU": 84,
+        "LDG": 32,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 5,
+        "WARPSYNC": 0,
+        "CALL": 0,
+        "BRA": 1
+      },
+      "final2_static_counts": {
+        "instructions": 1376,
+        "HMMA": 48,
+        "MUFU": 52,
+        "LDG": 48,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 0,
+        "WARPSYNC": 0,
+        "CALL": 0,
+        "BRA": 1
+      },
+      "final_static_counts": {
+        "instructions": 1376,
+        "HMMA": 48,
+        "MUFU": 52,
+        "LDG": 48,
+        "LDS": 64,
+        "STS": 64,
+        "LDL": 0,
+        "STL": 0,
+        "BAR": 5,
+        "WARPSYNC": 0,
+        "CALL": 0,
+        "BRA": 1
+      },
+      "final2_resources": {
+        "REG": 181,
+        "STACK": 0,
+        "SHARED": 0,
+        "LOCAL": 0
+      },
+      "final_resources": {
+        "REG": 181,
+        "STACK": 0,
+        "SHARED": 0,
+        "LOCAL": 0
+      },
+      "final2_loop_spans": [],
+      "final_loop_spans": []
+    }
+  ],
+  "git_head": "00bc845d0f3119fa405517cc601126bdbd9b3351",
+  "git_head_verification": {
+    "main": "00bc845d0f3119fa405517cc601126bdbd9b3351",
+    "paired_source": "9b6b4235f835b068d1a0816b82b6bc6128737b31"
+  },
+  "git_head_basis": "Main working-tree base revision; selected uncommitted source is separately identified by candidate_source_hashes. Paired harness has its own committed revision."
+}

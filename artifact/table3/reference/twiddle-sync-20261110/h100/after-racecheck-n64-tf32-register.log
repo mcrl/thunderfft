@@ -1,0 +1,3 @@
+compiled_CUDART=13000 runtime=13000 driver=13030 cuFFT=12000 extra_R_warmups=3
+GPU=NVIDIA H100 PCIe compute=9.0 batch=32 R=32 trials=1 single_fft_relL2_limit=0.005
+GPU_UUID=GPU-508ace01-a2b3-bec9-5fe1-855752e6b08c

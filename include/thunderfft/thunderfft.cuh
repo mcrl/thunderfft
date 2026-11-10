@@ -195,9 +195,9 @@ ThunderFFT_kernel_smem_pad(vec2_t<T>* __restrict__ s_input,
 // the global N-element twiddle table; a null W is not valid for every variant.
 // Follow the matching sample's coefficient setup and shared-memory barriers.
 // Initialization and inverse normalization rules are the same as above.
-// In particular, the half N=256 and SM80 float N=1024 specializations read
-// their global tables from ThunderFFTInitialize<T>(N) in both directions;
-// keep the matching cache alive until all dependent kernels finish.
+// Inter-stage rotations can read the global N-element table prepared by
+// ThunderFFTInitialize<T>(N). Keep the matching cache alive until all
+// dependent kernels finish, for both directions and both precisions.
 template <typename T, int N, int batch, bool forward>
 __device__ __forceinline__ void
 ThunderFFT_kernel_reg(vec2_t<T>* __restrict__ reg, vec2_t<T>* __restrict__ W, void *workspace);

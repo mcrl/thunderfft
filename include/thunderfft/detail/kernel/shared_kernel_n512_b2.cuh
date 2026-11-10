@@ -244,7 +244,7 @@ ThunderFFT_kernel_reg<half, 512, 2, true>(vec2_t<half>* __restrict__ reg,
         idx = idx + idx / L_in::pad_period * L_in::pad;
 
         reg[i] = smem[idx];
-        rotate(reg[i], row * col, 512);
+        unit_fp16::rotate_n_cached<512, true>(reg[i], row * col);
     }
 
     half2 b[1];

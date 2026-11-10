@@ -1,0 +1,19 @@
+test_cli_and_numeric_table_order (test_report_builder.ReportTests.test_cli_and_numeric_table_order) ... ok
+test_exact_aggregates_and_trial_bounds (test_report_builder.ReportTests.test_exact_aggregates_and_trial_bounds) ... ok
+test_instrumented_exception_rejects_unrelated_error_or_hazard (test_report_builder.ReportTests.test_instrumented_exception_rejects_unrelated_error_or_hazard) ... ok
+test_instrumented_exception_requires_pinned_semantics_and_flags (test_report_builder.ReportTests.test_instrumented_exception_requires_pinned_semantics_and_flags) ... ok
+test_instrumented_timing_exception_is_explicit (test_report_builder.ReportTests.test_instrumented_timing_exception_is_explicit) ... ok
+test_missing_trials_is_explicit (test_report_builder.ReportTests.test_missing_trials_is_explicit) ... ok
+test_ordinary_performance_rc1_remains_failure (test_report_builder.ReportTests.test_ordinary_performance_rc1_remains_failure) ... ok
+test_rejects_changed_candidate_source (test_report_builder.ReportTests.test_rejects_changed_candidate_source) ... ok
+test_rejects_failed_validation_and_incomplete_coverage (test_report_builder.ReportTests.test_rejects_failed_validation_and_incomplete_coverage) ... ok
+test_rejects_incomplete_and_wrong_protocol (test_report_builder.ReportTests.test_rejects_incomplete_and_wrong_protocol) ... ok
+test_rejects_summary_and_gpu_mismatch (test_report_builder.ReportTests.test_rejects_summary_and_gpu_mismatch) ... ok
+test_v2_full_validation_and_actual_sanitizer_scope (test_report_builder.ReportTests.test_v2_full_validation_and_actual_sanitizer_scope) ... ok
+test_v2_rejects_incomplete_input_patterns (test_report_builder.ReportTests.test_v2_rejects_incomplete_input_patterns) ... ok
+test_v2_rejects_missing_or_nonzero_sanitizer_evidence (test_report_builder.ReportTests.test_v2_rejects_missing_or_nonzero_sanitizer_evidence) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.143s
+
+OK

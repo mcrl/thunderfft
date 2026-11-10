@@ -1,0 +1,13 @@
+{
+  "operation": "CPU-only baseline reconstruction plus selected-source.patch; no GPU/network commands",
+  "baseline_head": "00bc845d0f3119fa405517cc601126bdbd9b3351",
+  "baseline_files": 28,
+  "additional_candidate_validator_files": [
+    "sample/validation/CMakeLists.txt",
+    "sample/validation/cache_validation.cu",
+    "sample/validation/fft_validation.cu"
+  ],
+  "candidate_files_checked": 31,
+  "all_candidate_hashes_match": true,
+  "patch_sha256": "1751da53933e5fe91a60d8c8ae25cb1da3080a72b5e70cb0c7c1d8be50b0a298"
+}

@@ -2,6 +2,18 @@ namespace thunderfft::unit_fp16 {
 
 static constexpr int warp_size = 32;
 
+// Initialize<half>(N) supplies the positive-angle table. Keep the lookup and
+// packed FP16 complex multiply in each FFT; only the coefficient evaluation
+// changes. Every supported architecture uses the same prepared table.
+template <int N, bool Forward>
+__device__ __forceinline__ void rotate_n_cached(half2& value, int index) {
+    const half2 cached = __ldg(ThunderFFT_get_twiddle<half>() + index);
+    const half2 factor = Forward
+        ? __halves2half2(__low2half(cached), __hneg(__high2half(cached)))
+        : cached;
+    value = cmul(value, factor);
+}
+
 __device__ __forceinline__ float W_cos(int index, int N) {
     return __cosf(-2 * PI * index / N);
 }

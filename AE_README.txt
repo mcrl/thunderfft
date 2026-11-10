@@ -380,7 +380,7 @@ To regenerate tables from an existing paper collection, without GPU work:
 5. Recorded validation
 -----------------------
 
-Checks below were run on 2026-11-09 at the stated source revisions.
+Historical workflow checks below were run on 2026-11-09 at the stated revisions.
 
 | Revision / mode | Measured result |
 | --- | --- |
@@ -408,7 +408,14 @@ Checks below were run on 2026-11-09 at the stated source revisions.
   cuFFTDx FP16 boundaries: 11/9/8/7 for N=64/256/1024/4096.
   Full smoke: 32 raw rows, four summary rows, 2.6 seconds.
   Both modes passed offline assembly and independent evidence checks.
-- Latest implementation checks passed 556 CPU tests.
+- On 2026-11-10, selected Table 3 kernels were optimized with twiddle-table
+  reuse and single-warp synchronization. The matched before/after report is
+  artifact/table3/reference/twiddle-sync-20261110/before-after.md; its README
+  records the tested GPUs and validation coverage. The report preserves paper
+  settings, includes all 28 ThunderFFT configurations per measured GPU, and
+  separates repeated compute time from single-FFT end-to-end time. It does
+  not replace paper targets or remeasure cuFFTDx/the complete workflow.
+- Latest implementation checks passed 732 CPU tests.
 - These checks validate the listed revisions/modes; they are not a measured
   end-to-end run of the combined new default or expanded full workflow.
 

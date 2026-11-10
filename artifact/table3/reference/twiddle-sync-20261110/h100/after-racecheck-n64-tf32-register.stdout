@@ -1,0 +1,2 @@
+N,precision,placement,batch,inside_repeats,trial,t_R_us,t_2R_us,compute_us,e2e_out_of_place_us,single_fft_relL2,shared_bytes
+64,tf32,register,32,32,0,6973.76013,7833.60004,26.8699974,6627.39868,0.00132661954756,8704

@@ -1,0 +1,305 @@
+--- before/include/thunderfft/detail/kernel/shared_kernel_n1024_b1.cuh
++++ after/include/thunderfft/detail/kernel/shared_kernel_n1024_b1.cuh
+@@ -125,8 +125,8 @@
+ 
+         reg[i] = smem[index0];
+         reg[i+ept/2] = smem[index1];
+-        rotate(reg[i], col0 * rev_row, 1024);
+-        rotate(reg[i+ept/2], col1 * rev_row, 1024);
++        unit_fp16::rotate_n_cached<1024, true>(reg[i], col0 * rev_row);
++        unit_fp16::rotate_n_cached<1024, true>(reg[i+ept/2], col1 * rev_row);
+ 
+         
+         // __syncthreads();
+@@ -171,8 +171,8 @@
+         reg[i] = smem[index0];
+         reg[i+ept/2] = smem[index1];
+         
+-        rotate(reg[i], -col0 * rev_row, 1024);
+-        rotate(reg[i+ept/2], -col1 * rev_row, 1024);
++        unit_fp16::rotate_n_cached<1024, false>(reg[i], col0 * rev_row);
++        unit_fp16::rotate_n_cached<1024, false>(reg[i+ept/2], col1 * rev_row);
+     }
+ 
+     thunderfft::unit_fp16::fft_kernel_r16_b64<false>(reg, W_reg);
+--- before/include/thunderfft/detail/kernel/shared_kernel_n128_b8.cuh
++++ after/include/thunderfft/detail/kernel/shared_kernel_n128_b8.cuh
+@@ -13,7 +13,7 @@
+ 
+     for (int i = 0; i < ept / 2; i++) {
+         int idx = i + (laneid % 4) * 16;
+-        rotate(reg[i + ept / 2], idx, 128);
++        unit::rotate_cached_table<128>(reg[i + ept / 2], idx);
+ 
+         auto t1 = reg[i] + reg[i + ept / 2];
+         auto t2 = reg[i] - reg[i + ept / 2];
+@@ -33,7 +33,7 @@
+ 
+     for (int i = 0; i < ept / 2; i++) {
+         int idx = i + (laneid % 4) * 16;
+-        rotate(reg[i + ept / 2], -idx, 128);
++        unit::rotate_cached_table<128, false>(reg[i + ept / 2], idx);
+ 
+         auto t1 = reg[i] + reg[i + ept / 2];
+         auto t2 = reg[i] - reg[i + ept / 2];
+@@ -54,7 +54,7 @@
+ 
+     for (int i = 0; i < ept / 2; i++) { 
+         int idx = i + (laneid % 4)*16 ;
+-        rotate(reg[i + ept / 2], idx, 128);
++        unit_fp16::rotate_n_cached<128, true>(reg[i + ept / 2], idx);
+ 
+ 
+         auto t1 = reg[i] + reg[i + ept / 2];
+@@ -76,7 +76,7 @@
+ 
+     for (int i = 0; i < ept / 2; i++) { 
+         int idx = i + (laneid % 4)*16 ;
+-        rotate(reg[i + ept / 2], -idx, 128);
++        unit_fp16::rotate_n_cached<128, false>(reg[i + ept / 2], idx);
+ 
+ 
+         auto t1 = reg[i] + reg[i + ept / 2];
+--- before/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh
++++ after/include/thunderfft/detail/kernel/shared_kernel_n256_b16.cuh
+@@ -59,8 +59,8 @@
+                 // reg[i*4+j+16] = s_out_1[0];
+                 
+                 if (j != 0) {
+-                    rotate(reg[i*4+j], x * j, 256);
+-                    rotate(reg[i*4+j+16], x * j, 256);
++                    unit::rotate_cached_table<256>(reg[i*4+j], x * j);
++                    unit::rotate_cached_table<256>(reg[i*4+j+16], x * j);
+                 }
+             }
+         }
+--- before/include/thunderfft/detail/kernel/shared_kernel_n512_b2.cuh
++++ after/include/thunderfft/detail/kernel/shared_kernel_n512_b2.cuh
+@@ -244,7 +244,7 @@
+         idx = idx + idx / L_in::pad_period * L_in::pad;
+ 
+         reg[i] = smem[idx];
+-        rotate(reg[i], row * col, 512);
++        unit_fp16::rotate_n_cached<512, true>(reg[i], row * col);
+     }
+ 
+     half2 b[1];
+--- before/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh
++++ after/include/thunderfft/detail/kernel/unit_kernel_fp16.cuh
+@@ -1,6 +1,18 @@
+ namespace thunderfft::unit_fp16 {
+ 
+ static constexpr int warp_size = 32;
++
++// Initialize<half>(N) supplies the positive-angle table. Keep the lookup and
++// packed FP16 complex multiply in each FFT; only the coefficient evaluation
++// changes. Every supported architecture uses the same prepared table.
++template <int N, bool Forward>
++__device__ __forceinline__ void rotate_n_cached(half2& value, int index) {
++    const half2 cached = __ldg(ThunderFFT_get_twiddle<half>() + index);
++    const half2 factor = Forward
++        ? __halves2half2(__low2half(cached), __hneg(__high2half(cached)))
++        : cached;
++    value = cmul(value, factor);
++}
+ 
+ __device__ __forceinline__ float W_cos(int index, int N) {
+     return __cosf(-2 * PI * index / N);
+--- before/include/thunderfft/detail/kernel/unit_kernel_fp32.cuh
++++ after/include/thunderfft/detail/kernel/unit_kernel_fp32.cuh
+@@ -1,4 +1,13 @@
+ namespace thunderfft::unit {
++// Use the initialized transform's read-only twiddle table for the selected
++// inter-stage rotations. The load and complex multiply remain in each FFT,
++// including single-pass kernels; no precision or FFT stage is changed.
++template <int N, bool Forward = true>
++__device__ __forceinline__ void rotate_cached_table(float2& value, int index) {
++    const float2 factor = __ldg(ThunderFFT_get_twiddle<float>() + index);
++    value = cmul(value, make_float2(factor.x, Forward ? -factor.y : factor.y));
++}
++
+ __device__ __forceinline__ float W_cos(int index, int N) {
+     return __cosf(-2 * PI * index / N);
+ }
+@@ -492,4 +501,4 @@
+     }
+ }
+ 
+-} // namespace thunderfft::detail::unit
+\ No newline at end of file
++} // namespace thunderfft::detail::unit
+--- before/include/thunderfft/thunderfft.cuh
++++ after/include/thunderfft/thunderfft.cuh
+@@ -195,9 +195,9 @@
+ // the global N-element twiddle table; a null W is not valid for every variant.
+ // Follow the matching sample's coefficient setup and shared-memory barriers.
+ // Initialization and inverse normalization rules are the same as above.
+-// In particular, the half N=256 and SM80 float N=1024 specializations read
+-// their global tables from ThunderFFTInitialize<T>(N) in both directions;
+-// keep the matching cache alive until all dependent kernels finish.
++// Inter-stage rotations can read the global N-element table prepared by
++// ThunderFFTInitialize<T>(N). Keep the matching cache alive until all
++// dependent kernels finish, for both directions and both precisions.
+ template <typename T, int N, int batch, bool forward>
+ __device__ __forceinline__ void
+ ThunderFFT_kernel_reg(vec2_t<T>* __restrict__ reg, vec2_t<T>* __restrict__ W, void *workspace);
+--- before/sample/bench/baseline/thunderfft_bench.h
++++ after/sample/bench/baseline/thunderfft_bench.h
+@@ -4,6 +4,19 @@
+ #include "helper.h"
+ 
+ namespace thunderfft {
++// These benchmark launches contain complete warps and no inactive lanes.
++// N=64/128/512 use a single warp, so warp synchronization orders all of their
++// shared-memory accesses. Keep block barriers for TF32 N=128 and all N=1024:
++// their cached-twiddle paths generate faster kernels with block synchronization.
++// Multi-warp transforms always retain their block-wide synchronization.
++template<typename T, int N>
++__device__ __forceinline__ void benchmark_memory_sync() {
++    if constexpr (N == 64 || (N == 128 && std::is_same_v<T, half>) || N == 512)
++        __syncwarp(0xffffffffu);
++    else
++        __syncthreads();
++}
++
+ template <typename T, int N, bool forward>
+ __global__ void ThunderFFT_benchmark_reg(
+     vec2_t<T>*       d_input,
+@@ -32,10 +45,10 @@
+ 
+ 
+     ThunderFFT_gmem2smem<T, L_in>(s_in, d_input + blockIdx.x * BPB * N);
+-    __syncthreads();
+-
+-    ThunderFFT_smem2reg<T, L_in>(reg, s_in);
+-    __syncthreads();
++    benchmark_memory_sync<T, N>();
++
++    ThunderFFT_smem2reg<T, L_in>(reg, s_in);
++    benchmark_memory_sync<T, N>();
+ 
+ 
+     // ThunderFFT_gmem2reg<T, N, BPB>(reg, d_input+blockIdx.x * BPB * N);
+@@ -43,14 +56,14 @@
+     #pragma unroll 1
+     for(int i=0; i<inside_repeats; i++) {
+         ThunderFFT_kernel_reg<T, N, BPB, forward>(reg, (vec2_t<T>*)W, s_in);
+-        __syncthreads();
+-    }
+-
+-    ThunderFFT_reg2smem<T, L_out>(s_in, reg);
+-    __syncthreads();
+-
+-    ThunderFFT_smem2gmem<T, L_out>(d_output + blockIdx.x * BPB * N, s_in);
+-    __syncthreads();
++        benchmark_memory_sync<T, N>();
++    }
++
++    ThunderFFT_reg2smem<T, L_out>(s_in, reg);
++    benchmark_memory_sync<T, N>();
++
++    ThunderFFT_smem2gmem<T, L_out>(d_output + blockIdx.x * BPB * N, s_in);
++    benchmark_memory_sync<T, N>();
+ 
+     // ThunderFFT_reg2gmem<T, N, BPB>(d_output+blockIdx.x * BPB * N, reg);
+ 
+@@ -81,21 +94,21 @@
+     }
+ 
+     ThunderFFT_gmem2smem<T, L_in>(s_in, d_input + blockIdx.x * BPB * N);
+-    __syncthreads();
+-
+-    ThunderFFT_smem2reg<T, L_in>(reg, s_in);
+-    __syncthreads();
++    benchmark_memory_sync<T, N>();
++
++    ThunderFFT_smem2reg<T, L_in>(reg, s_in);
++    benchmark_memory_sync<T, N>();
+ 
+ 
+     ThunderFFT_kernel_reg<T, N, BPB, forward>(reg, (vec2_t<T>*)W, s_in);
+-    __syncthreads();
+-
+-    
+-    ThunderFFT_reg2smem<T, L_out>(s_in, reg);
+-    __syncthreads();
+-
+-    ThunderFFT_smem2gmem<T, L_out>(d_output + blockIdx.x * BPB * N, s_in);
+-    __syncthreads();
++    benchmark_memory_sync<T, N>();
++
++    
++    ThunderFFT_reg2smem<T, L_out>(s_in, reg);
++    benchmark_memory_sync<T, N>();
++
++    ThunderFFT_smem2gmem<T, L_out>(d_output + blockIdx.x * BPB * N, s_in);
++    benchmark_memory_sync<T, N>();
+ 
+ }
+ 
+@@ -166,24 +179,24 @@
+     using L_out = std::conditional_t<forward, L_fwd_out, L_fwd_in>;
+ 
+     ThunderFFT_gmem2smem<T, L_in>(s_in, d_input + blockIdx.x * BPB * N);
+-    __syncthreads();
++    benchmark_memory_sync<T, N>();
+ 
+ 
+ 
+     #pragma unroll 1
+     for(int i=0; i<inside_repeats; i++) {
+     ThunderFFT_smem2reg<T, L_in>(reg, s_in);
+-    __syncthreads();
++    benchmark_memory_sync<T, N>();
+ 
+     ThunderFFT_kernel_reg<T, N, BPB, forward>(reg, W, s_in);
+-    __syncthreads();
+-
+-    ThunderFFT_reg2smem<T, L_out>(s_in, reg);
+-    __syncthreads();
+-    }
+-
+-    ThunderFFT_smem2gmem<T, L_out>(d_output + blockIdx.x * BPB * N, s_in);
+-    __syncthreads();
++    benchmark_memory_sync<T, N>();
++
++    ThunderFFT_reg2smem<T, L_out>(s_in, reg);
++    benchmark_memory_sync<T, N>();
++    }
++
++    ThunderFFT_smem2gmem<T, L_out>(d_output + blockIdx.x * BPB * N, s_in);
++    benchmark_memory_sync<T, N>();
+ 
+ }
+ 
+@@ -212,19 +225,19 @@
+     using L_out = std::conditional_t<forward, L_fwd_out, L_fwd_in>;
+ 
+     ThunderFFT_gmem2smem<T, L_in>(s_in, d_input + blockIdx.x * BPB * N);
+-    __syncthreads();
+-
+-    ThunderFFT_smem2reg<T, L_in>(reg, s_in);
+-    __syncthreads();
++    benchmark_memory_sync<T, N>();
++
++    ThunderFFT_smem2reg<T, L_in>(reg, s_in);
++    benchmark_memory_sync<T, N>();
+ 
+     ThunderFFT_kernel_reg<T, N, BPB, forward>(reg, W, s_in);
+-    __syncthreads();
+-
+-    ThunderFFT_reg2smem<T, L_out>(s_in, reg);
+-    __syncthreads();
+-
+-    ThunderFFT_smem2gmem<T, L_out>(d_output + blockIdx.x * BPB * N, s_in);
+-    __syncthreads();
++    benchmark_memory_sync<T, N>();
++
++    ThunderFFT_reg2smem<T, L_out>(s_in, reg);
++    benchmark_memory_sync<T, N>();
++
++    ThunderFFT_smem2gmem<T, L_out>(d_output + blockIdx.x * BPB * N, s_in);
++    benchmark_memory_sync<T, N>();
+ }
+ 
+ template <typename T, unsigned int N>
